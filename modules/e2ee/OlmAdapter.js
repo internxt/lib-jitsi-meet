@@ -279,9 +279,10 @@ export class OlmAdapter extends Listenable {
      * @private
      */
     async _encapsulateKey(publicKey) {
-        const kem = await kemBuilder();
-
-        const { ciphertext, sharedSecret } = await kem.encapsulate(publicKey);
+        if (this._kem === undefined) {
+            this._kem = await kemBuilder();
+        }
+        const { ciphertext, sharedSecret } = await this._kem.encapsulate(publicKey);
 
         return { ciphertext,
             sharedSecret };
@@ -295,9 +296,10 @@ export class OlmAdapter extends Listenable {
      * @private
      */
     async _decapsulateKey(ciphertext, privateKey) {
-        const kem = await kemBuilder();
-
-        const { sharedSecret } = await kem.decapsulate(ciphertext, privateKey);
+        if (this._kem === undefined) {
+            this._kem = await kemBuilder();
+        }
+        const { sharedSecret } = await this._kem.decapsulate(ciphertext, privateKey);
 
         return { sharedSecret };
     }
