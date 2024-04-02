@@ -173,21 +173,17 @@ export class OlmAdapter extends Listenable {
             let encryptedCiphertext, encryptedSharedKey;
 
             try {
-                const publicKeyInt8 = base64js.toByteArray(olmData.publicKey);
-                const { sharedSecret, ciphertext } = await this._encapsulateKey(publicKeyInt8);
-                const sessionEncrypted = JSON.stringify(this._encryptKeyInfo(olmData.session));
+                const { encryptedCiphertext: ciphertext, encryptedSharedSecret }
+                    = await this._encryptSession(olmData.session, olmData.publicKey);
 
-                const encoder = new TextEncoder();
-                const sessionEncryptedEncoded = encoder.encode(sessionEncrypted);
-
-                encryptedCiphertext = await encryptSymmetric(sessionEncryptedEncoded, sharedSecret);
-                encryptedCiphertext = base64js.fromByteArray(encryptedCiphertext);
-                encryptedSharedKey = base64js.fromByteArray(ciphertext);
-            } catch (err) {
-                console.error('[ERROR_ENCRYPTION]: error while updating key', err);
+                encryptedCiphertext = ciphertext;
+                encryptedSharedKey = encryptedSharedSecret;
+            } catch (error) {
+                console.error('[ERROR_ENCRYPTION]: update key failed ', error);
             }
 
-            console.log('SENT UPDATE KEY', encryptedCiphertext, encryptedSharedKey);
+            console.debug('Sending KEY_INFO', { encryptedCiphertext,
+                encryptedSharedKey });
 
             const uuid = uuidv4();
             const data = {
@@ -195,7 +191,6 @@ export class OlmAdapter extends Listenable {
                 olm: {
                     type: OLM_MESSAGE_TYPES.KEY_INFO,
                     data: {
-                        //  ciphertext: this._encryptKeyInfo(olmData.session),
                         encryptedCiphertext,
                         encryptedSharedKey,
                         uuid
@@ -488,7 +483,7 @@ export class OlmAdapter extends Listenable {
     /**
      * Internal helper for encrypting the session information for a given participant
      *
-     * @param {Olm.Session} session - Participant's session.
+     * @param {Olm.Session} session - Participant's raw session.
      * @param {string} publicKey - Participant's public key in base 64.
      * @returns {Promise<{encryptedSharedSecret: string,
      *     encryptedCiphertext: string,
@@ -522,16 +517,16 @@ export class OlmAdapter extends Listenable {
     /**
      * Internal helper for decrypting the session information for a given participant with own private key.
      *
-     * @param {string} encryptedSharedKey - Encapsulated sharedSecret in base 64.
-     * @param {string} encryptedCiphertext - ciphertext in base 64.
+     * @param {string} encryptedSharedSecret - encapsulated sharedSecret in base 64.
+     * @param {string} encryptedCiphertext - encrypted session ciphertext in base 64.
      * @returns {Promise<{ sessionCiphertext: any,
-    *     sharedSecret: Uint8Array}>} - Returns an object with the raw/encrypted shared secret and encrypted session.
+    *     sharedSecret: Uint8Array}>} - Returns an object with the raw shared secret and session ciphertext.
     * @private
      */
-    async _decryptSession(encryptedSharedKey, encryptedCiphertext) {
+    async _decryptSession(encryptedSharedSecret, encryptedCiphertext) {
         try {
-            const encryptedSharedKeyUnit8 = base64js.toByteArray(encryptedSharedKey);
-            const { sharedSecret } = await this._decapsulateKey(encryptedSharedKeyUnit8, this._privateKey);
+            const encryptedSharedSecretUnit8 = base64js.toByteArray(encryptedSharedSecret);
+            const { sharedSecret } = await this._decapsulateKey(encryptedSharedSecretUnit8, this._privateKey);
             const cipherTextUnit8 = await decryptSymmetric(base64js.toByteArray(encryptedCiphertext), sharedSecret);
             const decoder = new TextDecoder();
 
@@ -640,7 +635,6 @@ export class OlmAdapter extends Listenable {
                     olm: {
                         type: OLM_MESSAGE_TYPES.SESSION_ACK,
                         data: {
-                            // ciphertext: this._encryptKeyInfo(session),
                             uuid: msg.data.uuid,
                             encryptedPublicKey,
                             encryptedSharedKey,
@@ -663,21 +657,13 @@ export class OlmAdapter extends Listenable {
                 let ciphertext;
 
                 try {
-                    const encryptedSharedKey = msg.data.encryptedSharedKey;
+                    const encryptedSharedSecret = msg.data.encryptedSharedKey;
                     const encryptedPublicKey = msg.data.encryptedPublicKey;
                     const encryptedSession = msg.data.encryptedCiphertext;
 
-                    const decryptedData = await this._decryptSession(encryptedSharedKey, encryptedSession);
+                    const decryptedData = await this._decryptSession(encryptedSharedSecret, encryptedSession);
 
                     ciphertext = decryptedData.sessionCiphertext;
-
-                    // TODO: remove this if _decryptSession is working as expected
-                    // eslint-disable-next-line max-len
-                    // const { sharedSecret } = await this._decapsulateKey(base64js.toByteArray(encryptedSharedKey), this._privateKey);
-                    // eslint-disable-next-line max-len
-                    // const cipherTextUnit8 = await decryptSymmetric(base64js.toByteArray(msg.data.encryptedCiphertext), sharedSecret);
-                    // const decoder = new TextDecoder();
-                    // ciphertext = JSON.parse(decoder.decode(cipherTextUnit8));
 
                     const publicKeyUnit8
                         = await decryptSymmetric(base64js.toByteArray(encryptedPublicKey), decryptedData.sharedSecret);
@@ -689,8 +675,6 @@ export class OlmAdapter extends Listenable {
                     this._sendError(participant, 'Error decrypting participant session data while session init');
                 }
 
-                // TODO: remove this if ciphertext is set correctly.
-                // const { ciphertext } = msg.data;
                 const d = this._reqs.get(msg.data.uuid);
                 const session = new Olm.Session();
 
@@ -733,24 +717,21 @@ export class OlmAdapter extends Listenable {
         }
         case OLM_MESSAGE_TYPES.KEY_INFO: {
             if (olmData.session) {
-                console.log(`KEY INFO RECEIVED ${msg.data}`, msg.data);
+                console.debug('[EVENT_KEY_INFO]: received ', msg.data);
 
                 let ciphertext;
 
                 try {
-                    const { encryptedSharedKey, encryptedCiphertext } = msg.data;
+                    const encryptedSharedSecret = msg.data.encryptedSharedKey;
+                    const encryptedSession = msg.data.encryptedCiphertext;
 
-                    const encryptedSharedKeyUnit8 = base64js.toByteArray(encryptedSharedKey);
-                    const { sharedSecret } = await this._decapsulateKey(encryptedSharedKeyUnit8, this._privateKey);
-                    // eslint-disable-next-line max-len
-                    const cipherTextUnit8 = await decryptSymmetric(base64js.toByteArray(encryptedCiphertext), sharedSecret);
-                    const decoder = new TextDecoder();
+                    const decryptedData = await this._decryptSession(encryptedSharedSecret, encryptedSession);
 
-                    ciphertext = JSON.parse(decoder.decode(cipherTextUnit8));
+                    ciphertext = decryptedData.sessionCiphertext;
 
-                    console.log('key info', ciphertext);
-                } catch (error) {
-                    console.log('[ENCRYPTION_ERROR] error while receiving key info event ', error);
+                } catch (err) {
+                    console.error('[ERROR_DECRYPTION]: KEY_INFO failed ', err);
+                    this._sendError(participant, 'Error decrypting participant session data on KEY_INFO event');
                 }
 
                 const data = olmData.session.decrypt(ciphertext.type, ciphertext.body);
@@ -768,20 +749,15 @@ export class OlmAdapter extends Listenable {
                     let encryptedCiphertext, encryptedSharedKey;
 
                     try {
-                        const publicKeyInt8 = base64js.toByteArray(olmData.publicKey);
-                        // eslint-disable-next-line max-len
-                        const { sharedSecret, ciphertext: encryptedSharedSecret } = await this._encapsulateKey(publicKeyInt8);
-                        const sessionEncrypted = JSON.stringify(this._encryptKeyInfo(olmData.session));
+                        const { encryptedCiphertext: encryptedSessionCiphertext, encryptedSharedSecret }
+                            = await this._encryptSession(olmData.session, olmData.publicKey);
 
-                        const encoder = new TextEncoder();
-                        const sessionEncryptedEncoded = encoder.encode(sessionEncrypted);
-
-                        encryptedCiphertext = await encryptSymmetric(sessionEncryptedEncoded, sharedSecret);
-                        encryptedCiphertext = base64js.fromByteArray(encryptedCiphertext);
-                        encryptedSharedKey = base64js.fromByteArray(encryptedSharedSecret);
+                        encryptedCiphertext = encryptedSessionCiphertext;
+                        encryptedSharedKey = encryptedSharedSecret;
                     } catch (err) {
-                        console.error('[ERROR_ENCRYPTION]: error while encrypting key info to send key info ack', err);
+                        console.error('[ERROR_ENCRYPTION]: error while encrypting key info to send KEY_INFO_ACK', err);
                     }
+
 
                     // Send ACK.
                     const ack = {
@@ -789,7 +765,6 @@ export class OlmAdapter extends Listenable {
                         olm: {
                             type: OLM_MESSAGE_TYPES.KEY_INFO_ACK,
                             data: {
-                                //  ciphertext: this._encryptKeyInfo(olmData.session),
                                 encryptedCiphertext,
                                 encryptedSharedKey,
                                 uuid: msg.data.uuid
@@ -808,27 +783,24 @@ export class OlmAdapter extends Listenable {
         }
         case OLM_MESSAGE_TYPES.KEY_INFO_ACK: {
             if (olmData.session) {
-                console.log('received key info ack ', msg.data);
-
-                console.log(`KEY INFO RECEIVED ${msg.data}`, msg.data);
+                // TODO: remove logs
+                console.debug('[EVENT_KEY_INFO_ACK] key info ack ', msg.data);
 
                 let ciphertext;
 
                 try {
-                    const { encryptedSharedKey, encryptedCiphertext } = msg.data;
+                    const encryptedSharedSecret = msg.data.encryptedSharedKey;
+                    const encryptedSession = msg.data.encryptedCiphertext;
 
-                    const encryptedSharedKeyUnit8 = base64js.toByteArray(encryptedSharedKey);
-                    const { sharedSecret } = await this._decapsulateKey(encryptedSharedKeyUnit8, this._privateKey);
-                    // eslint-disable-next-line max-len
-                    const cipherTextUnit8 = await decryptSymmetric(base64js.toByteArray(encryptedCiphertext), sharedSecret);
-                    const decoder = new TextDecoder();
+                    const decryptedData = await this._decryptSession(encryptedSharedSecret, encryptedSession);
 
-                    ciphertext = JSON.parse(decoder.decode(cipherTextUnit8));
+                    ciphertext = decryptedData.sessionCiphertext;
 
-                    console.log('key info', ciphertext);
                 } catch (error) {
-                    console.log('[ENCRYPTION_ERROR] error while receiving key info event ', error);
+                    console.error('[ENCRYPTION_ERROR] error while receiving key info event ', error);
+                    this._sendError(participant, 'Error decrypting participant session data on KEY_INFO_ACK event');
                 }
+
 
                 const data = olmData.session.decrypt(ciphertext.type, ciphertext.body);
                 const json = safeJsonParse(data);
@@ -1178,19 +1150,15 @@ export class OlmAdapter extends Listenable {
                     let encryptedCiphertext, encryptedSharedKey;
 
                     try {
-                        const publicKeyInt8 = base64js.toByteArray(olmData.publicKey);
-                        const { sharedSecret, ciphertext } = await this._encapsulateKey(publicKeyInt8);
-                        const sessionEncrypted = JSON.stringify(this._encryptKeyInfo(olmData.session));
+                        const { encryptedCiphertext: ciphertext, encryptedSharedSecret }
+                            = await this._encryptSession(olmData.session, olmData.publicKey);
 
-                        const encoder = new TextEncoder();
-                        const sessionEncryptedEncoded = encoder.encode(sessionEncrypted);
-
-                        encryptedCiphertext = await encryptSymmetric(sessionEncryptedEncoded, sharedSecret);
-                        encryptedCiphertext = base64js.fromByteArray(encryptedCiphertext);
-                        encryptedSharedKey = base64js.fromByteArray(ciphertext);
-                    } catch (err) {
-                        console.error('[ERROR_ENCRYPTION]: error while updating key', err);
+                        encryptedCiphertext = ciphertext;
+                        encryptedSharedKey = encryptedSharedSecret;
+                    } catch (error) {
+                        console.error('[ERROR_ENCRYPTION]: error while updating key ', error);
                     }
+
 
                     console.log('SEND KEY_INFO ON E2E ENABLED', encryptedCiphertext, encryptedSharedKey);
                     const data = {
@@ -1198,7 +1166,6 @@ export class OlmAdapter extends Listenable {
                         olm: {
                             type: OLM_MESSAGE_TYPES.KEY_INFO,
                             data: {
-                                ciphertext: this._encryptKeyInfo(olmData.session),
                                 encryptedCiphertext,
                                 encryptedSharedKey,
                                 uuid
