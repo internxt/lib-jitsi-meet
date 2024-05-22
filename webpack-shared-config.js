@@ -34,6 +34,16 @@ module.exports = (minimize, analyzeBundle) => {
                     search: '{#COMMIT_HASH#}'
                 },
                 test: path.join(__dirname, 'JitsiMeetJS.ts')
+            },{
+                // Fix pqc-kem-kyber512-browser dependency webpack using https://github.com/Dashlane/pqc.js/blob/main/bundle/webpack.config.kem.babel.js
+
+                loader: 'string-replace-loader',
+                options: {
+                    search: 'import.meta.url',
+                    replace: '\'/libs/\'',
+                    flags: 'g'
+                },
+                test: /pqc-kem-kyber512-browser/
             }, {
                 // Transpile ES2015 (aka ES6) to ES5.
 
