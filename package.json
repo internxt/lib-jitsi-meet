@@ -1,10 +1,10 @@
 {
-  "name": "lib-jitsi-meet",
-  "version": "0.0.0",
+  "name": "lib-internxt-meet",
+  "version": "0.0.3",
   "description": "JS library for accessing Jitsi server side deployments",
   "repository": {
     "type": "git",
-    "url": "git://github.com/jitsi/lib-jitsi-meet"
+    "url": "git://https://github.com/internxt/lib-jitsi-meet"
   },
   "keywords": [
     "jingle",
@@ -13,7 +13,7 @@
     "browser",
     "jitsi"
   ],
-  "author": "",
+  "author": "Internxt",
   "readmeFilename": "README.md",
   "dependencies": {
     "@dashlane/pqc-kem-kyber512-browser": "^1.0.0",
