@@ -4,7 +4,7 @@
   "description": "JS library for accessing Jitsi server side deployments",
   "repository": {
     "type": "git",
-    "url": "git://github.com/jitsi/lib-jitsi-meet"
+    "url": "git://https://github.com/internxt/lib-jitsi-meet"
   },
   "keywords": [
     "jingle",
@@ -13,9 +13,10 @@
     "browser",
     "jitsi"
   ],
-  "author": "",
+  "author": "Internxt",
   "readmeFilename": "README.md",
   "dependencies": {
+    "@dashlane/pqc-kem-kyber512-browser": "^1.0.0",
     "@jitsi/js-utils": "2.2.1",
     "@jitsi/logger": "2.0.2",
     "@jitsi/rtcstats": "9.7.0",
@@ -23,6 +24,7 @@
     "@testrtc/watchrtc-sdk": "1.38.2",
     "async-es": "3.2.4",
     "base64-js": "1.3.1",
+    "buffer": "^6.0.3",
     "current-executing-script": "0.1.3",
     "jquery": "3.6.1",
     "lodash.clonedeep": "4.5.0",
@@ -45,6 +47,7 @@
     "@jitsi/eslint-config": "4.1.4",
     "@types/async": "3.2.12",
     "@types/jasmine": "4.0.3",
+    "@types/node": "^22.5.1",
     "@types/sdp-transform": "2.4.5",
     "babel-loader": "8.2.3",
     "core-js": "3.19.1",
@@ -59,7 +62,7 @@
     "process": "0.11.10",
     "string-replace-loader": "3.0.3",
     "typescript": "4.3.5",
-    "webpack": "5.76.0",
+    "webpack": "^5.94.0",
     "webpack-bundle-analyzer": "4.4.2",
     "webpack-cli": "4.9.0"
   },
