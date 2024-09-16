@@ -1,5 +1,4 @@
 import { getLogger } from '@jitsi/logger';
-import base64js from 'base64-js';
 import debounce from 'lodash.debounce';
 
 import * as JitsiConferenceEvents from '../../JitsiConferenceEvents';
@@ -82,26 +81,18 @@ export class ManagedKeyHandler extends KeyHandler {
      * @param {boolean} enabled - whether E2EE should be enabled or not.
      * @returns {void}
      */
-    async _setEnabled(enabled) {
-        if (enabled) {
-            await this._olmAdapter.initSessions();
-        } else {
-            this._olmAdapter.clearAllParticipantsSessions();
-        }
-
+    async _setEnabled() {
         // Generate a random key in case we are enabling.
-        this._olmKey = enabled ? this._generateKey() : false;
-        this._pqKey = enabled ? this._generateKey() : false;
+        logger.info('olm: _setEnabled keys are generated');
+        this._olmKey = this._generateKey();
+        this._pqKey = this._generateKey();
 
-        const { mediaKeyIndex: index, mediaKey: key } = await this._olmAdapter.updateKey(this._olmKey, this._pqKey);
+        const key = await this._olmAdapter.initSessionsAndSetMediaKey(this._olmKey, this._pqKey);
 
-        logger.info(`olm: my mediaKey is ${base64js.fromByteArray(key)} or ${key}`);
+        logger.info(`olm: _setEnabled my media key is ${key}`);
 
         // Set our key so we begin encrypting.
-        this.e2eeCtx.setKey(this.conference.myUserId(), key, index);
-
-        logger.info('_setEnabled is over');
-
+        this.e2eeCtx.setKey(this.conference.myUserId(), key, 0);
     }
 
     /**
@@ -114,15 +105,18 @@ export class ManagedKeyHandler extends KeyHandler {
      * @private
      */
     async _onParticipantPropertyChanged(participant, name, oldValue, newValue) {
-        switch (name) {
-        case 'e2ee.idKey':
-            logger.debug(`Participant ${participant.getId()} updated their id key: ${newValue}`);
-            break;
-        case 'e2ee.enabled':
-            if (!newValue && this.enabled) {
-                this._olmAdapter.clearParticipantSession(participant);
+
+        if (newValue !== oldValue) {
+            switch (name) {
+            case 'e2ee.idKey':
+                logger.debug(`Participant ${participant.getId()} updated their id key: ${newValue}`);
+                break;
+            case 'e2ee.enabled':
+                if (!newValue && this.enabled) {
+                    this._olmAdapter.clearParticipantSession(participant);
+                }
+                break;
             }
-            break;
         }
     }
 
@@ -195,10 +189,11 @@ export class ManagedKeyHandler extends KeyHandler {
 
         this._pqKey = new Uint8Array(newPqKey);
 
-        const { mediaKeyIndex: index, mediaKey: key }
-        = await this._olmAdapter.updateCurrentMediaKey(this._olmKey, this._pqKey);
+        const key = await this._olmAdapter.updateCurrentMediaKey(this._olmKey, this._pqKey);
 
-        this.e2eeCtx.setKey(this.conference.myUserId(), key, index);
+        this.mediaKeyIndex++;
+
+        this.e2eeCtx.setKey(this.conference.myUserId(), key, this.mediaKeyIndex);
     }
 
     /**
