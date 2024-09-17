@@ -74,7 +74,6 @@ export class OlmAdapter extends Listenable {
      * Creates an adapter instance for the given conference.
      */
     constructor(conference) {
-        logger.info('conference is constructed');
         super();
         this._conf = conference;
         this._kem = undefined;
@@ -138,8 +137,6 @@ export class OlmAdapter extends Listenable {
             this._sessionInitialization = true;
 
             // TODO: retry failed ones.
-
-            logger.info('initSessionsAndSetMediaKey finished');
 
             return key;
         }
@@ -218,8 +215,6 @@ export class OlmAdapter extends Listenable {
 
         await Promise.allSettled(promises);
 
-        logger.info(`updateKey is over with media key ${this._mediaKey}`);
-
         // TODO: retry failed ones?
 
         return { mediaKeyIndex: this._mediaKeyIndex,
@@ -261,12 +256,9 @@ export class OlmAdapter extends Listenable {
     */
     async updateCurrentMediaKey(olmKey, pqKey) {
 
-        logger.info('updateCurrentMediaKey started');
-
         this._mediaKey = await this.deriveKey(olmKey, pqKey);
         this._mediaKeyOlm = olmKey;
         this._mediaKeyPQ = pqKey;
-        logger.info('updateCurrentMediaKey finished');
 
         return this._mediaKey;
     }
@@ -630,7 +622,7 @@ export class OlmAdapter extends Listenable {
 
         switch (msg.type) {
         case OLM_MESSAGE_TYPES.SESSION_INIT: {
-            logger.info(`SESSION_INIT: got event from ${peerName}`);
+            logger.info(`Got SESSION_INIT from ${peerName}`);
 
             if (olmData.sessionEstablished === true) {
                 logger.error(`SESSION_INIT: Session with ${peerName} already established`);
@@ -685,7 +677,7 @@ export class OlmAdapter extends Listenable {
         }
         case OLM_MESSAGE_TYPES.PQ_SESSION_INIT: {
 
-            logger.info(`PQ_SESSION_INIT: got event from ${peerName}`);
+            logger.info(`Got PQ_SESSION_INIT from ${peerName}`);
 
             if (olmData.sessionEstablished === true) {
                 logger.error(`PQ_SESSION_INIT: Session for ${peerName} already established`);
@@ -735,7 +727,7 @@ export class OlmAdapter extends Listenable {
             break;
         }
         case OLM_MESSAGE_TYPES.PQ_SESSION_ACK: {
-            logger.info(`PQ_SESSION_ACK: got event from ${peerName}`);
+            logger.info(`Got PQ_SESSION_ACK from ${peerName}`);
 
             if (olmData.sessionEstablished === true) {
                 logger.error(`PQ_SESSION_ACK: Session with ${peerName} is already established`);
@@ -775,12 +767,13 @@ export class OlmAdapter extends Listenable {
                 this._sendMessage(ack, pId);
                 olmData.sessionEstablished.resolve();
                 olmData.sessionEstablished = true;
-                logger.info(`Session with ${peerName} is established`);
+
+                this._onParticipantE2EEChannelReady(peerName);
             }
             break;
         }
         case OLM_MESSAGE_TYPES.SESSION_ACK: {
-            logger.info(`SESSION_ACK: got event from ${peerName}`);
+            logger.info(`Got SESSION_ACK from ${peerName}`);
 
             if (olmData.sessionEstablished === true) {
                 logger.warn(`Session with ${peerName} is already established`);
@@ -797,11 +790,10 @@ export class OlmAdapter extends Listenable {
                 this._olmAccount.remove_one_time_keys(session);
                 olmData.session = session;
                 olmData.pendingSessionUuid = undefined;
-
-                this._onParticipantE2EEChannelReady(pId);
-
                 olmData.sessionEstablished.resolve();
                 olmData.sessionEstablished = true;
+
+                this._onParticipantE2EEChannelReady(peerName);
 
                 this._reqs.delete(msg.data.uuid);
                 d.resolve();
@@ -822,7 +814,7 @@ export class OlmAdapter extends Listenable {
             break;
         }
         case OLM_MESSAGE_TYPES.KEY_INFO: {
-            logger.info(`KEY_INFO started for ${peerName}`);
+            logger.info(`Got KEY_INFO from ${peerName}`);
 
             await olmData.sessionEstablished;
 
@@ -841,7 +833,7 @@ export class OlmAdapter extends Listenable {
                         olmData.lastKey = key;
                         const mediaKey = await this.deriveKey(key, pqKey);
 
-                        logger.info(`KEY_INFO: media key for ${peerName} is ${mediaKey}`);
+                        logger.info(`Media key for ${peerName} is ${base64js.fromByteArray(mediaKey)}`);
 
                         this.eventEmitter.emit(OlmAdapterEvents.PARTICIPANT_KEY_UPDATED,
                              pId, mediaKey, this._mediaKeyIndex++);
@@ -864,7 +856,6 @@ export class OlmAdapter extends Listenable {
                     };
 
                     this._sendMessage(ack, pId);
-                    logger.info(`KEY_INFO finished for ${peerName}`);
                 }
             } else {
                 logger.error(`Received KEY_INFO from ${peerName}) but we have no session for them!`);
@@ -875,7 +866,7 @@ export class OlmAdapter extends Listenable {
             break;
         }
         case OLM_MESSAGE_TYPES.KEY_INFO_ACK: {
-            logger.info(`KEY_INFO_ACK started for ${peerName}`);
+            logger.info(`Got KEY_INFO_ACK from ${peerName}`);
 
             await olmData.sessionEstablished;
             if (olmData.sessionEstablished === true) {
@@ -905,7 +896,6 @@ export class OlmAdapter extends Listenable {
                 this._reqs.delete(msg.data.uuid);
 
                 d.resolve();
-                logger.info(`KEY_INFO_ACK finished for ${peerName}`);
             } else {
                 logger.error(`Received KEY_INFO_ACK from ${peerName} but we have no session for them!`);
                 this._sendError(participant, `Received KEY_INFO_ACK from ${peerName} but we have no session for them!`);
@@ -1199,9 +1189,8 @@ export class OlmAdapter extends Listenable {
 
         switch (name) {
         case 'e2ee.enabled':
-            logger.info(`_onParticipantPropertyChanged media key ${this._mediaKey}`);
             if (newValue && newValue !== oldValue && this._conf.isE2EEEnabled()) {
-                logger.info(`_onParticipantPropertyChanged started e2ee.enabled for ${participant.getDisplayName()}`);
+                logger.info(`E2ee is enabled for ${participant.getDisplayName()}`);
                 const localParticipantId = this._conf.myUserId();
                 const participantFeatures = await participant.getFeatures();
 
@@ -1222,7 +1211,7 @@ export class OlmAdapter extends Listenable {
                         await this._sendSessionInit(participant);
 
                         logger.info(`_onParticipantPropertyChanged generated keys 
-                            and my media key is ${this._mediaKey}`);
+                            and my media key is ${base64js.fromByteArray(this._mediaKey)}`);
                     }
 
                     const d = new Deferred();
@@ -1239,18 +1228,15 @@ export class OlmAdapter extends Listenable {
 
                         const { ciphertextStr, ivStr } = await this._encryptKeyInfoPQ(olmData.pqSessionKey);
 
-                        const pqCiphertext = ciphertextStr;
-                        const iv = ivStr;
-
-                        logger.info('_onParticipantPropertyChanged sent KEY_INFO');
+                        logger.info(`_onParticipantPropertyChanged sent KEY_INFO to ${participant.getDisplayName()}`);
                         const data = {
                             [JITSI_MEET_MUC_TYPE]: OLM_MESSAGE_TYPE,
                             olm: {
                                 type: OLM_MESSAGE_TYPES.KEY_INFO,
                                 data: {
                                     ciphertext: this._encryptKeyInfo(olmData.session),
-                                    pqCiphertext,
-                                    iv,
+                                    pqCiphertext: ciphertextStr,
+                                    iv: ivStr,
                                     uuid
                                 }
                             }
@@ -1381,8 +1367,6 @@ export class OlmAdapter extends Listenable {
 
             // Store the UUID for matching with the ACK.
             olmData.pendingSessionUuid = uuid;
-
-            logger.info(`_sendSessionInit for ${participant.getDisplayName()} finished`);
 
             return d;
         } catch (e) {
