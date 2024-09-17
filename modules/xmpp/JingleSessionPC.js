@@ -3,11 +3,14 @@ import $ from 'jquery';
 import { $build, $iq, Strophe } from 'strophe.js';
 
 import { JitsiTrackEvents } from '../../JitsiTrackEvents';
+import { CodecMimeType } from '../../service/RTC/CodecMimeType';
 import { MediaDirection } from '../../service/RTC/MediaDirection';
 import { MediaType } from '../../service/RTC/MediaType';
+import { VideoType } from '../../service/RTC/VideoType';
 import {
     ICE_DURATION,
-    ICE_STATE_CHANGED
+    ICE_STATE_CHANGED,
+    VIDEO_CODEC_CHANGED
 } from '../../service/statistics/AnalyticsEvents';
 import { XMPPEvents } from '../../service/xmpp/XMPPEvents';
 import { SS_DEFAULT_FRAME_RATE } from '../RTC/ScreenObtainer';
@@ -399,6 +402,8 @@ export default class JingleSessionPC extends JingleSession {
         pcOptions.capScreenshareBitrate = false;
         pcOptions.codecSettings = options.codecSettings;
         pcOptions.enableInsertableStreams = options.enableInsertableStreams;
+        pcOptions.usesCodecSelectionAPI = this.usesCodecSelectionAPI
+            = browser.supportsCodecSelectionAPI() && options.testing?.enableCodecSelectionAPI && !this.isP2P;
 
         if (options.videoQuality) {
             const settings = Object.entries(options.videoQuality)
@@ -533,6 +538,7 @@ export default class JingleSessionPC extends JingleSession {
                 this._iceCheckingStartedTimestamp = now;
                 break;
             case 'connected':
+            case 'completed':
                 // Informs interested parties that the connection has been restored. This includes the case when
                 // media connection to the bridge has been restored after an ICE failure by using session-terminate.
                 if (this.peerconnection.signalingState === 'stable') {
@@ -947,13 +953,6 @@ export default class JingleSessionPC extends JingleSession {
     }
 
     /**
-     * Returns the video codec configured as the preferred codec on the peerconnection.
-     */
-    getConfiguredVideoCodec() {
-        return this.peerconnection.getConfiguredVideoCodec();
-    }
-
-    /**
      * Accepts incoming Jingle 'session-initiate' and should send 'session-accept' in result.
      *
      * @param jingleOffer jQuery selector pointing to the jingle element of the offer IQ
@@ -1181,13 +1180,34 @@ export default class JingleSessionPC extends JingleSession {
      * Updates the codecs on the peerconnection and initiates a renegotiation for the
      * new codec config to take effect.
      *
-     * @param {CodecMimeType} preferred the preferred codec.
-     * @param {CodecMimeType} disabled the codec that needs to be disabled.
+     * @param {Array<CodecMimeType>} codecList - Preferred codecs for video.
+     * @param {CodecMimeType} screenshareCodec - The preferred screenshare codec.
      */
-    setVideoCodecs(codecList) {
+    setVideoCodecs(codecList, screenshareCodec) {
         if (this._assertNotEnded()) {
-            logger.info(`${this} setVideoCodecs: ${codecList}`);
-            this.peerconnection.setVideoCodecs(codecList);
+            logger.info(`${this} setVideoCodecs: codecList=${codecList}, screenshareCodec=${screenshareCodec}`);
+            this.peerconnection.setVideoCodecs(codecList, screenshareCodec);
+
+            // Browser throws an error when H.264 is set on the encodings. Therefore, munge the SDP when H.264 needs to
+            // be selected.
+            // TODO: Remove this check when the above issue is fixed.
+            if (this.usesCodecSelectionAPI && codecList[0] !== CodecMimeType.H264) {
+                return;
+            }
+
+            // Skip renegotiation when the selected codec order matches with that of the remote SDP.
+            const currentCodecOrder = this.peerconnection.getConfiguredVideoCodecs();
+
+            if (codecList.every((val, index) => val === currentCodecOrder[index])) {
+                return;
+            }
+
+            Statistics.sendAnalytics(
+                VIDEO_CODEC_CHANGED,
+                {
+                    value: codecList[0],
+                    videoType: VideoType.CAMERA
+                });
 
             // Initiate a renegotiate for the codec setting to take effect.
             const workFunction = finishedCallback => {
@@ -1784,27 +1804,27 @@ export default class JingleSessionPC extends JingleSession {
                     const track = this.peerconnection.getTrackBySSRC(oldSsrc);
 
                     if (track) {
-                        track.setSourceName(undefined);
-                        track.setOwner(undefined);
-                        track._setVideoType(undefined);
+                        this.room.eventEmitter.emit(JitsiTrackEvents.TRACK_OWNER_SET, track);
                     }
                 }
             } else {
-                logger.debug(`Existing SSRC re-mapped ${ssrc}: new owner=${owner}, source-name=${source}`);
                 const track = this.peerconnection.getTrackBySSRC(ssrc);
 
+                if (!track || (track.getParticipantId() === owner && track.getSourceName() === source)) {
+                    !track && logger.warn(`Remote track for SSRC=${ssrc} hasn't been created yet,`
+                        + 'not processing the source map');
+                    continue; // eslint-disable-line no-continue
+                }
+                logger.debug(`Existing SSRC re-mapped ${ssrc}: new owner=${owner}, source-name=${source}`);
+
                 this._signalingLayer.setSSRCOwner(ssrc, owner, source);
-                track.setSourceName(source);
-                track.setOwner(owner);
 
                 // Update the muted state and the video type on the track since the presence for this track could have
                 // been received before the updated source map is received on the bridge channel.
-                const peerMediaInfo = this._signalingLayer.getPeerMediaInfo(owner, mediaType, source);
+                const { muted, videoType } = this._signalingLayer.getPeerMediaInfo(owner, mediaType, source);
 
-                if (peerMediaInfo) {
-                    track._setVideoType(peerMediaInfo.videoType);
-                    this.peerconnection._sourceMutedChanged(source, peerMediaInfo.muted);
-                }
+                muted && this.peerconnection._sourceMutedChanged(source, muted);
+                this.room.eventEmitter.emit(JitsiTrackEvents.TRACK_OWNER_SET, track, owner, source, videoType);
             }
         }
 

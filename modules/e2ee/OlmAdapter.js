@@ -5,7 +5,7 @@ import { safeJsonParse as _safeJsonParse } from '@jitsi/js-utils/json';
 import { getLogger } from '@jitsi/logger';
 import base64js from 'base64-js';
 import { Buffer } from 'buffer';
-import isEqual from 'lodash.isequal';
+import { isEqual } from 'lodash-es';
 import { v4 as uuidv4 } from 'uuid';
 
 import * as JitsiConferenceEvents from '../../JitsiConferenceEvents';
@@ -19,7 +19,7 @@ import { decryptSymmetric, encryptSymmetric } from './crypto-utils';
 
 const logger = getLogger(__filename);
 
-const REQ_TIMEOUT = 25 * 1000;
+const REQ_TIMEOUT = 50 * 1000;
 const OLM_MESSAGE_TYPE = 'olm';
 const OLM_MESSAGE_TYPES = {
     ERROR: 'error',
@@ -117,7 +117,6 @@ export class OlmAdapter extends Listenable {
         if (this._sessionInitialization) {
             throw new Error('initSessionsAndSetMediaKey called multiple times');
         } else {
-            const key = await this.updateCurrentMediaKey(olmKey, pqKey);
 
             this._sessionInitialization = new Deferred();
             await this._init;
@@ -127,11 +126,14 @@ export class OlmAdapter extends Listenable {
 
             for (const participant of this._conf.getParticipants()) {
                 if (participant.hasFeature(FEATURE_E2EE) && localParticipantId < participant.getId()) {
+                    logger.info(`_sendSessionInit to ${participant.getDisplayName()}`);
                     promises.push(this._sendSessionInit(participant));
                 }
             }
 
             await Promise.allSettled(promises);
+            logger.info('initSessionsAndSetMediaKey is done waiting and starts KEY_INFO');
+            const key = await this.updateKey(olmKey, pqKey);
 
             this._sessionInitialization.resolve();
             this._sessionInitialization = true;
@@ -169,48 +171,54 @@ export class OlmAdapter extends Listenable {
 
         // Broadcast it.
         const promises = [];
+        const localParticipantId = this._conf.myUserId();
 
         for (const participant of this._conf.getParticipants()) {
-            const pId = participant.getId();
-            const olmData = this._getParticipantOlmData(participant);
+            if (participant.hasFeature(FEATURE_E2EE) && localParticipantId < participant.getId()) {
+                const pId = participant.getId();
+                const olmData = this._getParticipantOlmData(participant);
 
-            // TODO: skip those who don't support E2EE.
-            if (!olmData.sessionEstablished) {
-                logger.warn(`Tried to send key to participant ${participant.getDisplayName()} but we have no session
-                ${!olmData.session} and ${!olmData.pqSessionKey}`);
+                await olmData.sessionEstablished;
+
+                // TODO: skip those who don't support E2EE.
+                if (olmData.sessionEstablished !== true) {
+                    logger.warn(`Tried to send KEY_INFO to participant ${participant.getDisplayName()} 
+                    but we have no session
+                    ${olmData.sessionEstablished}`);
 
 
-                // eslint-disable-next-line no-continue
-                continue;
-            }
-            const uuid = uuidv4();
-
-            const { ciphertextStr, ivStr } = await this._encryptKeyInfoPQ(olmData.pqSessionKey);
-
-            const data = {
-                [JITSI_MEET_MUC_TYPE]: OLM_MESSAGE_TYPE,
-                olm: {
-                    type: OLM_MESSAGE_TYPES.KEY_INFO,
-                    data: {
-                        ciphertext: this._encryptKeyInfo(olmData.session),
-                        pqCiphertext: ciphertextStr,
-                        iv: ivStr,
-                        uuid
-                    }
+                    // eslint-disable-next-line no-continue
+                    continue;
                 }
-            };
-            const d = new Deferred();
+                const uuid = uuidv4();
 
-            d.setRejectTimeout(REQ_TIMEOUT);
-            d.catch(() => {
-                this._reqs.delete(uuid);
-            });
-            this._reqs.set(uuid, d);
-            promises.push(d);
+                const { ciphertextStr, ivStr } = await this._encryptKeyInfoPQ(olmData.pqSessionKey);
 
-            logger.info(`updateKey: sent KEY_INFO to ${participant.getDisplayName}`);
+                const data = {
+                    [JITSI_MEET_MUC_TYPE]: OLM_MESSAGE_TYPE,
+                    olm: {
+                        type: OLM_MESSAGE_TYPES.KEY_INFO,
+                        data: {
+                            ciphertext: this._encryptKeyInfo(olmData.session),
+                            pqCiphertext: ciphertextStr,
+                            iv: ivStr,
+                            uuid
+                        }
+                    }
+                };
+                const d = new Deferred();
 
-            this._sendMessage(data, pId);
+                d.setRejectTimeout(REQ_TIMEOUT);
+                d.catch(() => {
+                    this._reqs.delete(uuid);
+                });
+                this._reqs.set(uuid, d);
+                promises.push(d);
+
+                logger.info(`updateKey: sent KEY_INFO to ${participant.getDisplayName()}`);
+
+                this._sendMessage(data, pId);
+            }
         }
 
         await Promise.allSettled(promises);
@@ -479,7 +487,7 @@ export class OlmAdapter extends Listenable {
      * @private
      */
     _onParticipantE2EEChannelReady(id) {
-        logger.info(`E2EE channel with participant ${id} is ready`);
+        logger.info(`E2EE channel with participant ${id} is ready. Ready for KEY_INFO`);
     }
 
     /**
@@ -624,6 +632,7 @@ export class OlmAdapter extends Listenable {
         case OLM_MESSAGE_TYPES.SESSION_INIT: {
             logger.info(`Got SESSION_INIT from ${peerName}`);
 
+
             if (olmData.sessionEstablished === true) {
                 logger.error(`SESSION_INIT: Session with ${peerName} already established`);
                 this._sendError(participant,
@@ -633,6 +642,8 @@ export class OlmAdapter extends Listenable {
                 let kyberCiphertext;
 
                 try {
+                    this.eventEmitter.emit(OlmAdapterEvents.GENERATE_KEYS);
+
                     // Create a session for communicating with this participant.
                     const session = new Olm.Session();
 
@@ -798,9 +809,6 @@ export class OlmAdapter extends Listenable {
                 this._reqs.delete(msg.data.uuid);
                 d.resolve();
 
-                logger.info(`Session with ${peerName} is established`);
-
-
             } else {
                 logger.error(`SESSION_ACK wrong UUID for ${peerName}`);
 
@@ -833,7 +841,7 @@ export class OlmAdapter extends Listenable {
                         olmData.lastKey = key;
                         const mediaKey = await this.deriveKey(key, pqKey);
 
-                        logger.info(`Media key for ${peerName} is ${base64js.fromByteArray(mediaKey)}`);
+                        logger.info(`KEY_INFO: Media key for ${peerName} is ${base64js.fromByteArray(mediaKey)}`);
 
                         this.eventEmitter.emit(OlmAdapterEvents.PARTICIPANT_KEY_UPDATED,
                              pId, mediaKey, this._mediaKeyIndex++);
@@ -885,7 +893,7 @@ export class OlmAdapter extends Listenable {
                         olmData.lastKey = key;
                         const mediaKey = await this.deriveKey(key, pqKey);
 
-                        logger.info(`KEY_INFO_ACK: media key for ${peerName} is ${mediaKey}`);
+                        logger.info(`KEY_INFO_ACK: media key for ${peerName} is ${base64js.fromByteArray(mediaKey)}`);
 
                         this.eventEmitter.emit(OlmAdapterEvents.PARTICIPANT_KEY_UPDATED,
                              pId, mediaKey, this._mediaKeyIndex++);
@@ -1188,7 +1196,8 @@ export class OlmAdapter extends Listenable {
         const olmData = this._getParticipantOlmData(participant);
 
         switch (name) {
-        case 'e2ee.enabled':
+
+        /* case 'e2ee.enabled':
             if (newValue && newValue !== oldValue && this._conf.isE2EEEnabled()) {
                 logger.info(`E2ee is enabled for ${participant.getDisplayName()}`);
                 const localParticipantId = this._conf.myUserId();
@@ -1203,15 +1212,8 @@ export class OlmAdapter extends Listenable {
                     }
 
                     await olmData.sessionEstablished;
-                    if (!olmData.sessionEstablished) {
-                        const key = window.crypto.getRandomValues(new Uint8Array(32));
-                        const pqKey = window.crypto.getRandomValues(new Uint8Array(32));
-
-                        await this.updateCurrentMediaKey(key, pqKey);
+                    if (olmData.sessionEstablished !== true) {
                         await this._sendSessionInit(participant);
-
-                        logger.info(`_onParticipantPropertyChanged generated keys 
-                            and my media key is ${base64js.fromByteArray(this._mediaKey)}`);
                     }
 
                     const d = new Deferred();
@@ -1245,14 +1247,14 @@ export class OlmAdapter extends Listenable {
                         this._sendMessage(data, participantId);
 
                     } catch (e) {
-                        logger.error(`_onParticipantPropertyChanged failed for ${participant.getDisplayName()} 
+                        logger.error(`_onParticipantPropertyChanged failed for ${participant.getDisplayName()}
                         with ${e}`);
                         this._sendError(participant,
                             `_onParticipantPropertyChanged failed for ${participant.getDisplayName()} with ${e}`);
                     }
                 }
             }
-            break;
+            break; */
         case 'e2ee.idKey.ed25519':
             olmData.ed25519 = newValue;
             this.eventEmitter.emit(OlmAdapterEvents.PARTICIPANT_SAS_AVAILABLE, participantId);
@@ -1305,6 +1307,7 @@ export class OlmAdapter extends Listenable {
         logger.info(`_sendSessionInit started for ${participant.getDisplayName()}`);
 
         try {
+            this.eventEmitter.emit(OlmAdapterEvents.GENERATE_KEYS);
             const pId = participant.getId();
             const olmData = this._getParticipantOlmData(participant);
 
