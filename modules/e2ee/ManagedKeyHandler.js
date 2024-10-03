@@ -93,7 +93,8 @@ export class ManagedKeyHandler extends KeyHandler {
         const { mediaKeyIndex, mediaKey }
         = await this._olmAdapter.initSessionsAndSetMediaKey(this._olmKey, this._pqKey);
 
-        logger.info(`olm: my media key is ${base64js.fromByteArray(mediaKey)}`);
+        logger.info(`CHECKPOINT: my media key is ${base64js.fromByteArray(mediaKey)} and
+        index is ${mediaKeyIndex}`);
 
         // Set our key so we begin encrypting.
         this.e2eeCtx.setKey(this.conference.myUserId(), mediaKey, mediaKeyIndex);
@@ -171,6 +172,8 @@ export class ManagedKeyHandler extends KeyHandler {
 
         }
 
+        logger.info(`CHECKPOINT: my media key is ${base64js.fromByteArray(key)} and
+        index is ${index}`);
         this.e2eeCtx.setKey(this.conference.myUserId(), key, index);
     }
 
@@ -196,6 +199,8 @@ export class ManagedKeyHandler extends KeyHandler {
 
         this.mediaKeyIndex++;
 
+        logger.info(`CHECKPOINT: my media key is ${base64js.fromByteArray(key)} 
+        and index is ${this.mediaKeyIndex}`);
         this.e2eeCtx.setKey(this.conference.myUserId(), key, this.mediaKeyIndex);
     }
 
@@ -208,7 +213,8 @@ export class ManagedKeyHandler extends KeyHandler {
      * @private
      */
     _onParticipantKeyUpdated(id, key, index) {
-        logger.info(`olm: Participant ${id} updated their key ${base64js.fromByteArray(key)}`);
+        logger.info(`CHECKPOINT: Participant ${id} updated their key ${base64js.fromByteArray(key)} and
+        index is ${index}`);
         this.e2eeCtx.setKey(id, key, index);
     }
 

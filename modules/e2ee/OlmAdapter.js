@@ -1317,14 +1317,14 @@ export class OlmAdapter extends Listenable {
                 logger.warn(`Tried to send session-init to ${participant.getDisplayName()} 
                 but we already have a session`);
 
-                return Promise.reject();
+                return Promise.reject(new Error(`We already have a session with ${participant.getDisplayName()}`));
             }
 
             if (olmData.pendingSessionUuid !== undefined) {
                 logger.warn(`Tried to send session-init to ${participant.getDisplayName()} 
              but we already have a pending session`);
 
-                return Promise.reject();
+                return Promise.reject(new Error(`We have a pending session with ${participant.getDisplayName()}`));
             }
 
 
