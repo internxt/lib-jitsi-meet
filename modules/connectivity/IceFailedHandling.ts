@@ -2,6 +2,7 @@ import { getLogger } from '@jitsi/logger';
 
 import * as JitsiConferenceErrors from '../../JitsiConferenceErrors';
 import * as JitsiConferenceEvents from '../../JitsiConferenceEvents';
+import JitsiConference from '../../JitsiConference';
 
 const logger = getLogger(__filename);
 
@@ -17,6 +18,9 @@ const logger = getLogger(__filename);
  * the XMPP connection is not broken then the notifications will be sent after 2 seconds delay.
  */
 export default class IceFailedHandling {
+    _conference: JitsiConference;
+    _canceled: boolean;
+    _iceFailedTimeout: number;
     /**
      * Creates new {@code DelayedIceFailed} task.
      * @param {JitsiConference} conference

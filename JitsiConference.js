@@ -1837,7 +1837,6 @@ JitsiConference.prototype._updateFeatures = function(participant) {
             }
 
             if (features.has(FEATURE_E2EE)) {
-                console.log(`CHECK: FEATURE_E2EE is true for ${participant.getId()}`);
                 participant.setProperty('features_e2ee', true);
             }
         })
@@ -3886,8 +3885,8 @@ JitsiConference.prototype.toggleE2EE = function(enabled) {
  * @param {Number} [keyInfo.index] - the index of the encryption key.
  * @returns {void}
  */
-JitsiConference.prototype.setMediaEncryptionKey = function(keyInfo) {
-    this._e2eEncryption.setEncryptionKey(keyInfo);
+JitsiConference.prototype.setMediaEncryptionKey = function(olmKey, pqKey, index) {
+    this._e2eEncryption.setEncryptionKey(olmKey, pqKey, index);
 };
 
 /**
