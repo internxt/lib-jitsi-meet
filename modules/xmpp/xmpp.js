@@ -7,6 +7,7 @@ import 'strophejs-plugin-disco';
 import * as JitsiConnectionErrors from '../../JitsiConnectionErrors';
 import * as JitsiConnectionEvents from '../../JitsiConnectionEvents';
 import { XMPPEvents } from '../../service/xmpp/XMPPEvents';
+import { XEP } from '../../service/xmpp/XMPPExtensioProtocols';
 import browser from '../browser';
 import { E2EEncryption } from '../e2ee/E2EEncryption';
 import FeatureFlags from '../flags/FeatureFlags';
@@ -101,6 +102,18 @@ export const JITSI_MEET_MUC_TYPE = 'type';
  * @type {string}
  */
 export const FEATURE_JIGASI = 'http://jitsi.org/protocol/jigasi';
+
+/**
+ * The feature used by jibri participants.
+ * @type {string}
+ */
+export const FEATURE_JIBRI = 'http://jitsi.org/protocol/jibri';
+
+/**
+ * The feature used by jigasi transcriber participants.
+ * @type {string}
+ */
+export const FEATURE_TRANSCRIBER = 'http://jitsi.org/protocol/transcriber';
 
 /**
  * The feature used by the lib to mark support for e2ee. We use the feature by putting it in the presence
@@ -218,13 +231,13 @@ export default class XMPP extends Listenable {
     initFeaturesList() {
         // http://xmpp.org/extensions/xep-0167.html#support
         // http://xmpp.org/extensions/xep-0176.html#support
-        this.caps.addFeature('urn:xmpp:jingle:1');
-        this.caps.addFeature('urn:xmpp:jingle:apps:rtp:1');
-        this.caps.addFeature('urn:xmpp:jingle:transports:ice-udp:1');
-        this.caps.addFeature('urn:xmpp:jingle:apps:dtls:0');
-        this.caps.addFeature('urn:xmpp:jingle:transports:dtls-sctp:1');
-        this.caps.addFeature('urn:xmpp:jingle:apps:rtp:audio');
-        this.caps.addFeature('urn:xmpp:jingle:apps:rtp:video');
+        this.caps.addFeature(XEP.JINGLE);
+        this.caps.addFeature(XEP.RTP_MEDIA);
+        this.caps.addFeature(XEP.ICE_UDP_TRANSPORT);
+        this.caps.addFeature(XEP.DTLS_SRTP);
+        this.caps.addFeature(XEP.SCTP_DATA_CHANNEL);
+        this.caps.addFeature(XEP.RTP_AUDIO);
+        this.caps.addFeature(XEP.RTP_VIDEO);
         this.caps.addFeature('http://jitsi.org/json-encoded-sources');
 
         if (!(this.options.disableRtx || !browser.supportsRTX())) {
