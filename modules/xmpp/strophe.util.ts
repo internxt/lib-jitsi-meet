@@ -51,6 +51,7 @@ export default function() {
         // Strophe log entry about secondary request timeout does not mean that
         // it's a final failure(the request will be restarted), so we lower it's
         // level here to a warning.
+        // This line can be commented out if you are having perfomance problems while debugging on Chrome.
         logger.trace('Strophe', level, msg);
         if (typeof msg === 'string'
                 && msg.indexOf('Request ') !== -1

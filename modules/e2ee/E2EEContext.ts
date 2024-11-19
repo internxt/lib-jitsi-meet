@@ -1,11 +1,28 @@
 /* global RTCRtpScriptTransform */
-import { getLogger } from '@jitsi/logger';
+import { getLogger } from "@jitsi/logger";
+
+// Extend the RTCRtpReceiver interface due to lack of support of streams
+interface CustomRTCRtpReceiver extends RTCRtpReceiver {
+    createEncodedStreams?: () => {
+        readable: ReadableStream;
+        writable: WritableStream;
+    };
+    transform: RTCRtpScriptTransform;
+}
+
+interface CustomRTCRtpSender extends RTCRtpSender {
+    createEncodedStreams?: () => {
+        readable: ReadableStream;
+        writable: WritableStream;
+    };
+    transform: RTCRtpScriptTransform;
+}
 
 const logger = getLogger(__filename);
 
 // Flag to set on senders / receivers to avoid setting up the encryption transform
 // more than once.
-const kJitsiE2EE = Symbol('kJitsiE2EE');
+const kJitsiE2EE = Symbol("kJitsiE2EE");
 
 /**
  * Context encapsulating the cryptography bits required for E2EE.
@@ -20,18 +37,20 @@ const kJitsiE2EE = Symbol('kJitsiE2EE');
  * - allow for the key to be rotated frequently.
  */
 export default class E2EEcontext {
-    // private _worker: Worker;
+    private _worker: Worker;
     /**
      * Build a new E2EE context instance, which will be used in a given conference.
      */
     constructor() {
         // Determine the URL for the worker script. Relative URLs are relative to
         // the entry point, not the script that launches the worker.
-        let baseUrl = '';
-        const ljm = document.querySelector('script[src*="lib-jitsi-meet"]');// as HTMLImageElement;
+        let baseUrl = "";
+        const ljm = document.querySelector<HTMLImageElement>(
+            'script[src*="lib-jitsi-meet"]'
+        ); // as HTMLImageElement;
 
         if (ljm) {
-            const idx = ljm.src.lastIndexOf('/');
+            const idx = ljm.src.lastIndexOf("/");
 
             baseUrl = `${ljm.src.substring(0, idx)}/`;
         }
@@ -41,19 +60,19 @@ export default class E2EEcontext {
         // If there is no baseUrl then we create the worker in a normal way
         // as you cant load scripts inside blobs from relative paths.
         // See: https://www.html5rocks.com/en/tutorials/workers/basics/#toc-inlineworkers-loadingscripts
-        if (baseUrl && baseUrl !== '/') {
+        if (baseUrl && baseUrl !== "/") {
             // Initialize the E2EE worker. In order to avoid CORS issues, start the worker and have it
             // synchronously load the JS.
-            const workerBlob
-                = new Blob([ `importScripts("${workerUrl}");` ], { type: 'application/javascript' });
+            const workerBlob = new Blob([`importScripts("${workerUrl}");`], {
+                type: "application/javascript",
+            });
 
             workerUrl = window.URL.createObjectURL(workerBlob);
         }
 
-        this._worker = new Worker(workerUrl, { name: 'E2EE Worker' });
+        this._worker = new Worker(workerUrl, { name: "E2EE Worker" });
 
-        this._worker.onerror = e => logger.error(e);
-
+        this._worker.onerror = (e) => logger.error(e);
     }
 
     /**
@@ -62,10 +81,10 @@ export default class E2EEcontext {
      *
      * @param {string} participantId - The participant that just left.
      */
-    cleanup(participantId) {
+    cleanup(participantId: string) {
         this._worker.postMessage({
-            operation: 'cleanup',
-            participantId
+            operation: "cleanup",
+            participantId,
         });
     }
 
@@ -75,7 +94,7 @@ export default class E2EEcontext {
      */
     cleanupAll() {
         this._worker.postMessage({
-            operation: 'cleanupAll'
+            operation: "cleanupAll",
         });
     }
 
@@ -87,7 +106,11 @@ export default class E2EEcontext {
      * @param {string} kind - The kind of track this receiver belongs to.
      * @param {string} participantId - The participant id that this receiver belongs to.
      */
-    handleReceiver(receiver, kind, participantId) {
+    handleReceiver(
+        receiver: CustomRTCRtpReceiver,
+        kind: string,
+        participantId: string
+    ) {
         if (receiver[kJitsiE2EE]) {
             return;
         }
@@ -95,20 +118,26 @@ export default class E2EEcontext {
 
         if (window.RTCRtpScriptTransform) {
             const options = {
-                operation: 'decode',
-                participantId
+                operation: "decode",
+                participantId,
             };
 
-            receiver.transform = new RTCRtpScriptTransform(this._worker, options);
+            receiver.transform = new RTCRtpScriptTransform(
+                this._worker,
+                options
+            );
         } else {
             const receiverStreams = receiver.createEncodedStreams();
 
-            this._worker.postMessage({
-                operation: 'decode',
-                readableStream: receiverStreams.readable,
-                writableStream: receiverStreams.writable,
-                participantId
-            }, [ receiverStreams.readable, receiverStreams.writable ]);
+            this._worker.postMessage(
+                {
+                    operation: "decode",
+                    readableStream: receiverStreams.readable,
+                    writableStream: receiverStreams.writable,
+                    participantId,
+                },
+                [receiverStreams.readable, receiverStreams.writable]
+            );
         }
     }
 
@@ -120,7 +149,11 @@ export default class E2EEcontext {
      * @param {string} kind - The kind of track this sender belongs to.
      * @param {string} participantId - The participant id that this sender belongs to.
      */
-    handleSender(sender, kind, participantId) {
+    handleSender(
+        sender: CustomRTCRtpSender,
+        kind: string,
+        participantId: string
+    ) {
         if (sender[kJitsiE2EE]) {
             return;
         }
@@ -128,20 +161,23 @@ export default class E2EEcontext {
 
         if (window.RTCRtpScriptTransform) {
             const options = {
-                operation: 'encode',
-                participantId
+                operation: "encode",
+                participantId,
             };
 
             sender.transform = new RTCRtpScriptTransform(this._worker, options);
         } else {
             const senderStreams = sender.createEncodedStreams();
 
-            this._worker.postMessage({
-                operation: 'encode',
-                readableStream: senderStreams.readable,
-                writableStream: senderStreams.writable,
-                participantId
-            }, [ senderStreams.readable, senderStreams.writable ]);
+            this._worker.postMessage(
+                {
+                    operation: "encode",
+                    readableStream: senderStreams.readable,
+                    writableStream: senderStreams.writable,
+                    participantId,
+                },
+                [senderStreams.readable, senderStreams.writable]
+            );
         }
     }
 
@@ -153,13 +189,18 @@ export default class E2EEcontext {
      * @param {Uint8Array} pqKey - olm key for the given participant.
      * @param {Number} keyIndex - the key index.
      */
-    setKey(participantId, olmKey, pqKey, index) {
+    setKey(
+        participantId: string,
+        olmKey: Uint8Array,
+        pqKey: Uint8Array,
+        index: Number
+    ) {
         this._worker.postMessage({
-            operation: 'setKey',
+            operation: "setKey",
             olmKey,
             pqKey,
             index,
-            participantId
+            participantId,
         });
     }
 }

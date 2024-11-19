@@ -1,14 +1,14 @@
 /// <reference types="node" />
 
-import { getLogger } from '@jitsi/logger';
-import { debounce } from 'lodash-es';
+import { getLogger } from "@jitsi/logger";
+import { debounce } from "lodash-es";
 
-import * as JitsiConferenceEvents from '../../JitsiConferenceEvents';
+import * as JitsiConferenceEvents from "../../JitsiConferenceEvents";
 
-import { KeyHandler} from './KeyHandler';
-import { OlmAdapter } from './OlmAdapter';
-import { importKey, ratchet } from './crypto-utils';
-import JitsiParticipant from '../../JitsiParticipant';
+import { KeyHandler } from "./KeyHandler";
+import { OlmAdapter } from "./OlmAdapter";
+import { importKey, ratchet } from "./crypto-utils";
+import JitsiParticipant from "../../JitsiParticipant";
 
 const logger = getLogger(__filename);
 
@@ -43,41 +43,45 @@ export class ManagedKeyHandler extends KeyHandler {
         // Olm signalling events.
         this._olmAdapter.on(
             OlmAdapter.events.PARTICIPANT_KEY_UPDATED,
-            this._onParticipantKeyUpdated.bind(this));
+            this._onParticipantKeyUpdated.bind(this)
+        );
 
         this._olmAdapter.on(
             OlmAdapter.events.GENERATE_KEYS,
-            this._onKeyGeneration.bind(this));
+            this._onKeyGeneration.bind(this)
+        );
 
         this._olmAdapter.on(
             OlmAdapter.events.PARTICIPANT_SAS_READY,
-            this._onParticipantSasReady.bind(this));
+            this._onParticipantSasReady.bind(this)
+        );
 
         this._olmAdapter.on(
             OlmAdapter.events.PARTICIPANT_SAS_AVAILABLE,
-            this._onParticipantSasAvailable.bind(this));
+            this._onParticipantSasAvailable.bind(this)
+        );
 
         this._olmAdapter.on(
             OlmAdapter.events.PARTICIPANT_VERIFICATION_COMPLETED,
-            this._onParticipantVerificationCompleted.bind(this));
+            this._onParticipantVerificationCompleted.bind(this)
+        );
 
         this.conference.on(
             JitsiConferenceEvents.PARTICIPANT_PROPERTY_CHANGED,
-            this._onParticipantPropertyChanged.bind(this));
+            this._onParticipantPropertyChanged.bind(this)
+        );
         this.conference.on(
             JitsiConferenceEvents.USER_JOINED,
-            this._onParticipantJoined.bind(this));
+            this._onParticipantJoined.bind(this)
+        );
         this.conference.on(
             JitsiConferenceEvents.USER_LEFT,
-            this._onParticipantLeft.bind(this));
-        this.conference.on(
-                JitsiConferenceEvents.CONFERENCE_JOINED,
-                () => {
-                    this._conferenceJoined = true;
-                });
+            this._onParticipantLeft.bind(this)
+        );
+        this.conference.on(JitsiConferenceEvents.CONFERENCE_JOINED, () => {
+            this._conferenceJoined = true;
+        });
     }
-
-  
 
     /**
      * When E2EE is enabled it initializes sessions and sets the key.
@@ -87,7 +91,6 @@ export class ManagedKeyHandler extends KeyHandler {
      * @returns {boolean}
      */
     async _setEnabled(enabled: boolean): Promise<boolean> {
-
         if (!enabled) {
             this._olmAdapter.clearAllParticipantsSessions();
             return false;
@@ -96,21 +99,23 @@ export class ManagedKeyHandler extends KeyHandler {
         try {
             this._onKeyGeneration();
             await this._olmAdapter.initSessions();
-            console.log('CHECK: all olm sessions should be established now!!!!!!');
-            const mediaKeyIndex = await this._olmAdapter.updateKey(this._olmKey, this._pqKey);
-                
+
+            logger.debug("All olm sessions should be established now!");
+
+            const mediaKeyIndex = await this._olmAdapter.updateKey(
+                this._olmKey,
+                this._pqKey
+            );
+
             // Set our key so we begin encrypting.
             this.setKey(this._olmKey, this._pqKey, mediaKeyIndex);
-    
-        } catch(e) {
+        } catch (e) {
             console.log(`_setEnabled got error ${e}`);
             return false;
         }
         // Generate a random key in case we are enabling.
-        
 
         return true;
-
     }
 
     /**
@@ -122,18 +127,24 @@ export class ManagedKeyHandler extends KeyHandler {
      * @param {*} newValue - The property's new value.
      * @private
      */
-    async _onParticipantPropertyChanged(participant: JitsiParticipant, name: string, oldValue, newValue) {
-
+    async _onParticipantPropertyChanged(
+        participant: JitsiParticipant,
+        name: string,
+        oldValue,
+        newValue
+    ) {
         if (newValue !== oldValue) {
             switch (name) {
-            case 'e2ee.idKey':
-                logger.debug(`Participant ${participant.getId()} updated their id key: ${newValue}`);
-                break;
-            case 'e2ee.enabled':
-                if (!newValue && this.enabled) {
-                    this._olmAdapter.clearParticipantSession(participant);
-                }
-                break;
+                case "e2ee.idKey":
+                    logger.debug(
+                        `Participant ${participant.getId()} updated their id key: ${newValue}`
+                    );
+                    break;
+                case "e2ee.enabled":
+                    if (!newValue && this.enabled) {
+                        this._olmAdapter.clearParticipantSession(participant);
+                    }
+                    break;
             }
         }
     }
@@ -167,10 +178,12 @@ export class ManagedKeyHandler extends KeyHandler {
      * @private
      */
     async _rotateKeyImpl() {
-
         this._onKeyGeneration();
 
-        const index = await this._olmAdapter.updateKey(this._olmKey, this._pqKey);
+        const index = await this._olmAdapter.updateKey(
+            this._olmKey,
+            this._pqKey
+        );
         this.setKey(this._olmKey, this._pqKey, index);
     }
 
@@ -183,7 +196,7 @@ export class ManagedKeyHandler extends KeyHandler {
      * @private
      */
     async _ratchetKeyImpl() {
-        logger.debug('Ratchetting keys');
+        logger.debug("Ratchetting keys");
 
         const olmMaterial = await importKey(this._olmKey);
         this._olmKey = await ratchet(olmMaterial);
@@ -191,9 +204,12 @@ export class ManagedKeyHandler extends KeyHandler {
         const pqMaterial = await importKey(this._pqKey);
         this._pqKey = await ratchet(pqMaterial);
 
-        const index = await this._olmAdapter.updateCurrentMediaKey(this._olmKey, this._pqKey);
+        const index = await this._olmAdapter.updateCurrentMediaKey(
+            this._olmKey,
+            this._pqKey
+        );
 
-        this.setKey(this._olmKey,this._pqKey, index);
+        this.setKey(this._olmKey, this._pqKey, index);
     }
 
     /**
@@ -204,9 +220,26 @@ export class ManagedKeyHandler extends KeyHandler {
      * @param {Number} index - The new key's index.
      * @private
      */
-    _onParticipantKeyUpdated(id: string, olmKey: Uint8Array, pqKey: Uint8Array, index: number) {
-        logger.info('CHECKPOINT: _onParticipantKeyUpdated called setKey with id', id, 'olm key', olmKey, 
-            'pq key', pqKey, 'index', index);
+    _onParticipantKeyUpdated(
+        id: string,
+        olmKey: Uint8Array,
+        pqKey: Uint8Array,
+        index: number
+    ) {
+        logger.debug(
+            "CHECKPOINT: _onParticipantKeyUpdated called setKey with id",
+            id,
+            "olm key",
+            olmKey,
+            "pq key",
+            pqKey,
+            "index",
+            index,
+            "my olm key",
+            this._olmKey,
+            "my pq key",
+            this._pqKey
+        );
         this.e2eeCtx.setKey(id, olmKey, pqKey, index);
     }
 
@@ -231,7 +264,11 @@ export class ManagedKeyHandler extends KeyHandler {
      * @private
      */
     _onParticipantSasReady(pId: string, sas: Uint8Array) {
-        this.conference.eventEmitter.emit(JitsiConferenceEvents.E2EE_VERIFICATION_READY, pId, sas);
+        this.conference.eventEmitter.emit(
+            JitsiConferenceEvents.E2EE_VERIFICATION_READY,
+            pId,
+            sas
+        );
     }
 
     /**
@@ -241,9 +278,11 @@ export class ManagedKeyHandler extends KeyHandler {
      * @private
      */
     _onParticipantSasAvailable(pId: string) {
-        this.conference.eventEmitter.emit(JitsiConferenceEvents.E2EE_VERIFICATION_AVAILABLE, pId);
+        this.conference.eventEmitter.emit(
+            JitsiConferenceEvents.E2EE_VERIFICATION_AVAILABLE,
+            pId
+        );
     }
-
 
     /**
      * Handles the SAS completed event.
@@ -252,8 +291,17 @@ export class ManagedKeyHandler extends KeyHandler {
      * @param {boolean} success - Wheter the verification was succesfull.
      * @private
      */
-    _onParticipantVerificationCompleted(pId: string, success: boolean, message) {
-        this.conference.eventEmitter.emit(JitsiConferenceEvents.E2EE_VERIFICATION_COMPLETED, pId, success, message);
+    _onParticipantVerificationCompleted(
+        pId: string,
+        success: boolean,
+        message
+    ) {
+        this.conference.eventEmitter.emit(
+            JitsiConferenceEvents.E2EE_VERIFICATION_COMPLETED,
+            pId,
+            success,
+            message
+        );
     }
 
     /**

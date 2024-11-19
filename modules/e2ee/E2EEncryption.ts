@@ -1,5 +1,3 @@
-import base64js from "base64-js";
-
 import browser from "../browser";
 
 import { ManagedKeyHandler } from "./ManagedKeyHandler";
@@ -53,7 +51,7 @@ export class E2EEncryption {
      * @param {boolean} enabled - whether E2EE should be enabled or not.
      * @returns {void}
      */
-    async setEnabled(enabled) {
+    async setEnabled(enabled: boolean): Promise<void> {
         await this._keyHandler.setEnabled(enabled);
     }
 
