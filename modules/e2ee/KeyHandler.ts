@@ -1,32 +1,41 @@
-import { getLogger } from '@jitsi/logger';
+import { getLogger } from "@jitsi/logger";
 
-import * as JitsiConferenceEvents from '../../JitsiConferenceEvents';
-import RTCEvents from '../../service/RTC/RTCEvents';
-import browser from '../browser';
-import Deferred from '../util/Deferred';
-import Listenable from '../util/Listenable';
+import * as JitsiConferenceEvents from "../../JitsiConferenceEvents";
+import RTCEvents from "../../service/RTC/RTCEvents";
+import browser from "../browser";
+import Listenable from "../util/Listenable";
 
-import E2EEContext from './E2EEContext';
+import E2EEContext from "./E2EEContext";
+import JitsiConference from "../../JitsiConference";
 
 const logger = getLogger(__filename);
 
+export type KeyInfo = {
+    encryptionKey?: Uint8Array;
+    index: number;
+};
 /**
  * Abstract class that integrates {@link E2EEContext} with a key management system.
  */
-export class KeyHandler extends Listenable {
+export abstract class KeyHandler extends Listenable {
+    conference: JitsiConference;
+    e2eeCtx: E2EEContext;
+    enabled: boolean;
+    _olmAdapter: any;
+
+    abstract _setEnabled(enabled: boolean): Promise<boolean>;
+    abstract setKey(olmKey: Uint8Array, pqKey: Uint8Array, index: number): void;
     /**
      * Build a new KeyHandler instance, which will be used in a given conference.
      * @param {JitsiConference} conference - the current conference.
-     * @param {object} options - the options passed to {E2EEContext}, see implemention.
      */
-    constructor(conference, options = {}) {
+    constructor(conference) {
         super();
 
         this.conference = conference;
-        this.e2eeCtx = new E2EEContext(options);
+        this.e2eeCtx = new E2EEContext();
 
         this.enabled = false;
-        this._enabling = undefined;
 
         // Conference media events in order to attach the encryptor / decryptor.
         // FIXME add events to TraceablePeerConnection which will allow to see when there's new receiver or sender
@@ -35,16 +44,19 @@ export class KeyHandler extends Listenable {
 
         this.conference.on(
             JitsiConferenceEvents._MEDIA_SESSION_STARTED,
-            this._onMediaSessionStarted.bind(this));
+            this._onMediaSessionStarted.bind(this)
+        );
         this.conference.on(
             JitsiConferenceEvents.TRACK_ADDED,
-            track => track.isLocal() && this._onLocalTrackAdded(track));
-        this.conference.rtc.on(
-            RTCEvents.REMOTE_TRACK_ADDED,
-            (track, tpc) => this._setupReceiverE2EEForTrack(tpc, track));
+            (track) => track.isLocal() && this._onLocalTrackAdded(track)
+        );
+        this.conference.rtc.on(RTCEvents.REMOTE_TRACK_ADDED, (track, tpc) =>
+            this._setupReceiverE2EEForTrack(tpc, track)
+        );
         this.conference.on(
             JitsiConferenceEvents.TRACK_MUTE_CHANGED,
-            this._trackMuteChanged.bind(this));
+            this._trackMuteChanged.bind(this)
+        );
     }
 
     /**
@@ -63,36 +75,34 @@ export class KeyHandler extends Listenable {
      * @returns {void}
      */
     async setEnabled(enabled) {
-        this._enabling && await this._enabling;
-
         if (enabled === this.enabled) {
             return;
         }
-
-        this._enabling = new Deferred();
-
-        this.enabled = enabled;
+        this.enabled = await this._setEnabled(enabled);
 
         if (!enabled) {
             this.e2eeCtx.cleanupAll();
         }
 
-        this._setEnabled && await this._setEnabled(enabled);
-
-        this.conference.setLocalParticipantProperty('e2ee.enabled', enabled);
-
+        this.conference.setLocalParticipantProperty("e2ee.enabled", enabled);
         this.conference._restartMediaSessions();
-
-        this._enabling.resolve();
     }
 
+    /**
+     * Returns the sasVerficiation object.
+     *
+     * @returns {Object}
+     */
+    get sasVerification() {
+        return this._olmAdapter;
+    }
     /**
      * Sets the key for End-to-End encryption.
      *
      * @returns {void}
      */
     setEncryptionKey() {
-        throw new Error('Not implemented by subclass');
+        throw new Error("Not implemented by subclass");
     }
 
     /**
@@ -132,9 +142,15 @@ export class KeyHandler extends Listenable {
         const receiver = tpc.findReceiverForTrack(track.track);
 
         if (receiver) {
-            this.e2eeCtx.handleReceiver(receiver, track.getType(), track.getParticipantId());
+            this.e2eeCtx.handleReceiver(
+                receiver,
+                track.getType(),
+                track.getParticipantId()
+            );
         } else {
-            logger.warn(`Could not handle E2EE for ${track}: receiver not found in: ${tpc}`);
+            logger.warn(
+                `Could not handle E2EE for ${track}: receiver not found in: ${tpc}`
+            );
         }
     }
 
@@ -154,9 +170,15 @@ export class KeyHandler extends Listenable {
         const sender = pc && pc.findSenderForTrack(track.track);
 
         if (sender) {
-            this.e2eeCtx.handleSender(sender, track.getType(), track.getParticipantId());
+            this.e2eeCtx.handleSender(
+                sender,
+                track.getType(),
+                track.getParticipantId()
+            );
         } else {
-            logger.warn(`Could not handle E2EE for ${track}: sender not found in ${pc}`);
+            logger.warn(
+                `Could not handle E2EE for ${track}: sender not found in ${pc}`
+            );
         }
     }
 
@@ -166,7 +188,12 @@ export class KeyHandler extends Listenable {
      * @private
      */
     _trackMuteChanged(track) {
-        if (browser.doesVideoMuteByStreamRemove() && track.isLocal() && track.isVideoTrack() && !track.isMuted()) {
+        if (
+            browser.doesVideoMuteByStreamRemove() &&
+            track.isLocal() &&
+            track.isVideoTrack() &&
+            !track.isMuted()
+        ) {
             for (const session of this.conference.getMediaSessions()) {
                 this._setupSenderE2EEForTrack(session, track);
             }
