@@ -5,6 +5,7 @@ import {
     decryptKeyInfoPQ,
     encryptKeyInfoPQ,
     generateKey,
+    decapsulateAndDeriveOneKey
 } from "./crypto-utils";
 import { describe, expect, it } from "vitest";
 
@@ -55,6 +56,38 @@ describe("Test Kyber KEM", () => {
             `Secret decapsulation failed: no private key given`,
         );
     });
+
+    it("encapsulate and decrypt should work", async () => {
+       
+        const { publicKeyBase64: publicKey1, privateKey: privateKey1 } = await generateKyberKeys();
+        const { publicKeyBase64: publicKey2, privateKey: privateKey2 } = await generateKyberKeys();
+
+        // session_init: user1 encapulates secret for user2
+        const { ciphertextBase64: ciphertext1, sharedSecret: secret1 } =
+                            await encapsulateSecret(publicKey2);
+
+        // pq_session_init user2 encapsulates secret for user1 and derives key2               
+        const { ciphertextBase64: ciphertext2, sharedSecret: secret2 } =
+                            await encapsulateSecret(publicKey1);
+
+        const key2 = await decapsulateAndDeriveOneKey(
+                            ciphertext1,
+                            privateKey2,
+                            secret2,
+                            true,
+                        );
+
+        // pq_session_ack user 1 derives key1
+        const key1 = await decapsulateAndDeriveOneKey(
+                                    ciphertext2,
+                                    privateKey1,
+                                    secret1,
+                                    false,
+                                );
+                        
+
+        expect(key1).toStrictEqual(key2);
+    });
 });
 
 describe("Test key encryption", () => {
@@ -74,3 +107,4 @@ describe("Test key encryption", () => {
         expect(decryptedMessage).toStrictEqual(message);
     });
 });
+

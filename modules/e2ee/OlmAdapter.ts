@@ -3,7 +3,6 @@
 import { safeJsonParse as _safeJsonParse } from "@jitsi/js-utils/json";
 import { getLogger } from "@jitsi/logger";
 import base64js from "base64-js";
-import { Buffer } from "buffer";
 import { isEqual } from "lodash-es";
 import { v4 as uuidv4 } from "uuid";
 
@@ -40,6 +39,15 @@ const OLM_MESSAGE_TYPES = {
     SAS_ACCEPT: "sas-accept",
     SAS_KEY: "sas-key",
     SAS_MAC: "sas-mac",
+};
+
+const PROTOCOL_STATUS = {
+    ERROR: "error",
+    NOT_STARTED: "ready-to-start",
+    WAITING_SESSION_ACK: "waiting-for-session-ack",
+    WAITING_PQ_SESSION_ACK: "waiting-for-pq-session-ack",
+    WAITING_PQ_SESSION_INIT: "waiting-for-pq-session-init",
+    DONE: "error",
 };
 
 const OLM_SAS_NUM_BYTES = 6;
@@ -192,42 +200,48 @@ export class OlmAdapter extends Listenable {
             const pId = participant.getId();
             const olmData = this._getParticipantOlmData(participant);
 
-            // TODO: skip those who don't support E2EE.
-            if (!olmData.session || !olmData.pqSessionKey) {
+            if (olmData.status === PROTOCOL_STATUS.DONE) {
+                try {
+                    const uuid = uuidv4();
+                    const { ciphertextBase64, ivBase64 } =
+                        await encryptKeyInfoPQ(
+                            olmData.pqSessionKey,
+                            this._mediaKeyPQ,
+                        );
+
+                    const data = {
+                        [JITSI_MEET_MUC_TYPE]: OLM_MESSAGE_TYPE,
+                        olm: {
+                            type: OLM_MESSAGE_TYPES.KEY_INFO,
+                            data: {
+                                ciphertext: this._encryptKeyInfo(
+                                    olmData.session,
+                                ),
+                                pqCiphertext: ciphertextBase64,
+                                iv: ivBase64,
+                                uuid,
+                            },
+                        },
+                    };
+
+                    const sessionPromise = new Promise((resolve, reject) => {
+                        // Saving resolve function to be able to resolve this function later.
+                        this._reqs.set(uuid, { resolve, reject });
+                    });
+
+                    promises.push(sessionPromise);
+
+                    this._sendMessage(data, pId);
+                } catch (error) {
+                    this._sendError(
+                        participant,
+                        `Sending KEY_INFO failed for ${participant.getDisplayName()}: ${error}`,
+                    );
+                }
+            } else {
                 logger.warn(`Tried to send KEY_INFO to participant ${participant.getDisplayName()} 
-                     but we have no session
-                     ${olmData.session} and ${olmData.pqSessionKey}`);
-
-                continue;
+            but status is ${olmData.status}`);
             }
-
-            const uuid = uuidv4();
-            const { ciphertextBase64, ivBase64 } = await encryptKeyInfoPQ(
-                olmData.pqSessionKey,
-                this._mediaKeyPQ,
-            );
-
-            const data = {
-                [JITSI_MEET_MUC_TYPE]: OLM_MESSAGE_TYPE,
-                olm: {
-                    type: OLM_MESSAGE_TYPES.KEY_INFO,
-                    data: {
-                        ciphertext: this._encryptKeyInfo(olmData.session),
-                        pqCiphertext: ciphertextBase64,
-                        iv: ivBase64,
-                        uuid,
-                    },
-                },
-            };
-
-            const sessionPromise = new Promise((resolve, reject) => {
-                // Saving resolve function to be able to resolve this function later.
-                this._reqs.set(uuid, { resolve, reject });
-            });
-
-            promises.push(sessionPromise);
-
-            this._sendMessage(data, pId);
         }
 
         await Promise.allSettled(promises);
@@ -528,8 +542,11 @@ export class OlmAdapter extends Listenable {
      */
     _getParticipantOlmData(participant: JitsiParticipant) {
         participant[kOlmData] = participant[kOlmData] || {};
-
-        return participant[kOlmData];
+        const data = participant[kOlmData];
+        if (!data.status) {
+            data.status = PROTOCOL_STATUS.NOT_STARTED;
+        }
+        return data;
     }
 
     /**
@@ -580,18 +597,10 @@ export class OlmAdapter extends Listenable {
 
         switch (msg.type) {
             case OLM_MESSAGE_TYPES.SESSION_INIT: {
-                if (olmData.session) {
-                    this._sendError(
-                        participant,
-                        `SESSION_INIT: Session with ${peerName} already established`,
-                    );
-                } else {
+                if (olmData.status === PROTOCOL_STATUS.NOT_STARTED) {
                     try {
                         this.eventEmitter.emit(OlmAdapterEvents.GENERATE_KEYS);
-
-                        // Create a session for communicating with this participant.
                         const session = new window.Olm.Session();
-
                         session.create_outbound(
                             this._olmAccount,
                             msg.data.idKey,
@@ -616,23 +625,26 @@ export class OlmAdapter extends Listenable {
                         };
 
                         this._sendMessage(ack, pId);
+                        olmData.status = PROTOCOL_STATUS.WAITING_PQ_SESSION_ACK;
                     } catch (error) {
                         this._sendError(
                             participant,
-                            `SESSION_INIT failed for ${peerName} with ${error}`,
+                            `Processing SESSION_INIT failed for ${peerName}: ${error}`,
                         );
                     }
+                } else {
+                    this._sendError(
+                        participant,
+                        `Got SESSION_INIT from ${peerName} but status ${olmData.status}`,
+                    );
                 }
                 break;
             }
 
             case OLM_MESSAGE_TYPES.PQ_SESSION_INIT: {
-                if (olmData.pqSessionKey) {
-                    this._sendError(
-                        participant,
-                        `PQ_SESSION_INIT: Session for ${peerName} already established`,
-                    );
-                } else {
+                if (
+                    olmData.status === PROTOCOL_STATUS.WAITING_PQ_SESSION_INIT
+                ) {
                     try {
                         const { ciphertextBase64, sharedSecret } =
                             await encapsulateSecret(msg.data.publicKey);
@@ -641,6 +653,7 @@ export class OlmAdapter extends Listenable {
                             msg.data.pqCiphertext,
                             this._privateKey,
                             sharedSecret,
+                            true,
                         );
 
                         const ack = {
@@ -654,31 +667,30 @@ export class OlmAdapter extends Listenable {
                             },
                         };
                         this._sendMessage(ack, pId);
+                        olmData.status = PROTOCOL_STATUS.WAITING_SESSION_ACK;
                     } catch (error) {
                         this._sendError(
                             participant,
-                            `PQ_SESSION_INIT ${msg.data} failed for ${peerName} with ${error}`,
+                            `Processing PQ_SESSION_INIT failed for ${peerName}: ${error}`,
                         );
                     }
+                } else {
+                    this._sendError(
+                        participant,
+                        `Got PQ_SESSION_INIT from ${peerName} but status is ${olmData.status}`,
+                    );
                 }
                 break;
             }
             case OLM_MESSAGE_TYPES.PQ_SESSION_ACK: {
-                logger.debug("CHECK: Got PQ_SESSION_ACK from id", pId);
-
-                if (olmData.pqSessionKey) {
-                    this._sendError(
-                        participant,
-                        `PQ_SESSION_ACK: Session with ${peerName} is already established`,
-                    );
-                } else {
+                if (olmData.status === PROTOCOL_STATUS.WAITING_PQ_SESSION_ACK) {
                     try {
                         olmData.pqSessionKey = await decapsulateAndDeriveOneKey(
                             msg.data.pqCiphertext,
                             this._privateKey,
                             olmData._kemSecret,
+                            false,
                         );
-
                         const ack = {
                             [JITSI_MEET_MUC_TYPE]: OLM_MESSAGE_TYPE,
                             olm: {
@@ -693,7 +705,7 @@ export class OlmAdapter extends Listenable {
                         };
 
                         this._sendMessage(ack, pId);
-
+                        olmData.status = PROTOCOL_STATUS.DONE;
                         this._onParticipantE2EEChannelReady(peerName);
                     } catch (error) {
                         this._sendError(
@@ -701,37 +713,47 @@ export class OlmAdapter extends Listenable {
                             `PQ_SESSION_ACK failed for ${peerName} with ${error}`,
                         );
                     }
+                } else {
+                    this._sendError(
+                        participant,
+                        `Got PQ_SESSION_ACK from ${peerName} but status is ${olmData.status}`,
+                    );
                 }
                 break;
             }
             case OLM_MESSAGE_TYPES.SESSION_ACK: {
-                if (olmData.session) {
-                    this._sendError(
-                        participant,
-                        `Session  with ${peerName} is already established`,
-                    );
-                } else if (uuid === olmData.pendingSessionUuid) {
-                    const { ciphertext } = msg.data;
-                    const requestPromise = this._reqs.get(uuid);
-                    const session = new window.Olm.Session();
+                if (olmData.status === PROTOCOL_STATUS.WAITING_SESSION_ACK) {
+                    try {
+                        const { ciphertext } = msg.data;
+                        const requestPromise = this._reqs.get(uuid);
+                        const session = new window.Olm.Session();
 
-                    session.create_inbound(this._olmAccount, ciphertext.body);
+                        session.create_inbound(
+                            this._olmAccount,
+                            ciphertext.body,
+                        );
 
-                    // Remove OT keys that have been used to setup this session.
-                    this._olmAccount.remove_one_time_keys(session);
-                    olmData.session = session;
-                    olmData.pendingSessionUuid = undefined;
+                        // Remove OT keys that have been used to setup this session.
+                        this._olmAccount.remove_one_time_keys(session);
+                        olmData.session = session;
+                        olmData.pendingSessionUuid = undefined;
+                        olmData.status = PROTOCOL_STATUS.DONE;
 
-                    this._onParticipantE2EEChannelReady(peerName);
+                        this._onParticipantE2EEChannelReady(peerName);
 
-                    requestPromise.resolve();
+                        requestPromise.resolve();
 
-                    this._reqs.delete(uuid);
-                    logger.debug(`CHECK: RESOLVE SESSION ACK ${uuid}`);
+                        this._reqs.delete(uuid);
+                    } catch (error) {
+                        this._sendError(
+                            participant,
+                            `SESSION_ACK failed ${this._reqs.get(uuid)} for ${peerName}: ${error}`,
+                        );
+                    }
                 } else {
                     this._sendError(
                         participant,
-                        `SESSION_ACK wrong UUID for ${peerName}`,
+                        `Got SESSION_ACK from ${peerName} but status is ${olmData.status}`,
                     );
                 }
                 break;
@@ -741,121 +763,131 @@ export class OlmAdapter extends Listenable {
                 break;
             }
             case OLM_MESSAGE_TYPES.KEY_INFO: {
-                if (olmData.session && olmData.pqSessionKey) {
-                    const { ciphertext, pqCiphertext, iv } = msg.data;
-                    const data = olmData.session.decrypt(
-                        ciphertext.type,
-                        ciphertext.body,
-                    );
-                    const json = safeJsonParse(data);
-                    const pqKey = await decryptKeyInfoPQ(
-                        pqCiphertext,
-                        iv,
-                        olmData.pqSessionKey,
-                    );
+                if (olmData.status === PROTOCOL_STATUS.DONE) {
+                    try {
+                        const { ciphertext, pqCiphertext, iv } = msg.data;
+                        const data = olmData.session.decrypt(
+                            ciphertext.type,
+                            ciphertext.body,
+                        );
+                        const json = safeJsonParse(data);
+                        const pqKey = await decryptKeyInfoPQ(
+                            pqCiphertext,
+                            iv,
+                            olmData.pqSessionKey,
+                        );
 
-                    if (
-                        json.encryptionKey !== undefined &&
-                        pqKey !== undefined &&
-                        json.index !== undefined
-                    ) {
-                        const key = json.encryptionKey
-                            ? base64js.toByteArray(json.encryptionKey)
-                            : false;
-                        const keyIndex = json.index;
+                        if (
+                            json.encryptionKey !== undefined &&
+                            pqKey !== undefined &&
+                            json.index !== undefined
+                        ) {
+                            const key = json.encryptionKey
+                                ? base64js.toByteArray(json.encryptionKey)
+                                : false;
+                            const keyIndex = json.index;
 
-                        if (!isEqual(olmData.lastKey, key)) {
+                            if (!isEqual(olmData.lastKey, key)) {
+                                olmData.lastKey = key;
+                                this.eventEmitter.emit(
+                                    OlmAdapterEvents.PARTICIPANT_KEY_UPDATED,
+                                    pId,
+                                    key,
+                                    pqKey,
+                                    keyIndex,
+                                );
+                            }
 
-                            olmData.lastKey = key;
-                            this.eventEmitter.emit(
-                                OlmAdapterEvents.PARTICIPANT_KEY_UPDATED,
-                                pId,
-                                key,
-                                pqKey,
-                                keyIndex,
-                            );
-                        }
+                            const { ciphertextBase64, ivBase64 } =
+                                await encryptKeyInfoPQ(
+                                    olmData.pqSessionKey,
+                                    this._mediaKeyPQ,
+                                );
 
-                        const { ciphertextBase64, ivBase64 } =
-                            await encryptKeyInfoPQ(
-                                olmData.pqSessionKey,
-                                this._mediaKeyPQ,
-                            );
-
-                        const ack = {
-                            [JITSI_MEET_MUC_TYPE]: OLM_MESSAGE_TYPE,
-                            olm: {
-                                type: OLM_MESSAGE_TYPES.KEY_INFO_ACK,
-                                data: {
-                                    ciphertext: this._encryptKeyInfo(
-                                        olmData.session,
-                                    ),
-                                    pqCiphertext: ciphertextBase64,
-                                    iv: ivBase64,
-                                    uuid: uuid,
+                            const ack = {
+                                [JITSI_MEET_MUC_TYPE]: OLM_MESSAGE_TYPE,
+                                olm: {
+                                    type: OLM_MESSAGE_TYPES.KEY_INFO_ACK,
+                                    data: {
+                                        ciphertext: this._encryptKeyInfo(
+                                            olmData.session,
+                                        ),
+                                        pqCiphertext: ciphertextBase64,
+                                        iv: ivBase64,
+                                        uuid: uuid,
+                                    },
                                 },
-                            },
-                        };
+                            };
 
-                        this._sendMessage(ack, pId);
+                            this._sendMessage(ack, pId);
+                        }
+                    } catch (error) {
+                        this._sendError(
+                            participant,
+                            `Processing KEY_INFO with ${msg.data.pqCiphertext} from ${peerName} failed: ${error}`,
+                        );
                     }
                 } else {
                     this._sendError(
                         participant,
-                        `Received KEY_INFO from ${peerName} but we have no session for them!`,
+                        `Got KEY_INFO from ${peerName} but status is ${olmData.status}`,
                     );
                 }
                 break;
             }
             case OLM_MESSAGE_TYPES.KEY_INFO_ACK: {
+                if (olmData.status === PROTOCOL_STATUS.DONE) {
+                    try {
+                        const { ciphertext, pqCiphertext, iv } = msg.data;
+                        const data = olmData.session.decrypt(
+                            ciphertext.type,
+                            ciphertext.body,
+                        );
+                        const json = safeJsonParse(data);
 
-                if (olmData.session && olmData.pqSessionKey) {
-                    const { ciphertext, pqCiphertext, iv } = msg.data;
-                    const data = olmData.session.decrypt(
-                        ciphertext.type,
-                        ciphertext.body,
-                    );
-                    const json = safeJsonParse(data);
+                        const pqKey = await decryptKeyInfoPQ(
+                            pqCiphertext,
+                            iv,
+                            olmData.pqSessionKey,
+                        );
 
-                    const pqKey = await decryptKeyInfoPQ(
-                        pqCiphertext,
-                        iv,
-                        olmData.pqSessionKey,
-                    );
+                        if (
+                            json.encryptionKey !== undefined &&
+                            pqKey !== undefined &&
+                            json.index !== undefined
+                        ) {
+                            const key = json.encryptionKey
+                                ? base64js.toByteArray(json.encryptionKey)
+                                : false;
+                            const keyIndex = json.index;
 
-                    if (
-                        json.encryptionKey !== undefined &&
-                        pqKey !== undefined &&
-                        json.index !== undefined
-                    ) {
-                        const key = json.encryptionKey
-                            ? base64js.toByteArray(json.encryptionKey)
-                            : false;
-                        const keyIndex = json.index;
+                            if (!isEqual(olmData.lastKey, key)) {
+                                olmData.lastKey = key;
 
-                        if (!isEqual(olmData.lastKey, key)) {
-                            olmData.lastKey = key;
-
-                            this.eventEmitter.emit(
-                                OlmAdapterEvents.PARTICIPANT_KEY_UPDATED,
-                                pId,
-                                key,
-                                pqKey,
-                                keyIndex,
-                            );
+                                this.eventEmitter.emit(
+                                    OlmAdapterEvents.PARTICIPANT_KEY_UPDATED,
+                                    pId,
+                                    key,
+                                    pqKey,
+                                    keyIndex,
+                                );
+                            }
                         }
+                        const sessionPromise = this._reqs.get(uuid);
+
+                        sessionPromise.resolve();
+
+                        this._reqs.delete(uuid);
+                    } catch (error) {
+                        this._sendError(
+                            participant,
+                            `Processing KEY_INFO_ACK from ${peerName} failed: ${error}`,
+                        );
                     }
-                    const sessionPromise = this._reqs.get(uuid);
-
-                    sessionPromise.resolve();
-
-                    this._reqs.delete(uuid);
-
-                    logger.debug("CHECK: RESOLVE KEY_INFO_ACK");
                 } else {
                     this._sendError(
                         participant,
-                        `Received KEY_INFO_ACK from ${peerName} but we have no session for them!`,
+                        `Got KEY_INFO_ACK from ${peerName} but status is ${olmData.status}`,
                     );
                 }
                 break;
@@ -1260,7 +1292,7 @@ export class OlmAdapter extends Listenable {
         const pId = participant.getId();
         const olmData = this._getParticipantOlmData(participant);
 
-        if (olmData.session) {
+        if (olmData.status === PROTOCOL_STATUS.DONE) {
             logger.warn(`Tried to send session-init to ${participant.getDisplayName()} 
             but we already have a session`);
 
@@ -1269,72 +1301,74 @@ export class OlmAdapter extends Listenable {
             );
         }
 
-        if (olmData.pendingSessionUuid !== undefined) {
-            logger.warn(`Tried to send session-init to ${participant.getDisplayName()} 
-         but we already have a pending session`);
+        if (olmData.status === PROTOCOL_STATUS.NOT_STARTED) {
+            try {
+                this.eventEmitter.emit(OlmAdapterEvents.GENERATE_KEYS);
 
-            throw new Error(
-                `Already have a pending session with participant ${participant.getDisplayName()}`,
-            );
-        }
+                // Generate a One Time Key.
+                this._olmAccount.generate_one_time_keys(1);
 
-        try {
-            this.eventEmitter.emit(OlmAdapterEvents.GENERATE_KEYS);
+                const otKeys = _safeJsonParse(this._olmAccount.one_time_keys());
+                const otKey = Object.values(otKeys.curve25519)[0];
 
-            // Generate a One Time Key.
-            this._olmAccount.generate_one_time_keys(1);
+                if (!otKey) {
+                    return Promise.reject(
+                        new Error("No one-time-keys generated"),
+                    );
+                }
 
-            const otKeys = _safeJsonParse(this._olmAccount.one_time_keys());
-            const otKey = Object.values(otKeys.curve25519)[0];
+                // Mark the OT keys (one really) as published so they are not reused.
+                this._olmAccount.mark_keys_as_published();
 
-            if (!otKey) {
-                return Promise.reject(new Error("No one-time-keys generated"));
-            }
+                const uuid = uuidv4();
 
-            // Mark the OT keys (one really) as published so they are not reused.
-            this._olmAccount.mark_keys_as_published();
-
-            const uuid = uuidv4();
-
-            const init = {
-                [JITSI_MEET_MUC_TYPE]: OLM_MESSAGE_TYPE,
-                olm: {
-                    type: OLM_MESSAGE_TYPES.SESSION_INIT,
-                    data: {
-                        idKey: this._idKeys.curve25519,
-                        otKey,
-                        publicKey: this._publicKeyBase64,
-                        uuid,
+                const init = {
+                    [JITSI_MEET_MUC_TYPE]: OLM_MESSAGE_TYPE,
+                    olm: {
+                        type: OLM_MESSAGE_TYPES.SESSION_INIT,
+                        data: {
+                            idKey: this._idKeys.curve25519,
+                            otKey,
+                            publicKey: this._publicKeyBase64,
+                            uuid,
+                        },
                     },
-                },
-            };
+                };
 
-            const sessionPromise = new Promise((resolve, reject) => {
-                this._reqs.set(uuid, { resolve, reject });
-            });
+                const sessionPromise = new Promise((resolve, reject) => {
+                    this._reqs.set(uuid, { resolve, reject });
+                });
 
-            const timeoutPromise = new Promise((_, reject) =>
-                setTimeout(
-                    () => reject(new Error("Session init request timed out")),
-                    REQ_TIMEOUT,
-                ),
-            );
+                const timeoutPromise = new Promise((_, reject) =>
+                    setTimeout(
+                        () =>
+                            reject(new Error("Session init request timed out")),
+                        REQ_TIMEOUT,
+                    ),
+                );
 
-            this._sendMessage(init, pId);
-            olmData.pendingSessionUuid = uuid;
+                this._sendMessage(init, pId);
+                olmData.status = PROTOCOL_STATUS.WAITING_PQ_SESSION_INIT;
+                olmData.pendingSessionUuid = uuid;
 
-            // Simulates timeout with deferred object but using promises
-            return Promise.race([sessionPromise, timeoutPromise]).catch(
-                (error) => {
-                    this._reqs.delete(uuid);
-                    olmData.pendingSessionUuid = undefined;
-                    throw error;
-                },
-            );
-        } catch (e) {
+                // Simulates timeout with deferred object but using promises
+                return Promise.race([sessionPromise, timeoutPromise]).catch(
+                    (error) => {
+                        this._reqs.delete(uuid);
+                        olmData.pendingSessionUuid = undefined;
+                        throw error;
+                    },
+                );
+            } catch (e) {
+                this._sendError(
+                    participant,
+                    `sendSessionInit failed for ${participant.getDisplayName()}: ${e}`,
+                );
+            }
+        } else {
             this._sendError(
                 participant,
-                `_sendSessionInit failed for ${participant.getDisplayName()} with ${e}`,
+                `Trying to send SESSION_INIT to ${participant.getDisplayName()} but status is ${olmData.status}`,
             );
         }
     }

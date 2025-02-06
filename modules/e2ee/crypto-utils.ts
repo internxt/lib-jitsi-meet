@@ -171,23 +171,38 @@ export async function decapsulateSecret(
  * @param {Uint8Array} key2 - The second key.
  * @returns {Uint8Array}
  */
-export function deriveOneKey(key1: Uint8Array, key2: Uint8Array): Uint8Array {
+export async function deriveOneKey(key1: Uint8Array, key2: Uint8Array): Promise<Uint8Array> {
     if (!key1?.length || !key2?.length) {
-        throw new Error(`Deriving one key failed: no keys given`);
+        return Promise.reject(new Error(`Deriving one key failed: no keys given`));
     }
 
     try {
         const key1Str = base64js.fromByteArray(key1);
         const key2Str = base64js.fromByteArray(key2);
-        const olmUtil = new window.Olm.Utility();
         const data = key1Str + key2Str;
-        const result = olmUtil.sha256(data);
-
-        olmUtil.free();
-
-        return new Uint8Array(Buffer.from(result, "base64"));
+        const result = await sha256(data);
+        return result;
     } catch (error) {
-        throw new Error(`Deriving one key failed: ${error}`);
+        return Promise.reject(new Error(`Deriving one key failed: ${error}`));
+    }
+}
+
+/**
+ * Computes sha256
+ *
+ * @param {String} input - The hash input
+ * @returns {Uint8Array} - The computed sha256.
+ * @private
+ */
+async function sha256(input: string): Promise<Uint8Array> {
+    try {
+    const encoder = new TextEncoder();
+    const data = encoder.encode(input);
+
+    const hashBuffer = await crypto.subtle.digest("SHA-256", data); 
+    return new Uint8Array(hashBuffer);
+    } catch (error){
+        return  Promise.reject(new Error(`sha256 failed: ${error}`));
     }
 }
 
@@ -321,14 +336,15 @@ export function generateKey() {
  *
  * @param {String} ciphertextBase64 - The Kyber ciphertext
  * @param {Uint8Array} privateKey - The Kyber private key
- * @param {Uint8Array} secondSecret - The second secret
+ * @param {Uint8Array} extraSecret - The additional secret
  * @returns {Uint8Array}
  * @private
  */
 export async function decapsulateAndDeriveOneKey(
     ciphertextBase64: String,
     privateKey: Uint8Array,
-    secondSecret: Uint8Array,
+    extraSecret: Uint8Array,
+    extraSecretGoesFirst: boolean,
 ): Promise<Uint8Array> {
     try {
         const decapsulatedSecret = await decapsulateSecret(
@@ -336,7 +352,8 @@ export async function decapsulateAndDeriveOneKey(
             privateKey,
         );
 
-        return deriveOneKey(secondSecret, decapsulatedSecret);
+        if (extraSecretGoesFirst) return deriveOneKey(extraSecret, decapsulatedSecret);
+        else return deriveOneKey(decapsulatedSecret, extraSecret);
     } catch (error) {
         return Promise.reject(
             new Error(`Decapsulate and derive secret failed: ${error}`),
