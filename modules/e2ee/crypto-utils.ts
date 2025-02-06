@@ -1,8 +1,15 @@
 import kemBuilder, { KEM } from "@dashlane/pqc-kem-kyber512-browser";
 import base64js from "base64-js";
 import { Buffer } from "buffer";
+
+
+export const AES = "AES-GCM";
+const HASH = "SHA-256";
+const KDF = "HKDF";
+const KEY_LEN = 256;
+
 /**
- * Derives a set of keys from the master key.
+ * Derives encryption key from the master key.
  * @param {CryptoKey} material - master key to derive from
  *
  * See https://tools.ietf.org/html/draft-omara-sframe-00#section-4.3.1
@@ -11,73 +18,81 @@ export async function deriveKeys(
     olmKey: Uint8Array,
     pqKey: Uint8Array,
 ): Promise<CryptoKey> {
-    const textEncoder = new TextEncoder();
-    const data = new Uint8Array([...olmKey, ...pqKey]);
-    const concatKey = await crypto.subtle.digest("SHA-256", data);
-    const material = await importKey(new Uint8Array(concatKey));
+    try {
+        const textEncoder = new TextEncoder();
+        const data = new Uint8Array([...olmKey, ...pqKey]);
+        const concatKey = await crypto.subtle.digest(HASH, data);
+        const material = await importKey(new Uint8Array(concatKey));
 
-    // https://developer.mozilla.org/en-US/docs/Web/API/SubtleCrypto/deriveKey#HKDF
-    // https://developer.mozilla.org/en-US/docs/Web/API/HkdfParams
-    const encryptionKey = await crypto.subtle.deriveKey(
-        {
-            name: "HKDF",
-            salt: textEncoder.encode("JFrameEncryptionKey"),
-            hash: "SHA-256",
-            info: textEncoder.encode("JFrameInfo"),
-        },
-        material,
-        {
-            name: "AES-GCM",
-            length: 256,
-        },
-        false,
-        ["encrypt", "decrypt"],
-    );
+        const encryptionKey = await crypto.subtle.deriveKey(
+            {
+                name: KDF,
+                salt: textEncoder.encode("JFrameEncryptionKey"),
+                hash: HASH,
+                info: textEncoder.encode("JFrameInfo"),
+            },
+            material,
+            {
+                name: AES,
+                length: KEY_LEN,
+            },
+            false,
+            ["encrypt", "decrypt"],
+        );
 
-    return encryptionKey;
+        return encryptionKey;
+    } catch (error) {
+        return Promise.reject(new Error(`Derive key failed: ${error}`));
+    }
 }
 
 /**
  * Ratchets a key. See
  * https://tools.ietf.org/html/draft-omara-sframe-00#section-4.3.5.1
+ * 
  * @param {CryptoKey} material - base key material
  * @returns {Promise<Uint8Array>} - ratcheted key material
  */
 export async function ratchet(material: CryptoKey): Promise<Uint8Array> {
-    const textEncoder = new TextEncoder();
-
-    // https://developer.mozilla.org/en-US/docs/Web/API/SubtleCrypto/deriveBits
-    const key = await crypto.subtle.deriveBits(
-        {
-            name: "HKDF",
-            salt: textEncoder.encode("JFrameRatchetKey"),
-            hash: "SHA-256",
-            info: textEncoder.encode("JFrameInfo"),
-        },
-        material,
-        256,
-    );
-    return new Uint8Array(key);
+    try {
+        const textEncoder = new TextEncoder();
+        const key = await crypto.subtle.deriveBits(
+            {
+                name: KDF,
+                salt: textEncoder.encode("JFrameRatchetKey"),
+                hash: HASH,
+                info: textEncoder.encode("JFrameInfo"),
+            },
+            material,
+            KEY_LEN,
+        );
+        return new Uint8Array(key);
+    } catch (error) {
+        return Promise.reject(new Error(`Ratchet failed: ${error}`));
+    }
 }
 
 /**
  * Converts a raw key into a WebCrypto key object with default options
- * suitable for our usage.
+ * 
  * @param {ArrayBuffer} keyBytes - raw key
  * @param {Array} keyUsages - key usages, see importKey documentation
  * @returns {Promise<CryptoKey>} - the WebCrypto key.
  */
 export async function importKey(keyBytes: Uint8Array): Promise<CryptoKey> {
-    // https://developer.mozilla.org/en-US/docs/Web/API/SubtleCrypto/importKey
-
-    return crypto.subtle.importKey("raw", keyBytes, "HKDF", false, [
-        "deriveBits",
-        "deriveKey",
-    ]);
+    try {
+        return crypto.subtle.importKey("raw", keyBytes, KDF, false, [
+            "deriveBits",
+            "deriveKey",
+        ]);
+    } catch (error) {
+        return Promise.reject(new Error(`Import key failed: ${error}`));
+    }
 }
 
 /**
  * Encapsulates a key and returns a shared secret and its ciphertext
+ * 
  * @param {Uint8Array} publicKey - The public key.
  * @returns {Promise<{ sharedSecret: Uint8Array, ciphertext: Uint8Array }>}
  */
@@ -99,6 +114,7 @@ export async function generateKyberKeys(): Promise<{
 
 /**
  * Encapsulates a secret
+ * 
  * @param {Uint8Array} publicKeyBase64 - The public key.
  * @returns {Promise<{ sharedSecret: Uint8Array, ciphertextBase64: Uint8Array }>}
  */
@@ -130,6 +146,7 @@ export async function encapsulateSecret(publicKeyBase64: String): Promise<{
 
 /**
  * Decapsulates a secret
+ * 
  * @param {Uint8Array} ciphertextBase64 - The ciphertext.
  * @param {Uint8Array} privateKey - The private key.
  * @returns {Promise<{ sharedSecret: Uint8Array }>}
@@ -171,38 +188,22 @@ export async function decapsulateSecret(
  * @param {Uint8Array} key2 - The second key.
  * @returns {Uint8Array}
  */
-export async function deriveOneKey(key1: Uint8Array, key2: Uint8Array): Promise<Uint8Array> {
+export async function deriveOneKey(
+    key1: Uint8Array,
+    key2: Uint8Array,
+): Promise<Uint8Array> {
     if (!key1?.length || !key2?.length) {
-        return Promise.reject(new Error(`Deriving one key failed: no keys given`));
+        return Promise.reject(
+            new Error(`Deriving one key failed: no keys given`),
+        );
     }
 
     try {
-        const key1Str = base64js.fromByteArray(key1);
-        const key2Str = base64js.fromByteArray(key2);
-        const data = key1Str + key2Str;
-        const result = await sha256(data);
-        return result;
+        const data = new Uint8Array([...key1, ...key2]);
+        const result = await crypto.subtle.digest(HASH, data);
+        return new Uint8Array(result);
     } catch (error) {
         return Promise.reject(new Error(`Deriving one key failed: ${error}`));
-    }
-}
-
-/**
- * Computes sha256
- *
- * @param {String} input - The hash input
- * @returns {Uint8Array} - The computed sha256.
- * @private
- */
-async function sha256(input: string): Promise<Uint8Array> {
-    try {
-    const encoder = new TextEncoder();
-    const data = encoder.encode(input);
-
-    const hashBuffer = await crypto.subtle.digest("SHA-256", data); 
-    return new Uint8Array(hashBuffer);
-    } catch (error){
-        return  Promise.reject(new Error(`sha256 failed: ${error}`));
     }
 }
 
@@ -238,8 +239,7 @@ export async function decryptKeyInfoPQ(
 
     try {
         const ciphertext = Buffer.from(
-            base64js.toByteArray(ciphertextBase64),
-            "base64",
+            base64js.toByteArray(ciphertextBase64)
         );
         const iv = base64js.toByteArray(ivBase64);
 
@@ -247,8 +247,8 @@ export async function decryptKeyInfoPQ(
             "raw",
             key,
             {
-                name: "AES-GCM",
-                length: 256,
+                name: AES,
+                length: KEY_LEN,
             },
             false,
             ["encrypt", "decrypt"],
@@ -256,7 +256,7 @@ export async function decryptKeyInfoPQ(
 
         const plaintext = await crypto.subtle.decrypt(
             {
-                name: "AES-GCM",
+                name: AES,
                 iv,
             },
             secretKey,
@@ -297,8 +297,8 @@ export async function encryptKeyInfoPQ(
             "raw",
             key,
             {
-                name: "AES-GCM",
-                length: 256,
+                name: AES,
+                length: KEY_LEN,
             },
             false,
             ["encrypt", "decrypt"],
@@ -306,7 +306,7 @@ export async function encryptKeyInfoPQ(
 
         const ciphertext = new Uint8Array(
             await crypto.subtle.encrypt(
-                { name: "AES-GCM", iv },
+                { name: AES, iv },
                 secretKey,
                 plaintext,
             ),
@@ -322,13 +322,13 @@ export async function encryptKeyInfoPQ(
 }
 
 /**
- * Generates a new 256 bit random key.
+ * Generates a new random key
  *
  * @returns {Uint8Array}
  * @private
  */
 export function generateKey() {
-    return crypto.getRandomValues(new Uint8Array(32));
+    return crypto.getRandomValues(new Uint8Array(KEY_LEN / 8));
 }
 
 /**
@@ -352,7 +352,8 @@ export async function decapsulateAndDeriveOneKey(
             privateKey,
         );
 
-        if (extraSecretGoesFirst) return deriveOneKey(extraSecret, decapsulatedSecret);
+        if (extraSecretGoesFirst)
+            return deriveOneKey(extraSecret, decapsulatedSecret);
         else return deriveOneKey(decapsulatedSecret, extraSecret);
     } catch (error) {
         return Promise.reject(

@@ -1,9 +1,6 @@
 /* eslint-disable no-bitwise */
 /* global BigInt */
-import base64js from "base64-js";
-import { Buffer } from "buffer";
-
-import { deriveKeys, importKey, ratchet } from "./crypto-utils";
+import { deriveKeys, importKey, ratchet, AES as ENCRYPTION_ALGORITHM } from "./crypto-utils";
 
 // We use a ringbuffer of keys so we can change them and still decode packets that were
 // encrypted with an old key. We use a size of 16 which corresponds to the four bits
@@ -25,7 +22,6 @@ const UNENCRYPTED_BYTES = {
     delta: 3,
     undefined: 1, // frame.type is not set on audio
 };
-const ENCRYPTION_ALGORITHM = "AES-GCM";
 let print = true;
 
 /* We use a 96 bit IV for AES GCM. This is signalled in plain together with the

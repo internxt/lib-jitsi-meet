@@ -2,8 +2,6 @@
 /* eslint-disable no-bitwise */
 
 // Worker for E2EE/Insertable streams.
-import base64js from "base64-js";
-
 import { Context } from "./Context";
 
 const contexts = new Map(); // Map participant id => context

@@ -47,7 +47,7 @@ const PROTOCOL_STATUS = {
     WAITING_SESSION_ACK: "waiting-for-session-ack",
     WAITING_PQ_SESSION_ACK: "waiting-for-pq-session-ack",
     WAITING_PQ_SESSION_INIT: "waiting-for-pq-session-init",
-    DONE: "error",
+    DONE: "sucessfully established",
 };
 
 const OLM_SAS_NUM_BYTES = 6;
@@ -209,21 +209,6 @@ export class OlmAdapter extends Listenable {
                             this._mediaKeyPQ,
                         );
 
-                    const data = {
-                        [JITSI_MEET_MUC_TYPE]: OLM_MESSAGE_TYPE,
-                        olm: {
-                            type: OLM_MESSAGE_TYPES.KEY_INFO,
-                            data: {
-                                ciphertext: this._encryptKeyInfo(
-                                    olmData.session,
-                                ),
-                                pqCiphertext: ciphertextBase64,
-                                iv: ivBase64,
-                                uuid,
-                            },
-                        },
-                    };
-
                     const sessionPromise = new Promise((resolve, reject) => {
                         // Saving resolve function to be able to resolve this function later.
                         this._reqs.set(uuid, { resolve, reject });
@@ -231,10 +216,17 @@ export class OlmAdapter extends Listenable {
 
                     promises.push(sessionPromise);
 
-                    this._sendMessage(data, pId);
+                    const olmCiphertext = this._encryptKeyInfo(olmData.session);
+                    this._sendKeyInfoMessage(
+                        uuid,
+                        olmCiphertext,
+                        ciphertextBase64,
+                        ivBase64,
+                        pId,
+                    );
                 } catch (error) {
                     this._sendError(
-                        participant,
+                        pId,
                         `Sending KEY_INFO failed for ${participant.getDisplayName()}: ${error}`,
                     );
                 }
@@ -508,8 +500,8 @@ export class OlmAdapter extends Listenable {
      * @private
      */
     _onParticipantE2EEChannelReady(id) {
-        logger.debug(
-            `CHECK: E2EE channel with participant ${id} is ready. Ready for KEY_INFO`,
+        logger.info(
+            `E2EE channel with participant ${id} is ready. Ready for KEY_INFO`,
         );
     }
 
@@ -567,6 +559,177 @@ export class OlmAdapter extends Listenable {
     }
 
     /**
+     * Sends errors resulting from a mismatch of protocol status and recived message
+     *
+     * @private
+     */
+    async _sendStatusError(
+        participantID: string,
+        participantName: string,
+        protocolStatus: string,
+        recivedMessageType: string,
+    ): Promise<void> {
+        this._sendError(
+            participantID,
+            `Got ${recivedMessageType} from ${participantName} but protocol status is ${protocolStatus}`,
+        );
+    }
+    /**
+     * Sends SESSION_INIT message
+     *
+     * @private
+     */
+    async _sendSessionInitMessage(
+        uuid: string,
+        idKey: String,
+        otKey: String,
+        publicKey: String,
+        pId: string,
+    ): Promise<void> {
+        const init = {
+            [JITSI_MEET_MUC_TYPE]: OLM_MESSAGE_TYPE,
+            olm: {
+                type: OLM_MESSAGE_TYPES.SESSION_INIT,
+                data: {
+                    idKey,
+                    otKey,
+                    publicKey,
+                    uuid,
+                },
+            },
+        };
+        this._sendMessage(init, pId);
+    }
+
+    /**
+     * Sends PQ_SESSION_INIT message
+     *
+     * @private
+     */
+    async _sendPQSessionInitMessage(
+        uuid: string,
+        publicKey: String,
+        pqCiphertext: String,
+        pId: string,
+    ): Promise<void> {
+        const ack = {
+            [JITSI_MEET_MUC_TYPE]: OLM_MESSAGE_TYPE,
+            olm: {
+                type: OLM_MESSAGE_TYPES.PQ_SESSION_INIT,
+                data: {
+                    uuid,
+                    publicKey,
+                    pqCiphertext,
+                },
+            },
+        };
+
+        this._sendMessage(ack, pId);
+    }
+
+    /**
+     * Sends PQ_SESSION_ACK message
+     *
+     * @private
+     */
+    async _sendPQSessionAckMessage(
+        uuid: string,
+        pqCiphertext: String,
+        pId: string,
+    ): Promise<void> {
+        const ack = {
+            [JITSI_MEET_MUC_TYPE]: OLM_MESSAGE_TYPE,
+            olm: {
+                type: OLM_MESSAGE_TYPES.PQ_SESSION_ACK,
+                data: {
+                    uuid,
+                    pqCiphertext,
+                },
+            },
+        };
+        this._sendMessage(ack, pId);
+    }
+
+    /**
+     * Sends SESSION_ACK message
+     *
+     * @private
+     */
+    async _sendSessionAckMessage(
+        uuid: string,
+        ciphertext: String,
+        pId: string,
+    ): Promise<void> {
+        const ack = {
+            [JITSI_MEET_MUC_TYPE]: OLM_MESSAGE_TYPE,
+            olm: {
+                type: OLM_MESSAGE_TYPES.SESSION_ACK,
+                data: {
+                    ciphertext,
+                    uuid,
+                },
+            },
+        };
+
+        this._sendMessage(ack, pId);
+    }
+
+    /**
+     * Sends KEY_INFO message
+     *
+     * @private
+     */
+    async _sendKeyInfoMessage(
+        uuid: string,
+        ciphertext: String,
+        pqCiphertext: String,
+        iv: String,
+        pId: string,
+    ): Promise<void> {
+        const info = {
+            [JITSI_MEET_MUC_TYPE]: OLM_MESSAGE_TYPE,
+            olm: {
+                type: OLM_MESSAGE_TYPES.KEY_INFO,
+                data: {
+                    ciphertext,
+                    pqCiphertext,
+                    iv,
+                    uuid,
+                },
+            },
+        };
+        this._sendMessage(info, pId);
+    }
+
+    /**
+     * Sends KEY_INFO_ACK message
+     *
+     * @private
+     */
+    async _sendKeyInfoAckMessage(
+        uuid: string,
+        ciphertext: String,
+        pqCiphertext: String,
+        iv: String,
+        pId: string,
+    ): Promise<void> {
+        const ack = {
+            [JITSI_MEET_MUC_TYPE]: OLM_MESSAGE_TYPE,
+            olm: {
+                type: OLM_MESSAGE_TYPES.KEY_INFO_ACK,
+                data: {
+                    ciphertext,
+                    pqCiphertext,
+                    iv,
+                    uuid: uuid,
+                },
+            },
+        };
+
+        this._sendMessage(ack, pId);
+    }
+
+    /**
      * Main message handler. Handles 1-to-1 messages received from other participants
      * and send the appropriate replies.
      *
@@ -590,15 +753,16 @@ export class OlmAdapter extends Listenable {
         }
 
         const msg = payload.olm;
-        const uuid = msg.data.uuid;
-        const pId = participant.getId();
-        const olmData = this._getParticipantOlmData(participant);
         const peerName = participant.getDisplayName();
+        const pId = participant.getId();
 
-        switch (msg.type) {
-            case OLM_MESSAGE_TYPES.SESSION_INIT: {
-                if (olmData.status === PROTOCOL_STATUS.NOT_STARTED) {
-                    try {
+        try {
+            const uuid = msg.data.uuid;
+            const olmData = this._getParticipantOlmData(participant);
+
+            switch (msg.type) {
+                case OLM_MESSAGE_TYPES.SESSION_INIT: {
+                    if (olmData.status === PROTOCOL_STATUS.NOT_STARTED) {
                         this.eventEmitter.emit(OlmAdapterEvents.GENERATE_KEYS);
                         const session = new window.Olm.Session();
                         session.create_outbound(
@@ -612,40 +776,29 @@ export class OlmAdapter extends Listenable {
                             await encapsulateSecret(msg.data.publicKey);
                         olmData._kemSecret = sharedSecret;
 
-                        const ack = {
-                            [JITSI_MEET_MUC_TYPE]: OLM_MESSAGE_TYPE,
-                            olm: {
-                                type: OLM_MESSAGE_TYPES.PQ_SESSION_INIT,
-                                data: {
-                                    uuid,
-                                    publicKey: this._publicKeyBase64,
-                                    pqCiphertext: ciphertextBase64,
-                                },
-                            },
-                        };
-
-                        this._sendMessage(ack, pId);
-                        olmData.status = PROTOCOL_STATUS.WAITING_PQ_SESSION_ACK;
-                    } catch (error) {
-                        this._sendError(
-                            participant,
-                            `Processing SESSION_INIT failed for ${peerName}: ${error}`,
+                        this._sendPQSessionInitMessage(
+                            uuid,
+                            this._publicKeyBase64,
+                            ciphertextBase64,
+                            pId,
                         );
-                    }
-                } else {
-                    this._sendError(
-                        participant,
-                        `Got SESSION_INIT from ${peerName} but status ${olmData.status}`,
-                    );
-                }
-                break;
-            }
 
-            case OLM_MESSAGE_TYPES.PQ_SESSION_INIT: {
-                if (
-                    olmData.status === PROTOCOL_STATUS.WAITING_PQ_SESSION_INIT
-                ) {
-                    try {
+                        olmData.status = PROTOCOL_STATUS.WAITING_PQ_SESSION_ACK;
+                    } else
+                        this._sendStatusError(
+                            pId,
+                            peerName,
+                            msg.type,
+                            olmData.status,
+                        );
+                    break;
+                }
+
+                case OLM_MESSAGE_TYPES.PQ_SESSION_INIT: {
+                    if (
+                        olmData.status ===
+                        PROTOCOL_STATUS.WAITING_PQ_SESSION_INIT
+                    ) {
                         const { ciphertextBase64, sharedSecret } =
                             await encapsulateSecret(msg.data.publicKey);
 
@@ -656,74 +809,52 @@ export class OlmAdapter extends Listenable {
                             true,
                         );
 
-                        const ack = {
-                            [JITSI_MEET_MUC_TYPE]: OLM_MESSAGE_TYPE,
-                            olm: {
-                                type: OLM_MESSAGE_TYPES.PQ_SESSION_ACK,
-                                data: {
-                                    uuid,
-                                    pqCiphertext: ciphertextBase64,
-                                },
-                            },
-                        };
-                        this._sendMessage(ack, pId);
-                        olmData.status = PROTOCOL_STATUS.WAITING_SESSION_ACK;
-                    } catch (error) {
-                        this._sendError(
-                            participant,
-                            `Processing PQ_SESSION_INIT failed for ${peerName}: ${error}`,
+                        this._sendPQSessionAckMessage(
+                            uuid,
+                            ciphertextBase64,
+                            pId,
                         );
-                    }
-                } else {
-                    this._sendError(
-                        participant,
-                        `Got PQ_SESSION_INIT from ${peerName} but status is ${olmData.status}`,
-                    );
+                        olmData.status = PROTOCOL_STATUS.WAITING_SESSION_ACK;
+                    } else
+                        this._sendStatusError(
+                            pId,
+                            peerName,
+                            msg.type,
+                            olmData.status,
+                        );
+                    break;
                 }
-                break;
-            }
-            case OLM_MESSAGE_TYPES.PQ_SESSION_ACK: {
-                if (olmData.status === PROTOCOL_STATUS.WAITING_PQ_SESSION_ACK) {
-                    try {
+                case OLM_MESSAGE_TYPES.PQ_SESSION_ACK: {
+                    if (
+                        olmData.status ===
+                        PROTOCOL_STATUS.WAITING_PQ_SESSION_ACK
+                    ) {
                         olmData.pqSessionKey = await decapsulateAndDeriveOneKey(
                             msg.data.pqCiphertext,
                             this._privateKey,
                             olmData._kemSecret,
                             false,
                         );
-                        const ack = {
-                            [JITSI_MEET_MUC_TYPE]: OLM_MESSAGE_TYPE,
-                            olm: {
-                                type: OLM_MESSAGE_TYPES.SESSION_ACK,
-                                data: {
-                                    ciphertext: this._encryptKeyInfo(
-                                        olmData.session,
-                                    ),
-                                    uuid,
-                                },
-                            },
-                        };
+                        const olmCiphertext = this._encryptKeyInfo(
+                            olmData.session,
+                        );
+                        this._sendSessionAckMessage(uuid, olmCiphertext, pId);
 
-                        this._sendMessage(ack, pId);
                         olmData.status = PROTOCOL_STATUS.DONE;
                         this._onParticipantE2EEChannelReady(peerName);
-                    } catch (error) {
-                        this._sendError(
-                            participant,
-                            `PQ_SESSION_ACK failed for ${peerName} with ${error}`,
+                    } else
+                        this._sendStatusError(
+                            pId,
+                            peerName,
+                            msg.type,
+                            olmData.status,
                         );
-                    }
-                } else {
-                    this._sendError(
-                        participant,
-                        `Got PQ_SESSION_ACK from ${peerName} but status is ${olmData.status}`,
-                    );
+                    break;
                 }
-                break;
-            }
-            case OLM_MESSAGE_TYPES.SESSION_ACK: {
-                if (olmData.status === PROTOCOL_STATUS.WAITING_SESSION_ACK) {
-                    try {
+                case OLM_MESSAGE_TYPES.SESSION_ACK: {
+                    if (
+                        olmData.status === PROTOCOL_STATUS.WAITING_SESSION_ACK
+                    ) {
                         const { ciphertext } = msg.data;
                         const requestPromise = this._reqs.get(uuid);
                         const session = new window.Olm.Session();
@@ -744,27 +875,21 @@ export class OlmAdapter extends Listenable {
                         requestPromise.resolve();
 
                         this._reqs.delete(uuid);
-                    } catch (error) {
-                        this._sendError(
-                            participant,
-                            `SESSION_ACK failed ${this._reqs.get(uuid)} for ${peerName}: ${error}`,
+                    } else
+                        this._sendStatusError(
+                            pId,
+                            peerName,
+                            msg.type,
+                            olmData.status,
                         );
-                    }
-                } else {
-                    this._sendError(
-                        participant,
-                        `Got SESSION_ACK from ${peerName} but status is ${olmData.status}`,
-                    );
+                    break;
                 }
-                break;
-            }
-            case OLM_MESSAGE_TYPES.ERROR: {
-                this._sendError(participant, msg.data.error);
-                break;
-            }
-            case OLM_MESSAGE_TYPES.KEY_INFO: {
-                if (olmData.status === PROTOCOL_STATUS.DONE) {
-                    try {
+                case OLM_MESSAGE_TYPES.ERROR: {
+                    this._sendError(pId, msg.data.error);
+                    break;
+                }
+                case OLM_MESSAGE_TYPES.KEY_INFO: {
+                    if (olmData.status === PROTOCOL_STATUS.DONE) {
                         const { ciphertext, pqCiphertext, iv } = msg.data;
                         const data = olmData.session.decrypt(
                             ciphertext.type,
@@ -804,40 +929,28 @@ export class OlmAdapter extends Listenable {
                                     this._mediaKeyPQ,
                                 );
 
-                            const ack = {
-                                [JITSI_MEET_MUC_TYPE]: OLM_MESSAGE_TYPE,
-                                olm: {
-                                    type: OLM_MESSAGE_TYPES.KEY_INFO_ACK,
-                                    data: {
-                                        ciphertext: this._encryptKeyInfo(
-                                            olmData.session,
-                                        ),
-                                        pqCiphertext: ciphertextBase64,
-                                        iv: ivBase64,
-                                        uuid: uuid,
-                                    },
-                                },
-                            };
-
-                            this._sendMessage(ack, pId);
+                            const olmCiphertext = this._encryptKeyInfo(
+                                olmData.session,
+                            );
+                            this._sendKeyInfoAckMessage(
+                                uuid,
+                                olmCiphertext,
+                                ciphertextBase64,
+                                ivBase64,
+                                pId,
+                            );
                         }
-                    } catch (error) {
-                        this._sendError(
-                            participant,
-                            `Processing KEY_INFO with ${msg.data.pqCiphertext} from ${peerName} failed: ${error}`,
+                    } else
+                        this._sendStatusError(
+                            pId,
+                            peerName,
+                            msg.type,
+                            olmData.status,
                         );
-                    }
-                } else {
-                    this._sendError(
-                        participant,
-                        `Got KEY_INFO from ${peerName} but status is ${olmData.status}`,
-                    );
+                    break;
                 }
-                break;
-            }
-            case OLM_MESSAGE_TYPES.KEY_INFO_ACK: {
-                if (olmData.status === PROTOCOL_STATUS.DONE) {
-                    try {
+                case OLM_MESSAGE_TYPES.KEY_INFO_ACK: {
+                    if (olmData.status === PROTOCOL_STATUS.DONE) {
                         const { ciphertext, pqCiphertext, iv } = msg.data;
                         const data = olmData.session.decrypt(
                             ciphertext.type,
@@ -878,318 +991,333 @@ export class OlmAdapter extends Listenable {
                         sessionPromise.resolve();
 
                         this._reqs.delete(uuid);
-                    } catch (error) {
-                        this._sendError(
-                            participant,
-                            `Processing KEY_INFO_ACK from ${peerName} failed: ${error}`,
+                    } else
+                        this._sendStatusError(
+                            pId,
+                            peerName,
+                            msg.type,
+                            olmData.status,
                         );
+                    break;
+                }
+                case OLM_MESSAGE_TYPES.SAS_START: {
+                    if (!olmData.session) {
+                        this._sendError(
+                            pId,
+                            "No session found while processing sas-init",
+                        );
+
+                        return;
                     }
-                } else {
-                    this._sendError(
-                        participant,
-                        `Got KEY_INFO_ACK from ${peerName} but status is ${olmData.status}`,
+
+                    if (olmData.sasVerification?.sas) {
+                        logger.warn(
+                            `SAS already created for participant ${pId}`,
+                        );
+                        this.eventEmitter.emit(
+                            OlmAdapterEvents.PARTICIPANT_VERIFICATION_COMPLETED,
+                            pId,
+                            false,
+                            E2EEErrors.E2EE_SAS_INVALID_SAS_VERIFICATION,
+                        );
+
+                        return;
+                    }
+
+                    const { transactionId } = msg.data;
+
+                    const sas = new window.Olm.SAS();
+
+                    olmData.sasVerification = {
+                        sas,
+                        transactionId,
+                        isInitiator: false,
+                    };
+
+                    const pubKey = olmData.sasVerification.sas.get_pubkey();
+                    const commitment = this._computeCommitment(
+                        pubKey,
+                        msg.data,
                     );
-                }
-                break;
-            }
-            case OLM_MESSAGE_TYPES.SAS_START: {
-                if (!olmData.session) {
-                    this._sendError(
-                        participant,
-                        "No session found while processing sas-init",
-                    );
 
-                    return;
-                }
-
-                if (olmData.sasVerification?.sas) {
-                    logger.warn(`SAS already created for participant ${pId}`);
-                    this.eventEmitter.emit(
-                        OlmAdapterEvents.PARTICIPANT_VERIFICATION_COMPLETED,
-                        pId,
-                        false,
-                        E2EEErrors.E2EE_SAS_INVALID_SAS_VERIFICATION,
-                    );
-
-                    return;
-                }
-
-                const { transactionId } = msg.data;
-
-                const sas = new window.Olm.SAS();
-
-                olmData.sasVerification = {
-                    sas,
-                    transactionId,
-                    isInitiator: false,
-                };
-
-                const pubKey = olmData.sasVerification.sas.get_pubkey();
-                const commitment = this._computeCommitment(pubKey, msg.data);
-
-                /* The first phase of the verification process, the Key agreement phase
+                    /* The first phase of the verification process, the Key agreement phase
                 https://spec.matrix.org/latest/client-server-api/#short-authentication-string-sas-verification
             */
-                const acceptMessage = {
-                    [JITSI_MEET_MUC_TYPE]: OLM_MESSAGE_TYPE,
-                    olm: {
-                        type: OLM_MESSAGE_TYPES.SAS_ACCEPT,
-                        data: {
-                            transactionId,
-                            commitment,
+                    const acceptMessage = {
+                        [JITSI_MEET_MUC_TYPE]: OLM_MESSAGE_TYPE,
+                        olm: {
+                            type: OLM_MESSAGE_TYPES.SAS_ACCEPT,
+                            data: {
+                                transactionId,
+                                commitment,
+                            },
                         },
-                    },
-                };
+                    };
 
-                this._sendMessage(acceptMessage, pId);
-                break;
-            }
-            case OLM_MESSAGE_TYPES.SAS_ACCEPT: {
-                if (!olmData.session) {
-                    this._sendError(
-                        participant,
-                        "No session found while processing sas-accept",
-                    );
-
-                    return;
+                    this._sendMessage(acceptMessage, pId);
+                    break;
                 }
-
-                const { commitment, transactionId } = msg.data;
-
-                if (!olmData.sasVerification) {
-                    logger.warn(
-                        `SAS_ACCEPT Participant ${pId} does not have valid sasVerification`,
-                    );
-                    this.eventEmitter.emit(
-                        OlmAdapterEvents.PARTICIPANT_VERIFICATION_COMPLETED,
-                        pId,
-                        false,
-                        E2EEErrors.E2EE_SAS_INVALID_SAS_VERIFICATION,
-                    );
-
-                    return;
-                }
-
-                if (olmData.sasVerification.sasCommitment) {
-                    this._sendError(
-                        participant,
-                        "Already received sas commitment message from ${pId}!",
-                    );
-
-                    return;
-                }
-
-                olmData.sasVerification.sasCommitment = commitment;
-
-                const pubKey = olmData.sasVerification.sas.get_pubkey();
-
-                // Send KEY.
-                const keyMessage = {
-                    [JITSI_MEET_MUC_TYPE]: OLM_MESSAGE_TYPE,
-                    olm: {
-                        type: OLM_MESSAGE_TYPES.SAS_KEY,
-                        data: {
-                            key: pubKey,
-                            transactionId,
-                        },
-                    },
-                };
-
-                this._sendMessage(keyMessage, pId);
-
-                olmData.sasVerification.keySent = true;
-                break;
-            }
-            case OLM_MESSAGE_TYPES.SAS_KEY: {
-                if (!olmData.session) {
-                    this._sendError(
-                        participant,
-                        "No session found while processing sas-key",
-                    );
-
-                    return;
-                }
-
-                if (!olmData.sasVerification) {
-                    logger.warn(
-                        `SAS_KEY Participant ${pId} does not have valid sasVerification`,
-                    );
-                    this.eventEmitter.emit(
-                        OlmAdapterEvents.PARTICIPANT_VERIFICATION_COMPLETED,
-                        pId,
-                        false,
-                        E2EEErrors.E2EE_SAS_INVALID_SAS_VERIFICATION,
-                    );
-
-                    return;
-                }
-
-                const {
-                    isInitiator,
-                    sas,
-                    sasCommitment,
-                    startContent,
-                    keySent,
-                } = olmData.sasVerification;
-
-                if (sas.is_their_key_set()) {
-                    logger.warn("SAS already has their key!");
-
-                    return;
-                }
-
-                const { key: theirKey, transactionId } = msg.data;
-
-                if (sasCommitment) {
-                    const commitment = this._computeCommitment(
-                        theirKey,
-                        startContent,
-                    );
-
-                    if (sasCommitment !== commitment) {
+                case OLM_MESSAGE_TYPES.SAS_ACCEPT: {
+                    if (!olmData.session) {
                         this._sendError(
-                            participant,
-                            "OlmAdapter commitments mismatched",
+                            pId,
+                            "No session found while processing sas-accept",
+                        );
+
+                        return;
+                    }
+
+                    const { commitment, transactionId } = msg.data;
+
+                    if (!olmData.sasVerification) {
+                        logger.warn(
+                            `SAS_ACCEPT Participant ${pId} does not have valid sasVerification`,
                         );
                         this.eventEmitter.emit(
                             OlmAdapterEvents.PARTICIPANT_VERIFICATION_COMPLETED,
                             pId,
                             false,
-                            E2EEErrors.E2EE_SAS_COMMITMENT_MISMATCHED,
+                            E2EEErrors.E2EE_SAS_INVALID_SAS_VERIFICATION,
                         );
-                        olmData.sasVerification.free();
 
                         return;
                     }
-                }
 
-                sas.set_their_key(theirKey);
+                    if (olmData.sasVerification.sasCommitment) {
+                        this._sendError(
+                            pId,
+                            "Already received sas commitment message from ${pId}!",
+                        );
 
-                const pubKey = sas.get_pubkey();
+                        return;
+                    }
 
-                const myInfo = `${this.myId}|${pubKey}`;
-                const theirInfo = `${pId}|${theirKey}`;
+                    olmData.sasVerification.sasCommitment = commitment;
 
-                const info = isInitiator
-                    ? `${myInfo}|${theirInfo}`
-                    : `${theirInfo}|${myInfo}`;
+                    const pubKey = olmData.sasVerification.sas.get_pubkey();
 
-                const sasBytes = sas.generate_bytes(info, OLM_SAS_NUM_BYTES);
-                const generatedSas = generateSas(sasBytes);
-
-                this.eventEmitter.emit(
-                    OlmAdapterEvents.PARTICIPANT_SAS_READY,
-                    pId,
-                    generatedSas,
-                );
-
-                if (keySent) {
-                    return;
-                }
-
-                const keyMessage = {
-                    [JITSI_MEET_MUC_TYPE]: OLM_MESSAGE_TYPE,
-                    olm: {
-                        type: OLM_MESSAGE_TYPES.SAS_KEY,
-                        data: {
-                            key: pubKey,
-                            transactionId,
+                    // Send KEY.
+                    const keyMessage = {
+                        [JITSI_MEET_MUC_TYPE]: OLM_MESSAGE_TYPE,
+                        olm: {
+                            type: OLM_MESSAGE_TYPES.SAS_KEY,
+                            data: {
+                                key: pubKey,
+                                transactionId,
+                            },
                         },
-                    },
-                };
+                    };
 
-                this._sendMessage(keyMessage, pId);
+                    this._sendMessage(keyMessage, pId);
 
-                olmData.sasVerification.keySent = true;
-                break;
-            }
-            case OLM_MESSAGE_TYPES.SAS_MAC: {
-                if (!olmData.session) {
-                    this._sendError(
-                        participant,
-                        "No session found while processing sas-mac",
-                    );
-
-                    return;
+                    olmData.sasVerification.keySent = true;
+                    break;
                 }
-
-                const { keys, mac, transactionId } = msg.data;
-
-                if (!mac || !keys) {
-                    logger.warn("Invalid SAS MAC message");
-
-                    return;
-                }
-
-                if (!olmData.sasVerification) {
-                    logger.warn(
-                        `SAS_MAC Participant ${pId} does not have valid sasVerification`,
-                    );
-
-                    return;
-                }
-
-                const sas = olmData.sasVerification.sas;
-
-                // Verify the received MACs.
-                const baseInfo = `${OLM_KEY_VERIFICATION_MAC_INFO}${pId}${this.myId}${transactionId}`;
-                const keysMac = sas.calculate_mac(
-                    Object.keys(mac).sort().join(","), // eslint-disable-line newline-per-chained-call
-                    baseInfo + OLM_KEY_VERIFICATION_MAC_KEY_IDS,
-                );
-
-                if (keysMac !== keys) {
-                    logger.error("SAS verification error: keys MAC mismatch");
-                    this.eventEmitter.emit(
-                        OlmAdapterEvents.PARTICIPANT_VERIFICATION_COMPLETED,
-                        pId,
-                        false,
-                        E2EEErrors.E2EE_SAS_KEYS_MAC_MISMATCH,
-                    );
-
-                    return;
-                }
-
-                if (!olmData.ed25519) {
-                    logger.warn("SAS verification error: Missing ed25519 key");
-
-                    this.eventEmitter.emit(
-                        OlmAdapterEvents.PARTICIPANT_VERIFICATION_COMPLETED,
-                        pId,
-                        false,
-                        E2EEErrors.E2EE_SAS_MISSING_KEY,
-                    );
-
-                    return;
-                }
-
-                for (const [keyInfo, computedMac] of Object.entries(mac)) {
-                    const ourComputedMac = sas.calculate_mac(
-                        olmData.ed25519,
-                        baseInfo + keyInfo,
-                    );
-
-                    if (computedMac !== ourComputedMac) {
-                        logger.error("SAS verification error: MAC mismatch");
-                        this.eventEmitter.emit(
-                            OlmAdapterEvents.PARTICIPANT_VERIFICATION_COMPLETED,
+                case OLM_MESSAGE_TYPES.SAS_KEY: {
+                    if (!olmData.session) {
+                        this._sendError(
                             pId,
-                            false,
-                            E2EEErrors.E2EE_SAS_MAC_MISMATCH,
+                            "No session found while processing sas-key",
                         );
 
                         return;
                     }
+
+                    if (!olmData.sasVerification) {
+                        logger.warn(
+                            `SAS_KEY Participant ${pId} does not have valid sasVerification`,
+                        );
+                        this.eventEmitter.emit(
+                            OlmAdapterEvents.PARTICIPANT_VERIFICATION_COMPLETED,
+                            pId,
+                            false,
+                            E2EEErrors.E2EE_SAS_INVALID_SAS_VERIFICATION,
+                        );
+
+                        return;
+                    }
+
+                    const {
+                        isInitiator,
+                        sas,
+                        sasCommitment,
+                        startContent,
+                        keySent,
+                    } = olmData.sasVerification;
+
+                    if (sas.is_their_key_set()) {
+                        logger.warn("SAS already has their key!");
+
+                        return;
+                    }
+
+                    const { key: theirKey, transactionId } = msg.data;
+
+                    if (sasCommitment) {
+                        const commitment = this._computeCommitment(
+                            theirKey,
+                            startContent,
+                        );
+
+                        if (sasCommitment !== commitment) {
+                            this._sendError(
+                                pId,
+                                "OlmAdapter commitments mismatched",
+                            );
+                            this.eventEmitter.emit(
+                                OlmAdapterEvents.PARTICIPANT_VERIFICATION_COMPLETED,
+                                pId,
+                                false,
+                                E2EEErrors.E2EE_SAS_COMMITMENT_MISMATCHED,
+                            );
+                            olmData.sasVerification.free();
+
+                            return;
+                        }
+                    }
+
+                    sas.set_their_key(theirKey);
+
+                    const pubKey = sas.get_pubkey();
+
+                    const myInfo = `${this.myId}|${pubKey}`;
+                    const theirInfo = `${pId}|${theirKey}`;
+
+                    const info = isInitiator
+                        ? `${myInfo}|${theirInfo}`
+                        : `${theirInfo}|${myInfo}`;
+
+                    const sasBytes = sas.generate_bytes(
+                        info,
+                        OLM_SAS_NUM_BYTES,
+                    );
+                    const generatedSas = generateSas(sasBytes);
+
+                    this.eventEmitter.emit(
+                        OlmAdapterEvents.PARTICIPANT_SAS_READY,
+                        pId,
+                        generatedSas,
+                    );
+
+                    if (keySent) {
+                        return;
+                    }
+
+                    const keyMessage = {
+                        [JITSI_MEET_MUC_TYPE]: OLM_MESSAGE_TYPE,
+                        olm: {
+                            type: OLM_MESSAGE_TYPES.SAS_KEY,
+                            data: {
+                                key: pubKey,
+                                transactionId,
+                            },
+                        },
+                    };
+
+                    this._sendMessage(keyMessage, pId);
+
+                    olmData.sasVerification.keySent = true;
+                    break;
                 }
+                case OLM_MESSAGE_TYPES.SAS_MAC: {
+                    if (!olmData.session) {
+                        this._sendError(
+                            pId,
+                            "No session found while processing sas-mac",
+                        );
 
-                this.eventEmitter.emit(
-                    OlmAdapterEvents.PARTICIPANT_VERIFICATION_COMPLETED,
-                    pId,
-                    true,
-                );
+                        return;
+                    }
 
-                break;
+                    const { keys, mac, transactionId } = msg.data;
+
+                    if (!mac || !keys) {
+                        logger.warn("Invalid SAS MAC message");
+
+                        return;
+                    }
+
+                    if (!olmData.sasVerification) {
+                        logger.warn(
+                            `SAS_MAC Participant ${pId} does not have valid sasVerification`,
+                        );
+
+                        return;
+                    }
+
+                    const sas = olmData.sasVerification.sas;
+
+                    // Verify the received MACs.
+                    const baseInfo = `${OLM_KEY_VERIFICATION_MAC_INFO}${pId}${this.myId}${transactionId}`;
+                    const keysMac = sas.calculate_mac(
+                        Object.keys(mac).sort().join(","), // eslint-disable-line newline-per-chained-call
+                        baseInfo + OLM_KEY_VERIFICATION_MAC_KEY_IDS,
+                    );
+
+                    if (keysMac !== keys) {
+                        logger.error(
+                            "SAS verification error: keys MAC mismatch",
+                        );
+                        this.eventEmitter.emit(
+                            OlmAdapterEvents.PARTICIPANT_VERIFICATION_COMPLETED,
+                            pId,
+                            false,
+                            E2EEErrors.E2EE_SAS_KEYS_MAC_MISMATCH,
+                        );
+
+                        return;
+                    }
+
+                    if (!olmData.ed25519) {
+                        logger.warn(
+                            "SAS verification error: Missing ed25519 key",
+                        );
+
+                        this.eventEmitter.emit(
+                            OlmAdapterEvents.PARTICIPANT_VERIFICATION_COMPLETED,
+                            pId,
+                            false,
+                            E2EEErrors.E2EE_SAS_MISSING_KEY,
+                        );
+
+                        return;
+                    }
+
+                    for (const [keyInfo, computedMac] of Object.entries(mac)) {
+                        const ourComputedMac = sas.calculate_mac(
+                            olmData.ed25519,
+                            baseInfo + keyInfo,
+                        );
+
+                        if (computedMac !== ourComputedMac) {
+                            logger.error(
+                                "SAS verification error: MAC mismatch",
+                            );
+                            this.eventEmitter.emit(
+                                OlmAdapterEvents.PARTICIPANT_VERIFICATION_COMPLETED,
+                                pId,
+                                false,
+                                E2EEErrors.E2EE_SAS_MAC_MISMATCH,
+                            );
+
+                            return;
+                        }
+                    }
+
+                    this.eventEmitter.emit(
+                        OlmAdapterEvents.PARTICIPANT_VERIFICATION_COMPLETED,
+                        pId,
+                        true,
+                    );
+
+                    break;
+                }
             }
+        } catch (error) {
+            this._sendError(
+                pId,
+                `Processing ${msg.type} failed for ${peerName}: ${error}`,
+            );
         }
     }
 
@@ -1248,13 +1376,12 @@ export class OlmAdapter extends Listenable {
     /**
      * Builds and sends an error message to the target participant.
      *
-     * @param {JitsiParticipant} participant - The target participant.
+     * @param {string} id - The target participant.
      * @param {string} error - The error message.
      * @returns {void}
      */
-    _sendError(participant: JitsiParticipant, error) {
+    _sendError(pId: string, error) {
         logger.error(error);
-        const pId = participant.getId();
         const err = {
             [JITSI_MEET_MUC_TYPE]: OLM_MESSAGE_TYPE,
             olm: {
@@ -1309,31 +1436,20 @@ export class OlmAdapter extends Listenable {
                 this._olmAccount.generate_one_time_keys(1);
 
                 const otKeys = _safeJsonParse(this._olmAccount.one_time_keys());
-                const otKey = Object.values(otKeys.curve25519)[0];
+                const values = Object.values(otKeys.curve25519);
 
-                if (!otKey) {
+                if (!values.length || typeof values[0] !== "string") {
                     return Promise.reject(
                         new Error("No one-time-keys generated"),
                     );
                 }
 
+                const otKey: string = values[0];
+
                 // Mark the OT keys (one really) as published so they are not reused.
                 this._olmAccount.mark_keys_as_published();
 
                 const uuid = uuidv4();
-
-                const init = {
-                    [JITSI_MEET_MUC_TYPE]: OLM_MESSAGE_TYPE,
-                    olm: {
-                        type: OLM_MESSAGE_TYPES.SESSION_INIT,
-                        data: {
-                            idKey: this._idKeys.curve25519,
-                            otKey,
-                            publicKey: this._publicKeyBase64,
-                            uuid,
-                        },
-                    },
-                };
 
                 const sessionPromise = new Promise((resolve, reject) => {
                     this._reqs.set(uuid, { resolve, reject });
@@ -1347,7 +1463,14 @@ export class OlmAdapter extends Listenable {
                     ),
                 );
 
-                this._sendMessage(init, pId);
+                this._sendSessionInitMessage(
+                    uuid,
+                    this._idKeys.curve25519,
+                    otKey,
+                    this._publicKeyBase64,
+                    pId,
+                );
+
                 olmData.status = PROTOCOL_STATUS.WAITING_PQ_SESSION_INIT;
                 olmData.pendingSessionUuid = uuid;
 
@@ -1361,13 +1484,13 @@ export class OlmAdapter extends Listenable {
                 );
             } catch (e) {
                 this._sendError(
-                    participant,
+                    pId,
                     `sendSessionInit failed for ${participant.getDisplayName()}: ${e}`,
                 );
             }
         } else {
             this._sendError(
-                participant,
+                pId,
                 `Trying to send SESSION_INIT to ${participant.getDisplayName()} but status is ${olmData.status}`,
             );
         }
