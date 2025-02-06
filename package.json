@@ -22,6 +22,7 @@
     "@jitsi/precall-test": "1.0.6",
     "@jitsi/rtcstats": "9.7.0",
     "@jitsi/sdp-interop": "git+https://github.com/jitsi/sdp-interop#3d49eb4aa26863a3f8d32d7581cdb4321244266b",
+    "@rollup/rollup-darwin-x64": "^4.34.4",
     "@testrtc/watchrtc-sdk": "1.38.2",
     "@types/webrtc": "^0.0.43",
     "async-es": "3.2.4",
@@ -31,11 +32,13 @@
     "jquery": "3.6.1",
     "lodash-es": "4.17.21",
     "patch-package": "6.5.1",
+    "prettier": "^3.4.2",
     "sdp-transform": "2.3.0",
     "strophe.js": "1.5.0",
     "strophejs-plugin-disco": "0.0.2",
     "strophejs-plugin-stream-management": "git+https://github.com/jitsi/strophejs-plugin-stream-management#679be5902097ed612fb5062b5549f3f32b6f5f47",
     "uuid": "8.1.0",
+    "vite": "^6.1.0",
     "webrtc-adapter": "8.1.1"
   },
   "devDependencies": {
@@ -52,9 +55,10 @@
     "@types/sdp-transform": "2.4.5",
     "babel-loader": "8.2.3",
     "core-js": "3.19.1",
-    "eslint": "8.1.0",
+    "eslint": "^8.1.0",
     "eslint-plugin-import": "2.25.2",
     "jasmine-core": "4.2.0",
+    "jsdom": "^26.0.0",
     "karma": "6.4.4",
     "karma-chrome-launcher": "3.1.1",
     "karma-jasmine": "5.1.0",
@@ -64,12 +68,10 @@
     "string-replace-loader": "3.0.3",
     "ts-loader": "^9.5.1",
     "typescript": "5.0.4",
+    "vitest": "^3.0.5",
     "webpack": "5.76.0",
     "webpack-bundle-analyzer": "4.4.2",
     "webpack-cli": "4.9.0"
-  },
-  "optionalDependencies": {
-    "@rollup/rollup-darwin-arm64": "4.24.0"
   },
   "scripts": {
     "build": "npm run build:webpack && npm run build:tsc",
@@ -81,10 +83,13 @@
     "lint-fix": "eslint . --fix",
     "postinstall": "patch-package",
     "prepack": "npm run build && npm run gen-types",
-    "test": "karma start karma.conf.js",
+    "test-karma": "karma start karma.conf.js",
+    "test": "vitest",
     "test-watch": "karma start karma.conf.js --no-single-run",
     "validate": "npm ls",
-    "watch": "webpack --config webpack.config.js --watch --mode development"
+    "watch": "webpack --config webpack.config.js --watch --mode development",
+    "format": "prettier \"{src,test}/**/*.{ts,tsx}\" --write",
+    "lint:ts": "eslint \"./{src,test}/**/*.{ts,tsx}\""
   },
   "browser": "dist/umd/lib-jitsi-meet.min.js",
   "module": "dist/esm/JitsiMeetJS.js",

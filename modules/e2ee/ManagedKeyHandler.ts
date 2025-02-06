@@ -7,7 +7,7 @@ import * as JitsiConferenceEvents from "../../JitsiConferenceEvents";
 
 import { KeyHandler } from "./KeyHandler";
 import { OlmAdapter } from "./OlmAdapter";
-import { importKey, ratchet } from "./crypto-utils";
+import { importKey, ratchet, generateKey } from "./crypto-utils";
 import JitsiParticipant from "../../JitsiParticipant";
 
 const logger = getLogger(__filename);
@@ -250,8 +250,8 @@ export class ManagedKeyHandler extends KeyHandler {
      */
     _onKeyGeneration() {
         if (!this._olmKey && !this._pqKey) {
-            this._olmKey = this._generateKey();
-            this._pqKey = this._generateKey();
+            this._olmKey = generateKey();
+            this._pqKey = generateKey();
             this._olmAdapter.updateCurrentMediaKey(this._olmKey, this._pqKey);
         }
     }
@@ -304,13 +304,5 @@ export class ManagedKeyHandler extends KeyHandler {
         );
     }
 
-    /**
-     * Generates a new 256 bit random key.
-     *
-     * @returns {Uint8Array}
-     * @private
-     */
-    _generateKey() {
-        return window.crypto.getRandomValues(new Uint8Array(32));
-    }
+   
 }

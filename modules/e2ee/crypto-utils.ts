@@ -1,15 +1,20 @@
+import kemBuilder, { KEM } from "@dashlane/pqc-kem-kyber512-browser";
+import base64js from "base64-js";
+import { Buffer } from "buffer";
 /**
  * Derives a set of keys from the master key.
  * @param {CryptoKey} material - master key to derive from
  *
  * See https://tools.ietf.org/html/draft-omara-sframe-00#section-4.3.1
  */
-export async function deriveKeys(olmKey: Uint8Array, pqKey: Uint8Array): Promise<CryptoKey> {
-
+export async function deriveKeys(
+    olmKey: Uint8Array,
+    pqKey: Uint8Array,
+): Promise<CryptoKey> {
     const textEncoder = new TextEncoder();
     const data = new Uint8Array([...olmKey, ...pqKey]);
     const concatKey = await crypto.subtle.digest("SHA-256", data);
-    const material =  await importKey(new Uint8Array(concatKey));
+    const material = await importKey(new Uint8Array(concatKey));
 
     // https://developer.mozilla.org/en-US/docs/Web/API/SubtleCrypto/deriveKey#HKDF
     // https://developer.mozilla.org/en-US/docs/Web/API/HkdfParams
@@ -26,7 +31,7 @@ export async function deriveKeys(olmKey: Uint8Array, pqKey: Uint8Array): Promise
             length: 256,
         },
         false,
-        ["encrypt", "decrypt"]
+        ["encrypt", "decrypt"],
     );
 
     return encryptionKey;
@@ -50,7 +55,7 @@ export async function ratchet(material: CryptoKey): Promise<Uint8Array> {
             info: textEncoder.encode("JFrameInfo"),
         },
         material,
-        256
+        256,
     );
     return new Uint8Array(key);
 }
@@ -72,9 +77,205 @@ export async function importKey(keyBytes: Uint8Array): Promise<CryptoKey> {
 }
 
 /**
- * Encrypts using AES-GCM
+ * Encapsulates a key and returns a shared secret and its ciphertext
+ * @param {Uint8Array} publicKey - The public key.
+ * @returns {Promise<{ sharedSecret: Uint8Array, ciphertext: Uint8Array }>}
  */
-export const encryptSymmetric = async (plaintext:Uint8Array, key: Uint8Array): Promise <{ciphertext: Uint8Array, iv: Uint8Array}> => {
+export async function generateKyberKeys(): Promise<{
+    publicKeyBase64: String;
+    privateKey: Uint8Array;
+}> {
+    try {
+        const kem = await kemBuilder();
+        const { publicKey, privateKey } = await kem.keypair();
+        const publicKeyBase64 = base64js.fromByteArray(publicKey);
+        return { publicKeyBase64, privateKey };
+    } catch (error) {
+        return Promise.reject(
+            new Error(`Kyber key generation failed: ${error}`),
+        );
+    }
+}
+
+/**
+ * Encapsulates a secret
+ * @param {Uint8Array} publicKeyBase64 - The public key.
+ * @returns {Promise<{ sharedSecret: Uint8Array, ciphertextBase64: Uint8Array }>}
+ */
+export async function encapsulateSecret(publicKeyBase64: String): Promise<{
+    ciphertextBase64: String;
+    sharedSecret: Uint8Array;
+}> {
+    if (!publicKeyBase64?.length) {
+        return Promise.reject(
+            new Error(`Secret encapsulation failed: no public key given`),
+        );
+    }
+    try {
+        const kem = await kemBuilder();
+        const participantEncapsulationKey: Uint8Array =
+            base64js.toByteArray(publicKeyBase64);
+        const { ciphertext, sharedSecret } = await kem.encapsulate(
+            participantEncapsulationKey,
+        );
+        const kyberCiphertext = base64js.fromByteArray(ciphertext);
+
+        return { ciphertextBase64: kyberCiphertext, sharedSecret };
+    } catch (error) {
+        return Promise.reject(
+            new Error(`Secret encapsulation failed: ${error}`),
+        );
+    }
+}
+
+/**
+ * Decapsulates a secret
+ * @param {Uint8Array} ciphertextBase64 - The ciphertext.
+ * @param {Uint8Array} privateKey - The private key.
+ * @returns {Promise<{ sharedSecret: Uint8Array }>}
+ * @private
+ */
+export async function decapsulateSecret(
+    ciphertextBase64: String,
+    privateKey: Uint8Array,
+): Promise<Uint8Array> {
+    if (!ciphertextBase64?.length) {
+        return Promise.reject(
+            new Error(`Secret decapsulation failed: no ciphertext given`),
+        );
+    }
+    if (!privateKey?.length) {
+        return Promise.reject(
+            new Error(`Secret decapsulation failed: no private key given`),
+        );
+    }
+    try {
+        const kem = await kemBuilder();
+        const pqCiphertext: Uint8Array = base64js.toByteArray(ciphertextBase64);
+        const { sharedSecret } = await kem.decapsulate(
+            pqCiphertext,
+            privateKey,
+        );
+
+        return sharedSecret;
+    } catch (error) {
+        return Promise.reject(
+            new Error(`Secret decapsulation failed: ${error}`),
+        );
+    }
+}
+
+/**
+ * Derives one key from two
+ * @param {Uint8Array} key1 - The first key.
+ * @param {Uint8Array} key2 - The second key.
+ * @returns {Uint8Array}
+ */
+export function deriveOneKey(key1: Uint8Array, key2: Uint8Array): Uint8Array {
+    if (!key1?.length || !key2?.length) {
+        throw new Error(`Deriving one key failed: no keys given`);
+    }
+
+    try {
+        const key1Str = base64js.fromByteArray(key1);
+        const key2Str = base64js.fromByteArray(key2);
+        const olmUtil = new window.Olm.Utility();
+        const data = key1Str + key2Str;
+        const result = olmUtil.sha256(data);
+
+        olmUtil.free();
+
+        return new Uint8Array(Buffer.from(result, "base64"));
+    } catch (error) {
+        throw new Error(`Deriving one key failed: ${error}`);
+    }
+}
+
+/**
+ * Decrypts the current key information via pq channel for a given participant.
+ *
+ * @param {String} ciphertextBase64 - The ciphertext
+ * @param {String} ivBase64 - The IV
+ * @param {Uint8Array} key - Participant's pq session key
+ * @returns {Uint8Array} - The encrypted text with the key information.
+ * @private
+ */
+export async function decryptKeyInfoPQ(
+    ciphertextBase64: String,
+    ivBase64: String,
+    key: Uint8Array,
+): Promise<Uint8Array> {
+    if (!ciphertextBase64?.length) {
+        return Promise.reject(
+            new Error("PQ key decryption failed: ciphertext is not given"),
+        );
+    }
+    if (!ivBase64?.length) {
+        return Promise.reject(
+            new Error("PQ key decryption failed: iv is not given"),
+        );
+    }
+    if (!key?.byteLength) {
+        return Promise.reject(
+            new Error("PQ key decryption failed: key is not given"),
+        );
+    }
+
+    try {
+        const ciphertext = Buffer.from(
+            base64js.toByteArray(ciphertextBase64),
+            "base64",
+        );
+        const iv = base64js.toByteArray(ivBase64);
+
+        const secretKey = await crypto.subtle.importKey(
+            "raw",
+            key,
+            {
+                name: "AES-GCM",
+                length: 256,
+            },
+            false,
+            ["encrypt", "decrypt"],
+        );
+
+        const plaintext = await crypto.subtle.decrypt(
+            {
+                name: "AES-GCM",
+                iv,
+            },
+            secretKey,
+            ciphertext,
+        );
+
+        return new Uint8Array(plaintext);
+    } catch (error) {
+        return Promise.reject(new Error(`PQ key decryption failed: ${error}`));
+    }
+}
+
+/**
+ * Encrypts the current key information via pq channel for a given participant.
+ *
+ * @param {Uint8Array} key - Participant's pq session key
+ * @returns {Uint8Array, Uint8Array} - The encrypted text with the key information.
+ * @private
+ */
+export async function encryptKeyInfoPQ(
+    key: Uint8Array,
+    plaintext: Uint8Array,
+): Promise<{ ciphertextBase64: String; ivBase64: String }> {
+    if (!key?.length) {
+        return Promise.reject(
+            new Error("PQ key encryption failed: key is undefined"),
+        );
+    }
+    if (!plaintext?.length) {
+        return Promise.reject(
+            new Error("PQ key encryption failed: message is undefined"),
+        );
+    }
+
     try {
         const iv = crypto.getRandomValues(new Uint8Array(16));
         const secretKey = await crypto.subtle.importKey(
@@ -85,62 +286,60 @@ export const encryptSymmetric = async (plaintext:Uint8Array, key: Uint8Array): P
                 length: 256,
             },
             false,
-            ["encrypt", "decrypt"]
+            ["encrypt", "decrypt"],
         );
 
-        const ciphertext = await crypto.subtle.encrypt(
-            {
-                name: "AES-GCM",
-                iv,
-            },
-            secretKey,
-            plaintext
+        const ciphertext = new Uint8Array(
+            await crypto.subtle.encrypt(
+                { name: "AES-GCM", iv },
+                secretKey,
+                plaintext,
+            ),
         );
 
-        return {
-            ciphertext: new Uint8Array(ciphertext),
-            iv,
-        };
+        const ciphertextBase64 = base64js.fromByteArray(ciphertext);
+        const ivBase64 = base64js.fromByteArray(iv);
+
+        return { ciphertextBase64, ivBase64 };
     } catch (error) {
-        console.error(
-            "[SYMMETRIC_ENCRYPTION]: encryption failed. ERROR: #%d",
-            error
-        );
-        throw error;
+        return Promise.reject(new Error(`PQ key encryption failed: ${error}`));
     }
-};
+}
 
 /**
- * Decrypts data using AES-GCM.
+ * Generates a new 256 bit random key.
+ *
+ * @returns {Uint8Array}
+ * @private
  */
-export const decryptSymmetric = async (ciphertext: Uint8Array, iv: Uint8Array, key: Uint8Array): Promise<Uint8Array> => {
+export function generateKey() {
+    return crypto.getRandomValues(new Uint8Array(32));
+}
+
+/**
+ * Decapsulates and derives one key
+ *
+ * @param {String} ciphertextBase64 - The Kyber ciphertext
+ * @param {Uint8Array} privateKey - The Kyber private key
+ * @param {Uint8Array} secondSecret - The second secret
+ * @returns {Uint8Array}
+ * @private
+ */
+export async function decapsulateAndDeriveOneKey(
+    ciphertextBase64: String,
+    privateKey: Uint8Array,
+    secondSecret: Uint8Array,
+): Promise<Uint8Array> {
     try {
-        const secretKey = await crypto.subtle.importKey(
-            "raw",
-            key,
-            {
-                name: "AES-GCM",
-                length: 256,
-            },
-            false,
-            ["encrypt", "decrypt"]
+        const decapsulatedSecret = await decapsulateSecret(
+            ciphertextBase64,
+            privateKey,
         );
 
-        const plaintext = await crypto.subtle.decrypt(
-            {
-                name: "AES-GCM",
-                iv,
-            },
-            secretKey,
-            ciphertext
-        );
-
-        return new Uint8Array(plaintext);
+        return deriveOneKey(secondSecret, decapsulatedSecret);
     } catch (error) {
-        console.error(
-            "[SYMMETRIC_DECRYPTION]: decryption failed. ERROR: #%d",
-            error
+        return Promise.reject(
+            new Error(`Decapsulate and derive secret failed: ${error}`),
         );
-        throw error;
     }
-};
+}
