@@ -1,5 +1,3 @@
-/* global Olm */
-
 import { safeJsonParse as _safeJsonParse } from "@jitsi/js-utils/json";
 import { getLogger } from "@jitsi/logger";
 import base64js from "base64-js";
@@ -25,7 +23,7 @@ import JitsiParticipant from "../../JitsiParticipant";
 
 const logger = getLogger(__filename);
 
-const REQ_TIMEOUT = 5 * 1000;
+const REQ_TIMEOUT = 8 * 1000;
 const OLM_MESSAGE_TYPE = "olm";
 const OLM_MESSAGE_TYPES = {
     ERROR: "error",
@@ -87,7 +85,7 @@ const OlmAdapterEvents = {
  */
 export class OlmAdapter extends Listenable {
     private readonly _conf: JitsiConference;
-    private _init: Promise<void>;
+    private _olmWasInitialized: Promise<boolean>;
     private _mediaKeyOlm: Uint8Array;
     private _mediaKeyPQ: Uint8Array;
     private _mediaKeyIndex: number;
@@ -95,7 +93,7 @@ export class OlmAdapter extends Listenable {
         Uint8Array,
         { resolve: (args?: unknown) => void; reject?: (args?: unknown) => void }
     >;
-    private _publicKeyBase64: String;
+    private _publicKeyBase64: string;
     private _privateKey: Uint8Array;
     private _olmAccount: any;
     private _idKeys: any;
@@ -124,9 +122,9 @@ export class OlmAdapter extends Listenable {
         this._privateKey = undefined;
 
         this._sessionInitializationInProgress = null;
-        this._init = this._bootstrapOlm();
 
         if (OlmAdapter.isSupported()) {
+            this._olmWasInitialized = this._bootstrapOlm();
             this._conf.on(
                 JitsiConferenceEvents.ENDPOINT_MESSAGE_RECEIVED,
                 this._onEndpointMessageReceived.bind(this),
@@ -144,7 +142,7 @@ export class OlmAdapter extends Listenable {
                 this._onParticipantPropertyChanged.bind(this),
             );
         } else {
-            this._init = Promise.reject(new Error("Olm not supported"));
+            this._olmWasInitialized = Promise.reject(false);
         }
     }
 
@@ -154,9 +152,9 @@ export class OlmAdapter extends Listenable {
      * @returns {Promise<void>}
      * @private
      */
-    async _bootstrapOlm(): Promise<void> {
+    async _bootstrapOlm(): Promise<boolean> {
         if (!OlmAdapter.isSupported()) {
-            throw new Error("Olm is not supported on this platform.");
+            return false;
         }
 
         try {
@@ -167,15 +165,16 @@ export class OlmAdapter extends Listenable {
 
             this._idKeys = safeJsonParse(this._olmAccount.identity_keys());
 
-            logger.debug(
-                `Olm ${window.Olm.get_library_version().join(".")} initialized`,
-            );
+            const { publicKeyBase64, privateKey } = await generateKyberKeys();
+            this._publicKeyBase64 = publicKeyBase64;
+            this._privateKey = privateKey;
 
-            await this._initializeKemAndKeys();
             this._onIdKeysReady(this._idKeys);
-        } catch (e) {
-            logger.error("Failed to initialize Olm", e);
-            throw e;
+
+            return true;
+        } catch (error) {
+            logger.error("Failed to initialize Olm", error);
+            return false;
         }
     }
 
@@ -187,13 +186,6 @@ export class OlmAdapter extends Listenable {
     }
 
     async sendKeyInfoToAll() {
-        // Broadcast it.
-        logger.debug(
-            `Send key info to all called ${{
-                participants: this._conf.getParticipants(),
-            }}`,
-        );
-
         const promises = [];
 
         for (const participant of this._conf.getParticipants()) {
@@ -231,8 +223,12 @@ export class OlmAdapter extends Listenable {
                     );
                 }
             } else {
-                logger.warn(`Tried to send KEY_INFO to participant ${participant.getDisplayName()} 
-            but status is ${olmData.status}`);
+                this._sendStatusError(
+                    pId,
+                    participant.getDisplayName(),
+                    olmData.status,
+                    OLM_MESSAGE_TYPES.KEY_INFO,
+                );
             }
         }
 
@@ -249,11 +245,13 @@ export class OlmAdapter extends Listenable {
             return this._sessionInitializationInProgress;
         }
 
+        if (!(await this._olmWasInitialized))
+            throw new Error(
+                "Cannot init sessions because olm was not initialized",
+            );
+
         this._sessionInitializationInProgress = (async () => {
             try {
-                // Wait for Olm library to initialize
-                await this._init;
-
                 const localParticipantId = this._conf.myUserId();
                 const participants = this._conf.getParticipants();
 
@@ -310,9 +308,6 @@ export class OlmAdapter extends Listenable {
     }
 
     /**
-
-
-    /**
      * Updates the current participant key.
      * @param {Uint8Array} olmKey - The new key.
      * @param {Uint8Array} pqKey - The new PQ key.
@@ -336,18 +331,6 @@ export class OlmAdapter extends Listenable {
             olmData.session.free();
             olmData.session = undefined;
         }
-    }
-
-    /**
-     * Initializes kem and creates key pair
-     * @returns {Promise<{ publicKey: Uint8Array, privateKey: Uint8Array }>}
-     * @private
-     */
-    async _initializeKemAndKeys() {
-        const { publicKeyBase64, privateKey } = await generateKyberKeys();
-
-        this._publicKeyBase64 = publicKeyBase64;
-        this._privateKey = privateKey;
     }
 
     /**
@@ -484,7 +467,7 @@ export class OlmAdapter extends Listenable {
     _onIdKeysReady(idKeys) {
         // Publish it in presence.
         for (const keyType in idKeys) {
-            if (idKeys.hasOwnProperty(keyType)) {
+            if (Object.prototype.hasOwnProperty.call(idKeys, keyType)) {
                 const key = idKeys[keyType];
 
                 this._conf.setLocalParticipantProperty(
@@ -513,7 +496,7 @@ export class OlmAdapter extends Listenable {
      * @private
      */
     _encryptKeyInfo(session) {
-        let keyInfo: KeyInfo = { encryptionKey: undefined, index: -1 };
+        const keyInfo: KeyInfo = { encryptionKey: undefined, index: -1 };
 
         if (this._mediaKeyOlm !== undefined) {
             keyInfo.encryptionKey = this._mediaKeyOlm
@@ -547,14 +530,15 @@ export class OlmAdapter extends Listenable {
      * @private
      */
     async _onConferenceLeft() {
-        await this._init;
-        for (const participant of this._conf.getParticipants()) {
-            this._onParticipantLeft(participant);
-        }
+        if (await this._olmWasInitialized) {
+            for (const participant of this._conf.getParticipants()) {
+                this._onParticipantLeft(participant);
+            }
 
-        if (this._olmAccount) {
-            this._olmAccount.free();
-            this._olmAccount = undefined;
+            if (this._olmAccount) {
+                this._olmAccount.free();
+                this._olmAccount = undefined;
+            }
         }
     }
 
@@ -581,9 +565,9 @@ export class OlmAdapter extends Listenable {
      */
     async _sendSessionInitMessage(
         uuid: string,
-        idKey: String,
-        otKey: String,
-        publicKey: String,
+        idKey: string,
+        otKey: string,
+        publicKey: string,
         pId: string,
     ): Promise<void> {
         const init = {
@@ -608,8 +592,8 @@ export class OlmAdapter extends Listenable {
      */
     async _sendPQSessionInitMessage(
         uuid: string,
-        publicKey: String,
-        pqCiphertext: String,
+        publicKey: string,
+        pqCiphertext: string,
         pId: string,
     ): Promise<void> {
         const ack = {
@@ -634,7 +618,7 @@ export class OlmAdapter extends Listenable {
      */
     async _sendPQSessionAckMessage(
         uuid: string,
-        pqCiphertext: String,
+        pqCiphertext: string,
         pId: string,
     ): Promise<void> {
         const ack = {
@@ -657,7 +641,7 @@ export class OlmAdapter extends Listenable {
      */
     async _sendSessionAckMessage(
         uuid: string,
-        ciphertext: String,
+        ciphertext: string,
         pId: string,
     ): Promise<void> {
         const ack = {
@@ -681,9 +665,9 @@ export class OlmAdapter extends Listenable {
      */
     async _sendKeyInfoMessage(
         uuid: string,
-        ciphertext: String,
-        pqCiphertext: String,
-        iv: String,
+        ciphertext: string,
+        pqCiphertext: string,
+        iv: string,
         pId: string,
     ): Promise<void> {
         const info = {
@@ -708,9 +692,9 @@ export class OlmAdapter extends Listenable {
      */
     async _sendKeyInfoAckMessage(
         uuid: string,
-        ciphertext: String,
-        pqCiphertext: String,
-        iv: String,
+        ciphertext: string,
+        pqCiphertext: string,
+        iv: string,
         pId: string,
     ): Promise<void> {
         const ack = {
@@ -748,7 +732,7 @@ export class OlmAdapter extends Listenable {
             return;
         }
 
-        if (!this._init) {
+        if (!(await this._olmWasInitialized)) {
             throw new Error("Olm not initialized");
         }
 
@@ -1250,7 +1234,7 @@ export class OlmAdapter extends Listenable {
                     // Verify the received MACs.
                     const baseInfo = `${OLM_KEY_VERIFICATION_MAC_INFO}${pId}${this.myId}${transactionId}`;
                     const keysMac = sas.calculate_mac(
-                        Object.keys(mac).sort().join(","), // eslint-disable-line newline-per-chained-call
+                        Object.keys(mac).sort().join(","),
                         baseInfo + OLM_KEY_VERIFICATION_MAC_KEY_IDS,
                     );
 
@@ -1327,7 +1311,6 @@ export class OlmAdapter extends Listenable {
      * @private
      */
     _onParticipantLeft(participant: JitsiParticipant) {
-        logger.debug("_onParticipantLeft for participant", participant);
         this.clearParticipantSession(participant);
     }
 
@@ -1348,27 +1331,25 @@ export class OlmAdapter extends Listenable {
     ) {
         switch (name) {
             case "e2ee.enabled":
-                if (newValue && !oldValue && this._conf.isE2EEEnabled()) {
-                    if (!this._init) {
+                if (newValue && this._conf.isE2EEEnabled()) {
+                    if (!(await this._olmWasInitialized)) {
                         throw new Error(
                             "_onParticipantPropertyChanged is called before init",
                         );
                     }
-
-                    logger.debug(
-                        "send key info from _onParticipantPropertyChanged",
-                    );
                     await this.sendKeyInfoToAll();
                 }
                 break;
             case "e2ee.idKey.ed25519":
-                const olmData = this._getParticipantOlmData(participant);
-                olmData.ed25519 = newValue;
-                const participantId = participant.getId();
-                this.eventEmitter.emit(
-                    OlmAdapterEvents.PARTICIPANT_SAS_AVAILABLE,
-                    participantId,
-                );
+                {
+                    const olmData = this._getParticipantOlmData(participant);
+                    olmData.ed25519 = newValue;
+                    const participantId = participant.getId();
+                    this.eventEmitter.emit(
+                        OlmAdapterEvents.PARTICIPANT_SAS_AVAILABLE,
+                        participantId,
+                    );
+                }
                 break;
         }
     }
@@ -1562,6 +1543,7 @@ function safeJsonParse(data) {
     try {
         return _safeJsonParse(data);
     } catch (e) {
+        logger.error(`Cannot parse date ${data}: ${e}`);
         return {};
     }
 }

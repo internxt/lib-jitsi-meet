@@ -1,4 +1,4 @@
-import kemBuilder, { KEM } from "@dashlane/pqc-kem-kyber512-browser";
+import kemBuilder from "@dashlane/pqc-kem-kyber512-browser";
 import base64js from "base64-js";
 import { Buffer } from "buffer";
 
@@ -97,7 +97,7 @@ export async function importKey(keyBytes: Uint8Array): Promise<CryptoKey> {
  * @returns {Promise<{ sharedSecret: Uint8Array, ciphertext: Uint8Array }>}
  */
 export async function generateKyberKeys(): Promise<{
-    publicKeyBase64: String;
+    publicKeyBase64: string;
     privateKey: Uint8Array;
 }> {
     try {
@@ -118,8 +118,8 @@ export async function generateKyberKeys(): Promise<{
  * @param {Uint8Array} publicKeyBase64 - The public key.
  * @returns {Promise<{ sharedSecret: Uint8Array, ciphertextBase64: Uint8Array }>}
  */
-export async function encapsulateSecret(publicKeyBase64: String): Promise<{
-    ciphertextBase64: String;
+export async function encapsulateSecret(publicKeyBase64: string): Promise<{
+    ciphertextBase64: string;
     sharedSecret: Uint8Array;
 }> {
     if (!publicKeyBase64?.length) {
@@ -153,7 +153,7 @@ export async function encapsulateSecret(publicKeyBase64: String): Promise<{
  * @private
  */
 export async function decapsulateSecret(
-    ciphertextBase64: String,
+    ciphertextBase64: string,
     privateKey: Uint8Array,
 ): Promise<Uint8Array> {
     if (!ciphertextBase64?.length) {
@@ -210,15 +210,15 @@ export async function deriveOneKey(
 /**
  * Decrypts the current key information via pq channel for a given participant.
  *
- * @param {String} ciphertextBase64 - The ciphertext
- * @param {String} ivBase64 - The IV
+ * @param {string} ciphertextBase64 - The ciphertext
+ * @param {string} ivBase64 - The IV
  * @param {Uint8Array} key - Participant's pq session key
  * @returns {Uint8Array} - The encrypted text with the key information.
  * @private
  */
 export async function decryptKeyInfoPQ(
-    ciphertextBase64: String,
-    ivBase64: String,
+    ciphertextBase64: string,
+    ivBase64: string,
     key: Uint8Array,
 ): Promise<Uint8Array> {
     if (!ciphertextBase64?.length) {
@@ -279,7 +279,7 @@ export async function decryptKeyInfoPQ(
 export async function encryptKeyInfoPQ(
     key: Uint8Array,
     plaintext: Uint8Array,
-): Promise<{ ciphertextBase64: String; ivBase64: String }> {
+): Promise<{ ciphertextBase64: string; ivBase64: string }> {
     if (!key?.length) {
         return Promise.reject(
             new Error("PQ key encryption failed: key is undefined"),
@@ -334,14 +334,14 @@ export function generateKey() {
 /**
  * Decapsulates and derives one key
  *
- * @param {String} ciphertextBase64 - The Kyber ciphertext
+ * @param {string} ciphertextBase64 - The Kyber ciphertext
  * @param {Uint8Array} privateKey - The Kyber private key
  * @param {Uint8Array} extraSecret - The additional secret
  * @returns {Uint8Array}
  * @private
  */
 export async function decapsulateAndDeriveOneKey(
-    ciphertextBase64: String,
+    ciphertextBase64: string,
     privateKey: Uint8Array,
     extraSecret: Uint8Array,
     extraSecretGoesFirst: boolean,

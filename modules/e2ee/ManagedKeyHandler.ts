@@ -226,21 +226,8 @@ export class ManagedKeyHandler extends KeyHandler {
         pqKey: Uint8Array,
         index: number
     ) {
-        logger.debug(
-            "CHECKPOINT: _onParticipantKeyUpdated called setKey with id",
-            id,
-            "olm key",
-            olmKey,
-            "pq key",
-            pqKey,
-            "index",
-            index,
-            "my olm key",
-            this._olmKey,
-            "my pq key",
-            this._pqKey
-        );
         this.e2eeCtx.setKey(id, olmKey, pqKey, index);
+        logger.info(`Sucessfully set keys for user ${id}`);
     }
 
     /**

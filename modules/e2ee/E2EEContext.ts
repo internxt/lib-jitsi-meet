@@ -187,13 +187,13 @@ export default class E2EEcontext {
      * @param {string} participantId - the ID of the participant who's key we are setting.
      * @param {Uint8Array} olmKey - olm key for the given participant.
      * @param {Uint8Array} pqKey - olm key for the given participant.
-     * @param {Number} keyIndex - the key index.
+     * @param {number} keyIndex - the key index.
      */
     setKey(
         participantId: string,
         olmKey: Uint8Array,
         pqKey: Uint8Array,
-        index: Number
+        index: number
     ) {
         this._worker.postMessage({
             operation: "setKey",

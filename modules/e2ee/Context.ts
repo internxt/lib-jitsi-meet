@@ -1,4 +1,3 @@
-/* eslint-disable no-bitwise */
 /* global BigInt */
 import { deriveKeys, importKey, ratchet, AES as ENCRYPTION_ALGORITHM } from "./crypto-utils";
 
@@ -43,7 +42,7 @@ export type KeyMaterial = {
 export class Context {
     private _cryptoKeyRing: KeyMaterial[];
     private _currentKeyIndex: number;
-    private _sendCounts: Map<any, number>;
+    private _sendCounts: Map<number, number>;
     /**
      * @param {Object} options
      */
@@ -65,15 +64,13 @@ export class Context {
      * @param {Number} index
      */
     async setKey(olmKey: Uint8Array, pqKey: Uint8Array, index: number = -1) {
-        let newKey: KeyMaterial;
-
         const newEncryptionKey = await deriveKeys(
             olmKey,
             pqKey
         );
         const newMaterialOlm = await importKey(olmKey);
         const newMaterialPQ = await importKey(pqKey);
-        newKey = {
+        const newKey: KeyMaterial = {
             materialOlm: newMaterialOlm,
             materialPQ: newMaterialPQ,
             encryptionKey: newEncryptionKey,
@@ -255,7 +252,7 @@ export class Context {
         ratchetCount: number = 0
     ) {
         const { encryptionKey } = this._cryptoKeyRing[keyIndex];
-        let { materialOlm, materialPQ } = this._cryptoKeyRing[keyIndex];
+        const { materialOlm, materialPQ } = this._cryptoKeyRing[keyIndex];
 
         // Construct frame trailer. Similar to the frame header described in
         // https://tools.ietf.org/html/draft-omara-sframe-00#section-4.2
@@ -323,7 +320,7 @@ export class Context {
 
             return encodedFrame;
         } catch (error) {
-
+            console.log('Got error while decrypting frame', error);
             if (ratchetCount < RATCHET_WINDOW_SIZE) {
                 const currentKey = this._cryptoKeyRing[this._currentKeyIndex];
 
@@ -334,7 +331,7 @@ export class Context {
                     newMaterialPQ
                 );
 
-                console.log('CHECK: Decrypt frame ratches for time =', ratchetCount);
+                console.log(`Doing ratchet for ${ratchetCount} time`);
                 const newKey = {
                     materialOlm: await importKey(newMaterialOlm),
                     materialPQ: await importKey(newMaterialPQ),
@@ -382,7 +379,7 @@ export class Context {
      *
      * See also https://developer.mozilla.org/en-US/docs/Web/API/AesGcmParams
      */
-    _makeIV(synchronizationSource, timestamp) {
+    _makeIV(synchronizationSource: number, timestamp) {
         const iv = new ArrayBuffer(IV_LENGTH);
         const ivView = new DataView(iv);
 

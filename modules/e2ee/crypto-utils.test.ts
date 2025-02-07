@@ -33,7 +33,7 @@ describe("Test Kyber KEM", () => {
 
     it("key decapsulation should throw an error for empty inputs", async () => {
         const { publicKeyBase64, privateKey } = await generateKyberKeys();
-        const { ciphertextBase64, sharedSecret } =
+        const { ciphertextBase64 } =
             await encapsulateSecret(publicKeyBase64);
 
         await expect(

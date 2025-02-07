@@ -4,6 +4,7 @@ import * as JitsiConferenceEvents from '../../JitsiConferenceEvents';
 import RTCEvents from '../../service/RTC/RTCEvents';
 import browser from '../browser';
 import Listenable from '../util/Listenable';
+import { OlmAdapter } from "./OlmAdapter";
 
 import E2EEContext from './E2EEContext';
 import JitsiConference from '../../JitsiConference';
@@ -21,7 +22,7 @@ export abstract class KeyHandler extends Listenable {
     conference: JitsiConference;
     e2eeCtx: E2EEContext;
     enabled: boolean;
-    _olmAdapter: any;
+    _olmAdapter: OlmAdapter;
 
     abstract _setEnabled(enabled: boolean): Promise<boolean>;
     abstract setKey(olmKey: Uint8Array, pqKey: Uint8Array, index: number): void;

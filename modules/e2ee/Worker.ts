@@ -1,5 +1,4 @@
 /* global TransformStream */
-/* eslint-disable no-bitwise */
 
 // Worker for E2EE/Insertable streams.
 import { Context } from "./Context";
@@ -57,10 +56,8 @@ onmessage = async (event) => {
     } else if (operation === "setKey") {
         const { participantId, olmKey, pqKey, index } = event.data;
         const context = getParticipantContext(participantId);
-
-        console.log('CHECK: on message got event', event.data, 'parsed as id', participantId, 'olm key', olmKey, 
-            'pq key', pqKey, 'index', index);
         context.setKey(olmKey, pqKey, index);
+        
     } else if (operation === "cleanup") {
         const { participantId } = event.data;
 

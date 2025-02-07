@@ -52,7 +52,7 @@ export default function() {
         // it's a final failure(the request will be restarted), so we lower it's
         // level here to a warning.
         // This line can be commented out if you are having perfomance problems while debugging on Chrome.
-        logger.trace('Strophe', level, msg);
+        //logger.trace('Strophe', level, msg);
         if (typeof msg === 'string'
                 && msg.indexOf('Request ') !== -1
                 && msg.indexOf('timed out (secondary), restarting') !== -1) {
