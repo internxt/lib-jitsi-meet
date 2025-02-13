@@ -2,13 +2,12 @@ import browser from "../browser";
 
 import { ManagedKeyHandler } from "./ManagedKeyHandler";
 import { OlmAdapter } from "./OlmAdapter";
-import { KeyHandler } from "./KeyHandler";
 
 /**
- * This module integrates {@link KeyHandler} with {@link JitsiConference} in order to enable E2E encryption.
+ * This module integrates {@link ManagedKeyHandler} with {@link JitsiConference} in order to enable E2E encryption.
  */
 export class E2EEncryption {
-    private _keyHandler: KeyHandler;
+    private _keyHandler: ManagedKeyHandler;
     /**
      * A constructor.
      * @param {JitsiConference} conference - The conference instance for which E2E encryption is to be enabled.

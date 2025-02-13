@@ -46,7 +46,7 @@ export default class E2EEcontext {
         // the entry point, not the script that launches the worker.
         let baseUrl = "";
         const ljm = document.querySelector<HTMLImageElement>(
-            'script[src*="lib-jitsi-meet"]'
+            'script[src*="lib-jitsi-meet"]',
         ); // as HTMLImageElement;
 
         if (ljm) {
@@ -109,7 +109,7 @@ export default class E2EEcontext {
     handleReceiver(
         receiver: CustomRTCRtpReceiver,
         kind: string,
-        participantId: string
+        participantId: string,
     ) {
         if (receiver[kJitsiE2EE]) {
             return;
@@ -124,7 +124,7 @@ export default class E2EEcontext {
 
             receiver.transform = new RTCRtpScriptTransform(
                 this._worker,
-                options
+                options,
             );
         } else {
             const receiverStreams = receiver.createEncodedStreams();
@@ -136,7 +136,7 @@ export default class E2EEcontext {
                     writableStream: receiverStreams.writable,
                     participantId,
                 },
-                [receiverStreams.readable, receiverStreams.writable]
+                [receiverStreams.readable, receiverStreams.writable],
             );
         }
     }
@@ -152,7 +152,7 @@ export default class E2EEcontext {
     handleSender(
         sender: CustomRTCRtpSender,
         kind: string,
-        participantId: string
+        participantId: string,
     ) {
         if (sender[kJitsiE2EE]) {
             return;
@@ -176,7 +176,7 @@ export default class E2EEcontext {
                     writableStream: senderStreams.writable,
                     participantId,
                 },
-                [senderStreams.readable, senderStreams.writable]
+                [senderStreams.readable, senderStreams.writable],
             );
         }
     }
@@ -193,8 +193,9 @@ export default class E2EEcontext {
         participantId: string,
         olmKey: Uint8Array,
         pqKey: Uint8Array,
-        index: number
+        index: number,
     ) {
+        logger.debug(`E2E: set key for ${participantId}, index = ${index}`);
         this._worker.postMessage({
             operation: "setKey",
             olmKey,

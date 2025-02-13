@@ -2,7 +2,6 @@ import kemBuilder from "@dashlane/pqc-kem-kyber512-browser";
 import base64js from "base64-js";
 import { Buffer } from "buffer";
 
-
 export const AES = "AES-GCM";
 const HASH = "SHA-256";
 const KDF = "HKDF";
@@ -49,12 +48,13 @@ export async function deriveKeys(
 /**
  * Ratchets a key. See
  * https://tools.ietf.org/html/draft-omara-sframe-00#section-4.3.5.1
- * 
- * @param {CryptoKey} material - base key material
+ *
+ * @param {Uint8Array} key - base key material
  * @returns {Promise<Uint8Array>} - ratcheted key material
  */
-export async function ratchet(material: CryptoKey): Promise<Uint8Array> {
+export async function ratchet(keyBytes: Uint8Array): Promise<Uint8Array> {
     try {
+        const material = await importKey(keyBytes);
         const textEncoder = new TextEncoder();
         const key = await crypto.subtle.deriveBits(
             {
@@ -74,7 +74,7 @@ export async function ratchet(material: CryptoKey): Promise<Uint8Array> {
 
 /**
  * Converts a raw key into a WebCrypto key object with default options
- * 
+ *
  * @param {ArrayBuffer} keyBytes - raw key
  * @param {Array} keyUsages - key usages, see importKey documentation
  * @returns {Promise<CryptoKey>} - the WebCrypto key.
@@ -92,7 +92,7 @@ export async function importKey(keyBytes: Uint8Array): Promise<CryptoKey> {
 
 /**
  * Encapsulates a key and returns a shared secret and its ciphertext
- * 
+ *
  * @param {Uint8Array} publicKey - The public key.
  * @returns {Promise<{ sharedSecret: Uint8Array, ciphertext: Uint8Array }>}
  */
@@ -114,12 +114,12 @@ export async function generateKyberKeys(): Promise<{
 
 /**
  * Encapsulates a secret
- * 
+ *
  * @param {Uint8Array} publicKeyBase64 - The public key.
  * @returns {Promise<{ sharedSecret: Uint8Array, ciphertextBase64: Uint8Array }>}
  */
 export async function encapsulateSecret(publicKeyBase64: string): Promise<{
-    ciphertextBase64: string;
+    encapsulatedBase64: string;
     sharedSecret: Uint8Array;
 }> {
     if (!publicKeyBase64?.length) {
@@ -136,7 +136,7 @@ export async function encapsulateSecret(publicKeyBase64: string): Promise<{
         );
         const kyberCiphertext = base64js.fromByteArray(ciphertext);
 
-        return { ciphertextBase64: kyberCiphertext, sharedSecret };
+        return { encapsulatedBase64: kyberCiphertext, sharedSecret };
     } catch (error) {
         return Promise.reject(
             new Error(`Secret encapsulation failed: ${error}`),
@@ -146,7 +146,7 @@ export async function encapsulateSecret(publicKeyBase64: string): Promise<{
 
 /**
  * Decapsulates a secret
- * 
+ *
  * @param {Uint8Array} ciphertextBase64 - The ciphertext.
  * @param {Uint8Array} privateKey - The private key.
  * @returns {Promise<{ sharedSecret: Uint8Array }>}
@@ -238,9 +238,7 @@ export async function decryptKeyInfoPQ(
     }
 
     try {
-        const ciphertext = Buffer.from(
-            base64js.toByteArray(ciphertextBase64)
-        );
+        const ciphertext = Buffer.from(base64js.toByteArray(ciphertextBase64));
         const iv = base64js.toByteArray(ivBase64);
 
         const secretKey = await crypto.subtle.importKey(
@@ -360,4 +358,22 @@ export async function decapsulateAndDeriveOneKey(
             new Error(`Decapsulate and derive secret failed: ${error}`),
         );
     }
+}
+
+/**
+ * Encrypts the given frame
+ * @param {RTCEncodedVideoFrame|RTCEncodedAudioFrame} encodedFrame
+ * @returns {Uint8Array}
+ * @private
+ */
+export function encryptData(iv, additionalData, key, data) {
+    return crypto.subtle.encrypt(
+        {
+            name: AES,
+            iv,
+            additionalData,
+        },
+        key,
+        data,
+    );
 }

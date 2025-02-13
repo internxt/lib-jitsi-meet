@@ -56,7 +56,7 @@ onmessage = async (event) => {
     } else if (operation === "setKey") {
         const { participantId, olmKey, pqKey, index } = event.data;
         const context = getParticipantContext(participantId);
-        context.setKey(olmKey, pqKey, index);
+        context.setKey(olmKey, pqKey, index, participantId);
         
     } else if (operation === "cleanup") {
         const { participantId } = event.data;

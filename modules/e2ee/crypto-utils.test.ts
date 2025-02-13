@@ -12,7 +12,7 @@ import { describe, expect, it } from "vitest";
 describe("Test Kyber KEM", () => {
     it("key encapsulation and decapsulation should work", async () => {
         const { publicKeyBase64, privateKey } = await generateKyberKeys();
-        const { ciphertextBase64, sharedSecret } =
+        const { encapsulatedBase64: ciphertextBase64, sharedSecret } =
             await encapsulateSecret(publicKeyBase64);
         const decapsulatedSecret = await decapsulateSecret(
             ciphertextBase64,
@@ -33,7 +33,7 @@ describe("Test Kyber KEM", () => {
 
     it("key decapsulation should throw an error for empty inputs", async () => {
         const { publicKeyBase64, privateKey } = await generateKyberKeys();
-        const { ciphertextBase64 } =
+        const { encapsulatedBase64: ciphertextBase64 } =
             await encapsulateSecret(publicKeyBase64);
 
         await expect(
@@ -63,11 +63,11 @@ describe("Test Kyber KEM", () => {
         const { publicKeyBase64: publicKey2, privateKey: privateKey2 } = await generateKyberKeys();
 
         // session_init: user1 encapulates secret for user2
-        const { ciphertextBase64: ciphertext1, sharedSecret: secret1 } =
+        const { encapsulatedBase64: ciphertext1, sharedSecret: secret1 } =
                             await encapsulateSecret(publicKey2);
 
         // pq_session_init user2 encapsulates secret for user1 and derives key2               
-        const { ciphertextBase64: ciphertext2, sharedSecret: secret2 } =
+        const { encapsulatedBase64: ciphertext2, sharedSecret: secret2 } =
                             await encapsulateSecret(publicKey1);
 
         const key2 = await decapsulateAndDeriveOneKey(

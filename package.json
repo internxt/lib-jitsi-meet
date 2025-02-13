@@ -94,9 +94,14 @@
     "lint:scss": "stylelint \"src/**/*.{css,scss}\"",
     "lint:scss:fix": "npm run lint:scss --fix",
     "lint": "npm run lint:ts && npm run lint:scss",
-    "lint:fix": "npm run lint:ts:fix && npm run lint:scss:fix"
+    "lint:fix": "npm run lint:ts:fix && npm run lint:scss:fix",
+    "postinstall": "mkdir -p public/libs && cp node_modules/@dashlane/pqc-kem-kyber512-browser/dist/pqc-kem-kyber512.wasm dist/umd"
   },
-  "browser": "dist/umd/lib-jitsi-meet.min.js",
+  "browser": {
+    "dist/umd/lib-jitsi-meet.min.js": "dist/umd/lib-jitsi-meet.min.js",
+    "pqc-kem-kyber512.wasm": "dist/umd/pqc-kem-kyber512.wasm"
+  },
+
   "module": "dist/esm/JitsiMeetJS.js",
   "files": [
     "dist",
