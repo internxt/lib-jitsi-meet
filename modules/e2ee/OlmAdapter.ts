@@ -59,6 +59,7 @@ const OLM_KEY_VERIFICATION_MAC_KEY_IDS = "Jitsi-KEY_IDS";
 
 const kOlmData = "OlmData";
 const OlmAdapterEvents = {
+    PARTICIPANT_KEY_RATCHET: "olm.partitipant_key_ratchet",
     PARTICIPANT_E2EE_CHANNEL_READY: "olm.participant_e2ee_channel_ready",
     PARTICIPANT_SAS_AVAILABLE: "olm.participant_sas_available",
     PARTICIPANT_SAS_READY: "olm.participant_sas_ready",
@@ -87,8 +88,6 @@ type IdentityKeys = {
  * - session-ack:  This messsage may contain ancilliary
  *                encrypted data, more specifically the sender's current key.
  * - key-info: Includes the sender's most up to date key information.
- * - key-info-ack: Acknowledges the reception of a key-info request. In addition, it may contain
- *                 the sender's key information, if available.
  * - error: Indicates a request processing error has occurred.
  *
  * These requessts and responses are transport independent. Currently they are sent using XMPP
@@ -109,6 +108,7 @@ export class OlmAdapter extends Listenable {
     private _olmAccount: Window["Olm"]["Account"];
     private _idKeys: IdentityKeys;
     static events: {
+        PARTICIPANT_KEY_RATCHET: string;
         PARTICIPANT_E2EE_CHANNEL_READY: string;
         PARTICIPANT_SAS_AVAILABLE: string;
         PARTICIPANT_SAS_READY: string;
@@ -158,8 +158,9 @@ export class OlmAdapter extends Listenable {
 
     /**
      * Initializes the Olm library and sets up the account.
+     * This includes setting up cryptographic keys.
      *
-     * @returns {Promise<void>}
+     * @returns {Promise<boolean>}  Returns true when initialization is complete.
      * @private
      */
     async _bootstrapOlm(): Promise<boolean> {
@@ -193,11 +194,21 @@ export class OlmAdapter extends Listenable {
 
     /**
      * Returns the current participants conference ID.
+     *
+     * @returns {string}
+     * @private
      */
     get myId(): string {
         return this._conf.myUserId();
     }
 
+    /**
+     * Sends KEY_INFO message to the participant.
+     *
+     * @param {JitsiParticipant} participant
+     * @returns {Promise<void>}  Resolves when KEY_INFO message is sent.
+     * @private
+     */
     async sendKeyInfoToParticipant(participant: JitsiParticipant) {
         const pId = participant.getId();
         const olmData = this._getParticipantOlmData(participant);
@@ -209,7 +220,7 @@ export class OlmAdapter extends Listenable {
                     this._mediaKeyPQ,
                 );
                 const olmCiphertext = this._encryptKeyInfo(olmData.session);
-                logger.debug(
+                logger.info(
                     `E2E: Sending KEY_INFO to ${participant.getDisplayName()} (${pId})`,
                 );
                 this._sendKeyInfoMessage(
@@ -235,15 +246,54 @@ export class OlmAdapter extends Listenable {
         }
     }
 
+    /**
+     * Sends KEY_INFO message to all participants.
+     *
+     * @private
+     */
     async sendKeyInfoToAll() {
         try {
-            logger.debug(`E2E: Entered sendKeyInfoToAll`);
             for (const participant of this._conf.getParticipants()) {
                 await this.sendKeyInfoToParticipant(participant);
             }
         } catch (error) {
             logger.error(`Failed to send key info to all: ${error}`);
             throw new Error(`Failed to send key info to all: ${error}`);
+        }
+    }
+
+    /**
+     *  Ratcheting keys of the participant.
+     *
+     * @param {JitsiParticipant} participant
+     * @returns {Promise<void>}  Resolves when PARTICIPANT_KEY_RATCHET is emitted.
+     * @private
+     */
+    async ratchetParticipantKeys(participant: JitsiParticipant) {
+        logger.debug(`Ratchet keys of participant ${participant.getDisplayName()}`);
+        const pId = participant.getId();
+        const olmData = this._getParticipantOlmData(participant);
+        if (olmData.status === PROTOCOL_STATUS.DONE) {
+            this.eventEmitter.emit(
+                OlmAdapterEvents.PARTICIPANT_KEY_RATCHET,
+                pId,
+            );
+        }
+    }
+
+    /**
+     * Rarchets keys of all participants.
+     *
+     * @private
+     */
+    async ratchetAllKeys() {
+        try {
+            for (const participant of this._conf.getParticipants()) {
+                await this.ratchetParticipantKeys(participant);
+            }
+        } catch (error) {
+            logger.error(`Failed to ratchet all keys: ${error}`);
+            throw new Error(`Failed to racthet all keys: ${error}`);
         }
     }
 
@@ -271,9 +321,6 @@ export class OlmAdapter extends Listenable {
                     break;
                 case "e2ee.enabled":
                     if (newValue) {
-                        logger.debug(
-                            `E2E: _onParticipantPropertyChanged calls initSessions`,
-                        );
                         await this.initSessions();
                     } else {
                         this.clearParticipantSession(participant);
@@ -282,13 +329,13 @@ export class OlmAdapter extends Listenable {
             }
         }
     }
+
     /**
      * Starts new olm sessions with every other participant that has the participantId "smaller" the localParticipantId.
+     *
+     * @private
      */
     async initSessions() {
-        logger.debug(
-            `E2E: Entered initSessions, in progress=${this._sessionInitializationInProgress}`,
-        );
         if (this._sessionInitializationInProgress) return;
         this._sessionInitializationInProgress = true;
 
@@ -298,8 +345,6 @@ export class OlmAdapter extends Listenable {
                 "Cannot init sessions because olm was not initialized",
             );
         }
-
-        logger.debug("E2E: initSessions is not done yet, starting");
         try {
             const localParticipantId = this._conf.myUserId();
             const participants = this._conf.getParticipants();
@@ -343,19 +388,24 @@ export class OlmAdapter extends Listenable {
      */
     async _ratchetKeyImpl() {
         try {
-            logger.debug("E2E: Ratcheting keys");
-
             this._mediaKeyOlm = await ratchet(this._mediaKeyOlm);
             this._mediaKeyPQ = await ratchet(this._mediaKeyPQ);
-
-            logger.debug(`E2E: Ratcheting keys, new keys: ${this._mediaKeyOlm} and ${this._mediaKeyPQ}`);
-
+            this._mediaKeyIndex++;
+            logger.debug(
+                `E2E: Ratcheting keys, new keys: ${this._mediaKeyOlm} and ${this._mediaKeyPQ}`,
+            );
+            this.ratchetAllKeys();
         } catch (error) {
             logger.error(`Failed to ratchet keys: ${error}`);
             throw new Error(`Failed to ratchet keys: ${error}`);
         }
     }
 
+    /**
+     *  Rotates the participant keys
+     *
+     * @private
+     */
     async _rotateKeyImpl() {
         try {
             logger.debug("E2E: Entered _rotateKeyImpl");
@@ -369,8 +419,13 @@ export class OlmAdapter extends Listenable {
         }
     }
 
+    /**
+     * Returns current keys and index.
+     *
+     * @returns {Uint8Array, Uint8Array, number} A tuple containing the olm key, pq key, and the current index.
+     * @private
+     */
     getCurrentKeys(): { olmKey: Uint8Array; pqKey: Uint8Array; index: number } {
-        logger.debug("E2E: Entered getCurrentKeys");
         return {
             olmKey: this._mediaKeyOlm,
             pqKey: this._mediaKeyPQ,
@@ -381,6 +436,8 @@ export class OlmAdapter extends Listenable {
     /**
      * Frees the olmData session for the given participant.
      *
+     *  @param {JitsiParticipant} participant - The participant.
+     *  @private
      */
     clearParticipantSession(participant: JitsiParticipant) {
         try {
@@ -406,6 +463,7 @@ export class OlmAdapter extends Listenable {
     /**
      * Frees the olmData sessions for all participants.
      *
+     * @private
      */
     clearAllParticipantsSessions() {
         try {
@@ -1375,7 +1433,7 @@ export class OlmAdapter extends Listenable {
      * @private
      */
     _onParticipantLeft(id, participant: JitsiParticipant) {
-        logger.debug(`E2E: Participant ${id} left`);
+        logger.info(`E2E: Participant ${id} left`);
         this.clearParticipantSession(participant);
     }
 
@@ -1421,9 +1479,6 @@ export class OlmAdapter extends Listenable {
      * @private
      */
     async _sendSessionInit(participant: JitsiParticipant) {
-        logger.debug(
-            `E2E: Entered _sendSessionInit for ${participant.getDisplayName()}`,
-        );
         const olmData = this._getParticipantOlmData(participant);
         if (olmData.status === PROTOCOL_STATUS.DONE) return;
 

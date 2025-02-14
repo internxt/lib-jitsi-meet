@@ -2,16 +2,17 @@ import kemBuilder from "@dashlane/pqc-kem-kyber512-browser";
 import base64js from "base64-js";
 import { Buffer } from "buffer";
 
-export const AES = "AES-GCM";
+const AES = "AES-GCM";
 const HASH = "SHA-256";
 const KDF = "HKDF";
 const KEY_LEN = 256;
 
 /**
  * Derives encryption key from the master key.
- * @param {CryptoKey} material - master key to derive from
  *
- * See https://tools.ietf.org/html/draft-omara-sframe-00#section-4.3.1
+ * @param {Uint8Array} olmKey - The olm key.
+ * @param {Uint8Array} pqKey - The pq key.
+ * @returns {Promise<CryptoKey>} Derived key.
  */
 export async function deriveKeys(
     olmKey: Uint8Array,
@@ -46,11 +47,11 @@ export async function deriveKeys(
 }
 
 /**
- * Ratchets a key. See
- * https://tools.ietf.org/html/draft-omara-sframe-00#section-4.3.5.1
+ * Ratchets a key.
+ * See https://tools.ietf.org/html/draft-omara-sframe-00#section-4.3.5.1
  *
- * @param {Uint8Array} key - base key material
- * @returns {Promise<Uint8Array>} - ratcheted key material
+ * @param {Uint8Array} key - The input key.
+ * @returns {Promise<Uint8Array>} Ratched key.
  */
 export async function ratchet(keyBytes: Uint8Array): Promise<Uint8Array> {
     try {
@@ -73,11 +74,10 @@ export async function ratchet(keyBytes: Uint8Array): Promise<Uint8Array> {
 }
 
 /**
- * Converts a raw key into a WebCrypto key object with default options
+ * Converts a raw key into a WebCrypto key object with default options.
  *
- * @param {ArrayBuffer} keyBytes - raw key
- * @param {Array} keyUsages - key usages, see importKey documentation
- * @returns {Promise<CryptoKey>} - the WebCrypto key.
+ * @param {ArrayBuffer} keyBytes - The raw key bytes.
+ * @returns {Promise<CryptoKey>} WebCrypto key.
  */
 export async function importKey(keyBytes: Uint8Array): Promise<CryptoKey> {
     try {
@@ -91,10 +91,9 @@ export async function importKey(keyBytes: Uint8Array): Promise<CryptoKey> {
 }
 
 /**
- * Encapsulates a key and returns a shared secret and its ciphertext
+ * Generates Kyber key pair.
  *
- * @param {Uint8Array} publicKey - The public key.
- * @returns {Promise<{ sharedSecret: Uint8Array, ciphertext: Uint8Array }>}
+ * @returns {Promise<{string, Uint8Array}>} A tuple containing public Kyber key in Base64 and private kyber key.
  */
 export async function generateKyberKeys(): Promise<{
     publicKeyBase64: string;
@@ -113,16 +112,17 @@ export async function generateKyberKeys(): Promise<{
 }
 
 /**
- * Encapsulates a secret
+ * Performs encapsulation.
+ * Returns a shared secret and teh corresponding ciphertext.
  *
- * @param {Uint8Array} publicKeyBase64 - The public key.
- * @returns {Promise<{ sharedSecret: Uint8Array, ciphertextBase64: Uint8Array }>}
+ * @param {Uint8Array} publicKyberKeyBase64 - The public kyber key in Base64.
+ * @returns {Promise<{ sharedSecret: Uint8Array, ciphertextBase64: Uint8Array }>} Tuple containing a shared secret and a ciphertext.
  */
-export async function encapsulateSecret(publicKeyBase64: string): Promise<{
+export async function encapsulateSecret(publicKyberKeyBase64: string): Promise<{
     encapsulatedBase64: string;
     sharedSecret: Uint8Array;
 }> {
-    if (!publicKeyBase64?.length) {
+    if (!publicKyberKeyBase64?.length) {
         return Promise.reject(
             new Error(`Secret encapsulation failed: no public key given`),
         );
@@ -130,7 +130,7 @@ export async function encapsulateSecret(publicKeyBase64: string): Promise<{
     try {
         const kem = await kemBuilder();
         const participantEncapsulationKey: Uint8Array =
-            base64js.toByteArray(publicKeyBase64);
+            base64js.toByteArray(publicKyberKeyBase64);
         const { ciphertext, sharedSecret } = await kem.encapsulate(
             participantEncapsulationKey,
         );
@@ -145,12 +145,12 @@ export async function encapsulateSecret(publicKeyBase64: string): Promise<{
 }
 
 /**
- * Decapsulates a secret
+ * Performs decapsulation.
+ * Returns a shared secret.
  *
  * @param {Uint8Array} ciphertextBase64 - The ciphertext.
  * @param {Uint8Array} privateKey - The private key.
- * @returns {Promise<{ sharedSecret: Uint8Array }>}
- * @private
+ * @returns {Promise<{ sharedSecret: Uint8Array }>} Shared secret.
  */
 export async function decapsulateSecret(
     ciphertextBase64: string,
@@ -183,12 +183,14 @@ export async function decapsulateSecret(
 }
 
 /**
- * Derives one key from two
+ * Derives one key from the two given keys.
+ *
  * @param {Uint8Array} key1 - The first key.
  * @param {Uint8Array} key2 - The second key.
- * @returns {Uint8Array}
+ * @returns {Uint8Array} Derived key.
+ * @private
  */
-export async function deriveOneKey(
+async function deriveOneKey(
     key1: Uint8Array,
     key2: Uint8Array,
 ): Promise<Uint8Array> {
@@ -208,13 +210,12 @@ export async function deriveOneKey(
 }
 
 /**
- * Decrypts the current key information via pq channel for a given participant.
+ * Decrypts message.
  *
- * @param {string} ciphertextBase64 - The ciphertext
- * @param {string} ivBase64 - The IV
- * @param {Uint8Array} key - Participant's pq session key
- * @returns {Uint8Array} - The encrypted text with the key information.
- * @private
+ * @param {string} ciphertextBase64 - The ciphertext.
+ * @param {string} ivBase64 - The IV.
+ * @param {Uint8Array} key - The key.
+ * @returns {Uint8Array} Decrypted message.
  */
 export async function decryptKeyInfoPQ(
     ciphertextBase64: string,
@@ -268,11 +269,11 @@ export async function decryptKeyInfoPQ(
 }
 
 /**
- * Encrypts the current key information via pq channel for a given participant.
+ * Encrypts the message.
  *
- * @param {Uint8Array} key - Participant's pq session key
- * @returns {Uint8Array, Uint8Array} - The encrypted text with the key information.
- * @private
+ * @param {Uint8Array} key - The key.
+ * @param {Uint8Array} plaintext - The message.
+ * @returns {Uint8Array, Uint8Array} Ciphertext.
  */
 export async function encryptKeyInfoPQ(
     key: Uint8Array,
@@ -320,23 +321,22 @@ export async function encryptKeyInfoPQ(
 }
 
 /**
- * Generates a new random key
+ * Generates a new random key.
  *
- * @returns {Uint8Array}
- * @private
+ * @returns {Uint8Array} Key of KEY_LEN bits.
  */
 export function generateKey() {
     return crypto.getRandomValues(new Uint8Array(KEY_LEN / 8));
 }
 
 /**
- * Decapsulates and derives one key
+ * Decapsulates key and derives one key from the decapsulated one and the extra key given as input.
  *
- * @param {string} ciphertextBase64 - The Kyber ciphertext
- * @param {Uint8Array} privateKey - The Kyber private key
- * @param {Uint8Array} extraSecret - The additional secret
- * @returns {Uint8Array}
- * @private
+ * @param {string} ciphertextBase64 - The Kyber ciphertext.
+ * @param {Uint8Array} privateKey - The Kyber private key.
+ * @param {Uint8Array} extraSecret - The additional secret.
+ * @param {boolean} extraSecretGoesFirst - The flag to indicate if the extra key should go first.
+ * @returns {Uint8Array} Derived key.
  */
 export async function decapsulateAndDeriveOneKey(
     ciphertextBase64: string,
@@ -361,10 +361,13 @@ export async function decapsulateAndDeriveOneKey(
 }
 
 /**
- * Encrypts the given frame
- * @param {RTCEncodedVideoFrame|RTCEncodedAudioFrame} encodedFrame
- * @returns {Uint8Array}
- * @private
+ * Symmetrically encrypts the given data
+ *
+ * @param {ArrayBuffer} iv - The IV vector.
+ * @param {ArrayBuffer} additionalData - The additional data.
+ * @param {ArrayBuffer} key - The encryption key/
+ * @param {ArrayBuffer} data - The data to be encrypted.
+ * @returns {Promise<ArrayBuffer>} Resulting ciphertext.
  */
 export function encryptData(iv, additionalData, key, data) {
     return crypto.subtle.encrypt(
@@ -377,3 +380,25 @@ export function encryptData(iv, additionalData, key, data) {
         data,
     );
 }
+
+/**
+ * Symmetrically decrypts the given data
+ *
+ * @param {ArrayBuffer} iv - The IV vector.
+ * @param {ArrayBuffer} additionalData - The additional data.
+ * @param {ArrayBuffer} key - The encryption key/
+ * @param {ArrayBuffer} data - The data to be encrypted.
+ * @returns {Promise<ArrayBuffer>} Resulting ciphertext.
+ */
+export function decryptData(iv, additionalData, key, data) {
+    return crypto.subtle.decrypt(
+        {
+            name: AES,
+            iv,
+            additionalData,
+        },
+        key,
+        data
+    );
+}
+

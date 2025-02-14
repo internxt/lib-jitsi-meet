@@ -71,6 +71,11 @@ export class ManagedKeyHandler extends Listenable {
         );
 
         this._olmAdapter.on(
+            OlmAdapter.events.PARTICIPANT_KEY_RATCHET,
+            this._onParticipantKeyRatchet.bind(this),
+        );
+
+        this._olmAdapter.on(
             OlmAdapter.events.PARTICIPANT_SAS_READY,
             this._onParticipantSasReady.bind(this),
         );
@@ -305,7 +310,21 @@ export class ManagedKeyHandler extends Listenable {
         index: number,
     ) {
         this.e2eeCtx.setKey(id, olmKey, pqKey, index);
-        logger.info(`E2E: Sucessfully set keys for user ${id}`);
+    }
+
+    /**
+     * Handles an update in a participant's key.
+     *
+     * @param {string} id - The participant ID.
+     * @param {Uint8Array | boolean} key - The new key for the participant.
+     * @param {Number} index - The new key's index.
+     * @private
+     */
+    _onParticipantKeyRatchet(
+        id: string,
+    ) {
+        logger.debug(`Entered _onParticipantKeyRatchet for ${id}`);
+        this.e2eeCtx.ratchetKeys(id);
     }
 
     /**

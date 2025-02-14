@@ -184,10 +184,10 @@ export default class E2EEcontext {
     /**
      * Set the E2EE key for the specified participant.
      *
-     * @param {string} participantId - the ID of the participant who's key we are setting.
-     * @param {Uint8Array} olmKey - olm key for the given participant.
-     * @param {Uint8Array} pqKey - olm key for the given participant.
-     * @param {number} keyIndex - the key index.
+     * @param {string} participantId - The ID of the participant who's key we are setting.
+     * @param {Uint8Array} olmKey - The olm key for the given participant.
+     * @param {Uint8Array} pqKey - The pq key for the given participant.
+     * @param {number} keyIndex - The key index.
      */
     setKey(
         participantId: string,
@@ -201,6 +201,22 @@ export default class E2EEcontext {
             olmKey,
             pqKey,
             index,
+            participantId,
+        });
+    }
+
+
+    /**
+     * Request to ratchet keys for the specified participant.
+     *
+     * @param {string} participantId - The ID of the participant
+     */
+    ratchetKeys(
+        participantId: string,
+    ) {
+        logger.debug(`E2E: ratched keys for ${participantId}`);
+        this._worker.postMessage({
+            operation: "ratchetKeys",
             participantId,
         });
     }

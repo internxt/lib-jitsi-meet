@@ -58,9 +58,13 @@ onmessage = async (event) => {
         const context = getParticipantContext(participantId);
         context.setKey(olmKey, pqKey, index, participantId);
         
-    } else if (operation === "cleanup") {
+    } else if (operation === "ratchetKeys") {
         const { participantId } = event.data;
-
+        const context = getParticipantContext(participantId);
+        context.ratchetKeys();
+    } 
+    else if (operation === "cleanup") {
+        const { participantId } = event.data;
         contexts.delete(participantId);
     } else if (operation === "cleanupAll") {
         contexts.clear();

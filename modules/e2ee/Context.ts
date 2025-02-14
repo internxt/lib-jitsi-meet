@@ -1,5 +1,5 @@
 /* global BigInt */
-import { deriveKeys, ratchet, encryptData } from "./crypto-utils";
+import { deriveKeys, ratchet, encryptData, decryptData } from "./crypto-utils";
 
 // We use a ringbuffer of keys so we can change them and still decode packets that were
 // encrypted with an old key. We use a size of 16 which corresponds to the four bits
@@ -26,8 +26,6 @@ let print = true;
 /* We use a 96 bit IV for AES GCM. This is signalled in plain together with the
  packet. See https://developer.mozilla.org/en-US/docs/Web/API/AesGcmParams */
 const IV_LENGTH = 16;
-
-const RATCHET_WINDOW_SIZE = 5;
 
 export type KeyMaterial = {
     encryptionKey: CryptoKey;
@@ -57,6 +55,24 @@ export class Context {
         this._sendCounts = new Map();
 
         this._participantId = '';
+    }
+
+    /**
+     * Ratchet keys.
+     * @private
+     */
+    async ratchetKeys() {
+        const currentIndex = this._currentKeyIndex;
+        console.log(
+            `E2E: Before ratcheting: index = ${currentIndex} and ${this._cryptoKeyRing[currentIndex]}`,
+        );
+        const { materialOlm, materialPQ } = this._cryptoKeyRing[currentIndex];
+        const newMaterialOlm = await ratchet(materialOlm);
+        const newMaterialPQ = await ratchet(materialPQ);
+        console.log(
+            `E2E: After ratcheting: ${newMaterialOlm} and ${newMaterialPQ}`,
+        );
+        this.setKey(newMaterialOlm, newMaterialPQ, currentIndex + 1);
     }
 
     /**
@@ -234,14 +250,8 @@ export class Context {
      * @returns {Promise<RTCEncodedVideoFrame|RTCEncodedAudioFrame>} - The decrypted frame.
      * @private
      */
-    async _decryptFrame(
-        encodedFrame,
-        keyIndex: number,
-        initialKey = undefined,
-        ratchetCount: number = 0,
-    ) {
+    async _decryptFrame(encodedFrame, keyIndex: number) {
         const { encryptionKey } = this._cryptoKeyRing[keyIndex];
-        const { materialOlm, materialPQ } = this._cryptoKeyRing[keyIndex];
 
         // Construct frame trailer. Similar to the frame header described in
         // https://tools.ietf.org/html/draft-omara-sframe-00#section-4.2
@@ -277,24 +287,18 @@ export class Context {
                 encodedFrame.data.byteLength -
                 (frameHeader.byteLength + ivLength + frameTrailer.byteLength);
 
-            const plainText = await crypto.subtle.decrypt(
-                {
-                    name: "AES-GCM",
-                    iv,
-                    additionalData: new Uint8Array(
-                        encodedFrame.data,
-                        0,
-                        frameHeader.byteLength,
-                    ),
-                },
-                encryptionKey,
-                new Uint8Array(
-                    encodedFrame.data,
-                    cipherTextStart,
-                    cipherTextLength,
-                ),
+            const additionalData =  new Uint8Array(
+                encodedFrame.data,
+                0,
+                frameHeader.byteLength,
             );
-
+            const data = new Uint8Array(
+                encodedFrame.data,
+                cipherTextStart,
+                cipherTextLength,
+            );
+            const plainText = await decryptData(iv, additionalData, encryptionKey, data);
+            
             const newData = new ArrayBuffer(
                 frameHeader.byteLength + plainText.byteLength,
             );
@@ -309,44 +313,9 @@ export class Context {
 
             return encodedFrame;
         } catch (error) {
-            console.log(`E2E: Got error while decrypting frame from ${this._participantId}: ${error}`);
-            if (ratchetCount < RATCHET_WINDOW_SIZE) {
-                const currentKey = this._cryptoKeyRing[this._currentKeyIndex];
-
-                const newMaterialOlm = await ratchet(materialOlm);
-                const newMaterialPQ = await ratchet(materialPQ);
-                const newEncryptionKey = await deriveKeys(
-                    newMaterialOlm,
-                    newMaterialPQ,
-                );
-
-                console.log(`E2E: Doing ratchet for participant ${this._participantId} for ${ratchetCount} time`);
-                console.log(`E2E: New ratched keys: ${newMaterialOlm} and ${newMaterialPQ}`);
-                const newKey = {
-                    materialOlm: newMaterialOlm,
-                    materialPQ: newMaterialPQ,
-                    encryptionKey: newEncryptionKey,
-                };
-
-                this._setKeys(newKey);
-
-                return await this._decryptFrame(
-                    encodedFrame,
-                    keyIndex,
-                    initialKey || currentKey,
-                    ratchetCount + 1,
-                );
-            }
-
-            /**
-             * Since the key it is first send and only afterwards actually used for encrypting, there were
-             * situations when the decrypting failed due to the fact that the received frame was not encrypted
-             * yet and ratcheting, of course, did not solve the problem. So if we fail RATCHET_WINDOW_SIZE times,
-             * we come back to the initial key.
-             */
-            this._setKeys(initialKey);
-
-            // TODO: notify the application about error status.
+            console.log(
+                `E2E: Got error while decrypting frame: ${error}`,
+            );
         }
     }
 
