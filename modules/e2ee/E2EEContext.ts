@@ -195,7 +195,6 @@ export default class E2EEcontext {
         pqKey: Uint8Array,
         index: number,
     ) {
-        logger.debug(`E2E: set key for ${participantId}, index = ${index}`);
         this._worker.postMessage({
             operation: "setKey",
             olmKey,
@@ -214,7 +213,6 @@ export default class E2EEcontext {
     ratchetKeys(
         participantId: string,
     ) {
-        logger.debug(`E2E: ratched keys for ${participantId}`);
         this._worker.postMessage({
             operation: "ratchetKeys",
             participantId,

@@ -270,7 +270,7 @@ export class OlmAdapter extends Listenable {
      * @private
      */
     async ratchetParticipantKeys(participant: JitsiParticipant) {
-        logger.debug(`Ratchet keys of participant ${participant.getDisplayName()}`);
+        logger.info(`Ratchet keys of participant ${participant.getDisplayName()}`);
         const pId = participant.getId();
         const olmData = this._getParticipantOlmData(participant);
         if (olmData.status === PROTOCOL_STATUS.DONE) {
@@ -391,9 +391,6 @@ export class OlmAdapter extends Listenable {
             this._mediaKeyOlm = await ratchet(this._mediaKeyOlm);
             this._mediaKeyPQ = await ratchet(this._mediaKeyPQ);
             this._mediaKeyIndex++;
-            logger.debug(
-                `E2E: Ratcheting keys, new keys: ${this._mediaKeyOlm} and ${this._mediaKeyPQ}`,
-            );
             this.ratchetAllKeys();
         } catch (error) {
             logger.error(`Failed to ratchet keys: ${error}`);

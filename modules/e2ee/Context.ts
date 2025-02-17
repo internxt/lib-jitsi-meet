@@ -45,16 +45,13 @@ export class Context {
     /**
      * @param {Object} options
      */
-    constructor() {
+    constructor(pId: string) {
         // An array (ring) of keys that we use for sending and receiving.
         this._cryptoKeyRing = new Array(KEYRING_SIZE);
-
         // A pointer to the currently used key.
         this._currentKeyIndex = -1;
-
         this._sendCounts = new Map();
-
-        this._participantId = '';
+        this._participantId = pId;
     }
 
     /**
@@ -63,15 +60,10 @@ export class Context {
      */
     async ratchetKeys() {
         const currentIndex = this._currentKeyIndex;
-        console.log(
-            `E2E: Before ratcheting: index = ${currentIndex} and ${this._cryptoKeyRing[currentIndex]}`,
-        );
         const { materialOlm, materialPQ } = this._cryptoKeyRing[currentIndex];
         const newMaterialOlm = await ratchet(materialOlm);
         const newMaterialPQ = await ratchet(materialPQ);
-        console.log(
-            `E2E: After ratcheting: ${newMaterialOlm} and ${newMaterialPQ}`,
-        );
+        console.info(`Ratchet keys for ${this._participantId}`);
         this.setKey(newMaterialOlm, newMaterialPQ, currentIndex + 1);
     }
 
@@ -82,32 +74,18 @@ export class Context {
      * @param {Uint8Array} pqKey bytes.
      * @param {Number} index
      */
-    async setKey(olmKey: Uint8Array, pqKey: Uint8Array, index: number = -1, pId: string = '') {
+    async setKey(olmKey: Uint8Array, pqKey: Uint8Array, index: number = -1) {
         const newEncryptionKey = await deriveKeys(olmKey, pqKey);
-        console.log(`Set new derived encryption key based on ${olmKey} and ${pqKey}`);
         const newKey: KeyMaterial = {
             materialOlm: olmKey,
             materialPQ: pqKey,
             encryptionKey: newEncryptionKey,
         };
-        this._setKeys(newKey, index, pId);
-    }
-
-    /**
-     * Sets a set of keys and resets the sendCount.
-     * decryption.
-     * @param {KeyMaterial} keys set of keys.
-     * @param {Number} keyIndex optional
-     * @private
-     */
-    _setKeys(keys: KeyMaterial, keyIndex: number = -1, pId: string = '') {
-        if (keyIndex >= 0) {
-            this._currentKeyIndex = keyIndex % this._cryptoKeyRing.length;
+        if (index >= 0) {
+            this._currentKeyIndex = index % this._cryptoKeyRing.length;
         }
-        this._cryptoKeyRing[this._currentKeyIndex] = keys;
-        if (pId) this._participantId = pId;
-
-        //this._sendCount = BigInt(0); // eslint-disable-line new-cap
+        this._cryptoKeyRing[this._currentKeyIndex] = newKey;
+        console.info(`Set keys for ${this._participantId}`);
     }
 
     /**
@@ -287,7 +265,7 @@ export class Context {
                 encodedFrame.data.byteLength -
                 (frameHeader.byteLength + ivLength + frameTrailer.byteLength);
 
-            const additionalData =  new Uint8Array(
+            const additionalData = new Uint8Array(
                 encodedFrame.data,
                 0,
                 frameHeader.byteLength,
@@ -297,8 +275,13 @@ export class Context {
                 cipherTextStart,
                 cipherTextLength,
             );
-            const plainText = await decryptData(iv, additionalData, encryptionKey, data);
-            
+            const plainText = await decryptData(
+                iv,
+                additionalData,
+                encryptionKey,
+                data,
+            );
+
             const newData = new ArrayBuffer(
                 frameHeader.byteLength + plainText.byteLength,
             );
@@ -313,9 +296,7 @@ export class Context {
 
             return encodedFrame;
         } catch (error) {
-            console.log(
-                `E2E: Got error while decrypting frame: ${error}`,
-            );
+            console.error(`E2E: Got error while decrypting frame: ${error}`);
         }
     }
 
