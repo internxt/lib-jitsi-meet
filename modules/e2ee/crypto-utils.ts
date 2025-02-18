@@ -50,12 +50,11 @@ export async function deriveKeys(
  * Ratchets a key.
  * See https://tools.ietf.org/html/draft-omara-sframe-00#section-4.3.5.1
  *
- * @param {Uint8Array} key - The input key.
+ * @param {CryptoKey} oldKey - The input key.
  * @returns {Promise<Uint8Array>} Ratched key.
  */
-export async function ratchet(keyBytes: Uint8Array): Promise<Uint8Array> {
+export async function ratchet(oldKey: CryptoKey): Promise<Uint8Array> {
     try {
-        const material = await importKey(keyBytes);
         const textEncoder = new TextEncoder();
         const key = await crypto.subtle.deriveBits(
             {
@@ -64,7 +63,7 @@ export async function ratchet(keyBytes: Uint8Array): Promise<Uint8Array> {
                 hash: HASH,
                 info: textEncoder.encode("JFrameInfo"),
             },
-            material,
+            oldKey,
             KEY_LEN,
         );
         return new Uint8Array(key);
