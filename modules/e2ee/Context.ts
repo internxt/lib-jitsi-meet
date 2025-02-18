@@ -63,7 +63,7 @@ export class Context {
         const { materialOlm, materialPQ } = this._cryptoKeyRing[currentIndex];
         const newMaterialOlm = await ratchet(materialOlm);
         const newMaterialPQ = await ratchet(materialPQ);
-        console.info(`Ratchet keys for ${this._participantId}`);
+        console.info(`E2E: Ratchet keys for ${this._participantId}`);
         this.setKey(newMaterialOlm, newMaterialPQ, currentIndex + 1);
     }
 
@@ -85,7 +85,7 @@ export class Context {
             this._currentKeyIndex = index % this._cryptoKeyRing.length;
         }
         this._cryptoKeyRing[this._currentKeyIndex] = newKey;
-        console.info(`Set keys for ${this._participantId}`);
+        console.info(`E2E: Set keys for ${this._participantId}`);
     }
 
     /**
@@ -152,6 +152,7 @@ export class Context {
             return encryptData(iv, additionalData, key, data).then(
                 (cipherText) => {
                     if (print) {
+                        console.log("E2E: Start encryption!");
                         print = false;
                     }
                     const newData = new ArrayBuffer(
@@ -183,11 +184,17 @@ export class Context {
                 },
                 (e) => {
                     // TODO: surface this to the app.
-                    console.error(e);
+                    console.error(`E2E: Encryption failed: ${e}`);
+                    print = true;
 
                     // We are not enqueuing the frame here on purpose.
                 },
             );
+        } else {
+            console.error(
+                "E2E: No key is configured. Data is not encrypted and only protected by DTLS transport encryption.",
+            );
+            print = true;
         }
 
         /* NOTE WELL:

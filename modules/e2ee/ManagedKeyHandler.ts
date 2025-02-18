@@ -112,7 +112,7 @@ export class ManagedKeyHandler extends Listenable {
         }
 
         if (enabled) {
-            logger.debug("E2E: Enabling e2ee, calling initSessions");
+            logger.info("E2E: Enabling e2ee");
 
             this.enabled = true;
             await this._olmAdapter.initSessions();
@@ -130,8 +130,8 @@ export class ManagedKeyHandler extends Listenable {
         }
 
         if (!enabled) {
+            logger.info("E2E: Disabling e2ee");
             this.enabled = false;
-            logger.debug("E2E: Disabling e2ee");
             this.e2eeCtx.cleanupAll();
         }
     }
@@ -175,7 +175,6 @@ export class ManagedKeyHandler extends Listenable {
         if (receiver) {
             this.e2eeCtx.handleReceiver(
                 receiver,
-                track.getType(),
                 track.getParticipantId(),
             );
         } else {
@@ -203,7 +202,6 @@ export class ManagedKeyHandler extends Listenable {
         if (sender) {
             this.e2eeCtx.handleSender(
                 sender,
-                track.getType(),
                 track.getParticipantId(),
             );
         } else {
@@ -245,8 +243,8 @@ export class ManagedKeyHandler extends Listenable {
      * @private
      */
     _onParticipantJoined() {
-        logger.debug(
-            `E2E: _onParticipantJoined is called: conf joined ${this._conferenceJoined}, ${this.enabled}`,
+        logger.info(
+            `E2E: A new participant joined the conference`,
         );
         if (this._conferenceJoined && this.enabled) {
             this._ratchetKeyImpl();
@@ -258,7 +256,7 @@ export class ManagedKeyHandler extends Listenable {
      * @private
      */
     _onParticipantLeft(id: string) {
-        logger.debug(`E2E: _onParticipantLeft is called ${id}`);
+        logger.info(`E2E: Participant ${id} left the conference.`);
         this.e2eeCtx.cleanup(id);
 
         if (this.enabled) {
@@ -273,14 +271,17 @@ export class ManagedKeyHandler extends Listenable {
      * @private
      */
     async _rotateKeyImpl() {
-        logger.debug("E2E: Rotating keys");
-        await this._olmAdapter._rotateKeyImpl();
-        const { olmKey, pqKey, index } = this._olmAdapter.getCurrentKeys();
-        this.setKey(olmKey, pqKey, index);
+        try {
+            logger.info("E2E: Rotating my keys");
+            await this._olmAdapter._rotateKeyImpl();
+            const { olmKey, pqKey, index } = this._olmAdapter.getCurrentKeys();
+            this.setKey(olmKey, pqKey, index);
+        } catch (error){
+            logger.error(`E2E: Key rotation failed: ${error}`);
+        }
     }
 
     setKey(olmKey: Uint8Array, pqKey: Uint8Array, index: number) {
-        logger.debug(`E2E: Set my keys as user ${this.conference.myUserId()} to ${olmKey} and ${pqKey}`);
         this.e2eeCtx.setKey(this.conference.myUserId(), olmKey, pqKey, index);
     }
     /**
@@ -289,10 +290,15 @@ export class ManagedKeyHandler extends Listenable {
      * @private
      */
     async _ratchetKeyImpl() {
-        logger.debug("Ratchetting keys");
-        await this._olmAdapter._ratchetKeyImpl();
-        const { olmKey, pqKey, index } = this._olmAdapter.getCurrentKeys();
-        this.setKey(olmKey, pqKey, index);
+        try {
+            logger.info("Ratchetting my keys.");
+            await this._olmAdapter._ratchetKeyImpl();
+            const { olmKey, pqKey, index } = this._olmAdapter.getCurrentKeys();
+            this.setKey(olmKey, pqKey, index);
+        } catch (error) {
+            logger.error(`E2E: Key ratcheting failed: ${error}`);
+        }
+        
     }
 
     /**
@@ -323,7 +329,7 @@ export class ManagedKeyHandler extends Listenable {
     _onParticipantKeyRatchet(
         id: string,
     ) {
-        logger.debug(`Entered _onParticipantKeyRatchet for ${id}`);
+        logger.info(`E2E: Ratcheting keys of participant ${id}`);
         this.e2eeCtx.ratchetKeys(id);
     }
 

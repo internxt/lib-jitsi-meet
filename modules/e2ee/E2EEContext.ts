@@ -108,7 +108,6 @@ export default class E2EEcontext {
      */
     handleReceiver(
         receiver: CustomRTCRtpReceiver,
-        kind: string,
         participantId: string,
     ) {
         if (receiver[kJitsiE2EE]) {
@@ -151,7 +150,6 @@ export default class E2EEcontext {
      */
     handleSender(
         sender: CustomRTCRtpSender,
-        kind: string,
         participantId: string,
     ) {
         if (sender[kJitsiE2EE]) {
