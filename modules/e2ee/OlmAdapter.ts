@@ -270,7 +270,9 @@ export class OlmAdapter extends Listenable {
      * @private
      */
     async ratchetParticipantKeys(participant: JitsiParticipant) {
-        logger.info(`Ratchet keys of participant ${participant.getDisplayName()}`);
+        logger.info(
+            `Ratchet keys of participant ${participant.getDisplayName()}`,
+        );
         const pId = participant.getId();
         const olmData = this._getParticipantOlmData(participant);
         if (olmData.status === PROTOCOL_STATUS.DONE) {
@@ -354,21 +356,27 @@ export class OlmAdapter extends Listenable {
                     localParticipantId < participant.getId(),
             );
             const promises = list.map((participant) =>
-                this._sendSessionInit(participant).catch((error) => {
-                    logger.error(
-                        `E2E: Failed to initialize session with ${participant.getId()}:`,
-                        error,
-                    );
-                }),
+                this._sendSessionInit(participant),
             );
 
-            await Promise.all(promises);
+            const results = await Promise.allSettled(promises);
+            results.forEach((result, index) => {
+                if (result.status === "rejected") {
+                    logger.error(
+                        `E2E: Failed to initialize session with ${list[index].getDisplayName()}:`,
+                        result.reason,
+                    );
+                } else {
+                    logger.info(
+                        `E2E: Session initialized successfully with ${list[index].getDisplayName()}`,
+                    );
+                }
+            });
         } catch (error) {
             this._sessionInitializationInProgress = false;
-            throw new Error(`Failed to initialize sessions: ${error}`);
+            throw new Error(`E2E: Failed to initialize sessions: ${error}`);
         } finally {
             this._sessionInitializationInProgress = false;
-            logger.info("E2E: Sucessfully initialized all sessions");
         }
     }
 
@@ -607,16 +615,6 @@ export class OlmAdapter extends Listenable {
                 );
             }
         }
-    }
-
-    /**
-     * Event posted when the E2EE signalling channel has been established with the given participant.
-     * @private
-     */
-    _onParticipantE2EEChannelReady(participant) {
-        logger.info(
-            `E2E: E2EE channel with participant ${participant.getDisplayName()} is ready.`,
-        );
     }
 
     /**
@@ -1011,7 +1009,9 @@ export class OlmAdapter extends Listenable {
                         );
 
                         olmData.status = PROTOCOL_STATUS.DONE;
-                        this._onParticipantE2EEChannelReady(participant);
+                        logger.info(
+                            `E2E: Participant ${participant.getDisplayName()} established E2E channel with us.`,
+                        );
                     } else
                         this._sendStatusError(
                             pId,
@@ -1026,7 +1026,6 @@ export class OlmAdapter extends Listenable {
                         olmData.status === PROTOCOL_STATUS.WAITING_SESSION_ACK
                     ) {
                         const { pqEncKey, iv } = msg.data;
-                        const requestPromise = this._reqs.get(uuid);
 
                         const pqKey = await decryptKeyInfoPQ(
                             pqEncKey,
@@ -1051,11 +1050,14 @@ export class OlmAdapter extends Listenable {
 
                         olmData.status = PROTOCOL_STATUS.DONE;
 
-                        this._onParticipantE2EEChannelReady(participant);
-
-                        requestPromise.resolve();
-
-                        this._reqs.delete(uuid);
+                        const requestPromise = this._reqs.get(uuid);
+                        if (requestPromise) {
+                            requestPromise.resolve();
+                            this._reqs.delete(uuid);
+                        } else
+                            logger.warn(
+                                `E2E: Session with ${participant.getDisplayName()} was established after reaching time out.`,
+                            );
                     } else
                         this._sendStatusError(
                             pId,
@@ -1476,12 +1478,15 @@ export class OlmAdapter extends Listenable {
      * @private
      */
     async _sendSessionInit(participant: JitsiParticipant) {
+        logger.debug(
+            `E2E: Entered _sendSessionInit ${participant.getDisplayName()} `,
+        );
         const olmData = this._getParticipantOlmData(participant);
         if (olmData.status === PROTOCOL_STATUS.DONE) return;
 
         const pId = participant.getId();
         if (olmData.status === PROTOCOL_STATUS.NOT_STARTED) {
-            logger.debug(
+            logger.info(
                 `E2E: sending session init to ${participant.getDisplayName()} `,
             );
             try {
