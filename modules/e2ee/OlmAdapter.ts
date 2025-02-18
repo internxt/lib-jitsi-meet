@@ -323,11 +323,14 @@ export class OlmAdapter extends Listenable {
                     );
                     break;
                 case "e2ee.enabled":
-                    if (newValue) {
+                    if (newValue) logger.info(
+                        `E2E: Participant ${participant.getId()} started encrypting their data.`,
+                    );
+                    /*if (newValue) {
                         await this.initSessions();
                     } else {
                         this.clearParticipantSession(participant);
-                    }
+                    }*/
                     break;
             }
         }
@@ -339,7 +342,12 @@ export class OlmAdapter extends Listenable {
      * @private
      */
     async initSessions() {
-        if (this._sessionInitializationInProgress) return;
+        if (this._sessionInitializationInProgress) {
+            logger.info(
+                `E2E: initSessions is already in progress.`,
+            );
+            return;
+        }
         this._sessionInitializationInProgress = true;
 
         if (!(await this._olmWasInitialized)) {
@@ -351,10 +359,16 @@ export class OlmAdapter extends Listenable {
         try {
             const localParticipantId = this._conf.myUserId();
             const participants = this._conf.getParticipants();
+            logger.debug(
+                `E2E: All participants  ${participants.map(p => p.getId())}`,
+            );
             const list = participants.filter(
                 (participant) =>
                     participant.hasFeature(FEATURE_E2EE) &&
                     localParticipantId < participant.getId(),
+            );
+            logger.debug(
+                `E2E: Passed filter  ${list.map(p => p.getId())}`,
             );
             const promises = list.map((participant) =>
                 this._sendSessionInit(participant),

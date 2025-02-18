@@ -161,7 +161,7 @@ export class Context {
             return encryptData(iv, additionalData, key, data).then(
                 (cipherText) => {
                     if (print) {
-                        console.log("E2E: Start encryption!");
+                        console.log("E2E: Start encryption of my data!");
                         print = false;
                     }
                     const newData = new ArrayBuffer(
@@ -312,7 +312,7 @@ export class Context {
 
             return encodedFrame;
         } catch (error) {
-            console.error(`E2E: Got error while decrypting frame: ${error}`);
+            console.error(`E2E: Got error while decrypting frame from ${this._participantId}: ${error}`);
         }
     }
 

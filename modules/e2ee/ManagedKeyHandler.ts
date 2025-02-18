@@ -248,6 +248,7 @@ export class ManagedKeyHandler extends Listenable {
         );
         if (this._conferenceJoined && this.enabled) {
             this._ratchetKeyImpl();
+            this._olmAdapter.initSessions();
         }
     }
 
