@@ -38,7 +38,7 @@ export default class JitsiParticipant {
         this._status = status;
         this._hidden = hidden;
         this._statsID = statsID;
-        this._properties = {};
+        this._properties = new Map();
         this._identity = identity;
         this._isReplacing = isReplacing;
         this._isReplaced = isReplaced;
@@ -169,7 +169,7 @@ export default class JitsiParticipant {
      * Gets the value of a property of this participant.
      */
     getProperty(name) {
-        return this._properties[name];
+        return this._properties.get(name);
     }
 
     /**
@@ -330,10 +330,10 @@ export default class JitsiParticipant {
      * @value the value to set.
      */
     setProperty(name, value) {
-        const oldValue = this._properties[name];
+        const oldValue = this._properties.get(name);
 
         if (value !== oldValue) {
-            this._properties[name] = value;
+            this._properties.set(name, value);
             this._conference.eventEmitter.emit(
                 JitsiConferenceEvents.PARTICIPANT_PROPERTY_CHANGED,
                 this,
