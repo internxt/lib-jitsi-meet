@@ -153,7 +153,7 @@ export default class JitsiRemoteTrack extends JitsiTrack {
             && !this.listenerCount(JitsiTrackEvents.TRACK_STREAMING_STATUS_CHANGED)
         ) {
             this._disposeTrackStreamingStatus();
-            logger.debug(`Disposing track streaming status: ${this._sourceName}`);
+            //logger.debug(`Disposing track streaming status: ${this._sourceName}`);
         }
     }
 

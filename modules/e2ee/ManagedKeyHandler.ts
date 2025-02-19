@@ -240,14 +240,20 @@ export class ManagedKeyHandler extends Listenable {
 
     /**
      * Advances (using ratcheting) the current key when a new participant joins the conference.
+     * Sends a session-init to a new participant if their ID is bigger than ID of this user.
+     * 
      * @private
      */
-    _onParticipantJoined() {
+    _onParticipantJoined(id: string) {
         logger.info(
-            `E2E: A new participant joined the conference`,
+            `E2E: A new participant ${id} joined the conference`,
         );
         if (this._conferenceJoined && this.enabled) {
             this._ratchetKeyImpl();
+            if (id > this.conference.myUserId()) {
+                const participant = this.conference.getParticipantById(id);
+                this._olmAdapter._sendSessionInit(participant);
+            }
         }
     }
 

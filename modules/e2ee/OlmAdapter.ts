@@ -322,10 +322,12 @@ export class OlmAdapter extends Listenable {
                     );
                     break;
                 case "e2ee.enabled":
-                    if (newValue) {
-                        await this.initSessions();
-                    } else {
-                        this.clearParticipantSession(participant);
+                    if (newValue) { logger.info(
+                        `E2E: Participant ${participant.getId()} STARTED encrypting data.`,
+                    );}
+                    else {
+                        logger.info(
+                            `E2E: Participant ${participant.getId()} STOPPED encrypting data.`);
                     }
                     break;
             }
@@ -338,7 +340,12 @@ export class OlmAdapter extends Listenable {
      * @private
      */
     async initSessions() {
-        if (this._sessionInitializationInProgress) return;
+        if (this._sessionInitializationInProgress) {
+            logger.info(
+                `E2E: initSessions is already in progress.`,
+            );
+            return;
+        }
         this._sessionInitializationInProgress = true;
 
         if (!(await this._olmWasInitialized)) {
@@ -350,10 +357,16 @@ export class OlmAdapter extends Listenable {
         try {
             const localParticipantId = this._conf.myUserId();
             const participants = this._conf.getParticipants();
+            logger.debug(
+                `E2E: List of all participants:  ${participants.map(p => p.getId())}`,
+            );
             const list = participants.filter(
                 (participant) =>
                     participant.hasFeature(FEATURE_E2EE) &&
                     localParticipantId < participant.getId(),
+            );
+            logger.debug(
+                `E2E: Based on IDs, we should send session-init to those participants:  ${list.map(p => p.getId())}`,
             );
             const promises = list.map((participant) =>
                 this._sendSessionInit(participant),
@@ -1478,16 +1491,13 @@ export class OlmAdapter extends Listenable {
      * @private
      */
     async _sendSessionInit(participant: JitsiParticipant) {
-        logger.debug(
-            `E2E: Entered _sendSessionInit ${participant.getDisplayName()} `,
-        );
         const olmData = this._getParticipantOlmData(participant);
         if (olmData.status === PROTOCOL_STATUS.DONE) return;
 
         const pId = participant.getId();
         if (olmData.status === PROTOCOL_STATUS.NOT_STARTED) {
             logger.info(
-                `E2E: sending session init to ${participant.getDisplayName()} `,
+                `E2E: Sending session init to participant ${participant.getDisplayName()} `,
             );
             try {
                 // Generate a One Time Key.
@@ -1498,7 +1508,7 @@ export class OlmAdapter extends Listenable {
 
                 if (!values.length || typeof values[0] !== "string") {
                     return Promise.reject(
-                        new Error("No one-time-keys generated"),
+                        new Error("E2E: No one-time-keys generated"),
                     );
                 }
 
@@ -1516,7 +1526,7 @@ export class OlmAdapter extends Listenable {
                 const timeoutPromise = new Promise((_, reject) =>
                     setTimeout(
                         () =>
-                            reject(new Error("Session init request timed out")),
+                            reject(new Error("E2E: Session init request timed out")),
                         REQ_TIMEOUT,
                     ),
                 );
