@@ -1,6 +1,3 @@
-/* eslint-disable no-bitwise */
-/* eslint-disable no-mixed-operators */
-
 /**
  * Generates a SAS composed of decimal numbers.
  * Borrowed from the Matrix JS SDK.
@@ -8,7 +5,7 @@
  * @param {Uint8Array} sasBytes - The bytes from sas.generate_bytes.
  * @returns Array<number>
  */
-function generateDecimalSas(sasBytes) {
+function generateDecimalSas(sasBytes: Uint8Array): Array<number> {
     /**
      *      +--------+--------+--------+--------+--------+
      *      | Byte 0 | Byte 1 | Byte 2 | Byte 3 | Byte 4 |
@@ -98,7 +95,7 @@ const emojiMapping = [
  * @param {Uint8Array} sasBytes - The bytes from sas.generate_bytes.
  * @returns Array<number>
  */
-function generateEmojiSas(sasBytes) {
+function generateEmojiSas(sasBytes: Uint8Array) {
     // Just like base64.
     const emojis = [
         sasBytes[0] >> 2,
@@ -128,7 +125,7 @@ export function generateSas(sasBytes) {
     const sas = {};
 
     for (const method in sasGenerators) {
-        if (sasGenerators.hasOwnProperty(method)) {
+        if (Object.prototype.hasOwnProperty.call(sasGenerators,method)) {
             sas[method] = sasGenerators[method](sasBytes);
         }
     }

@@ -1,9 +1,5 @@
-/* eslint-disable no-bitwise */
 /* global BigInt */
-import base64js from "base64-js";
-import { Buffer } from "buffer";
-
-import { deriveKeys, importKey, ratchet } from "./crypto-utils";
+import { deriveKeys, ratchet, encryptData, decryptData } from "./crypto-utils";
 
 // We use a ringbuffer of keys so we can change them and still decode packets that were
 // encrypted with an old key. We use a size of 16 which corresponds to the four bits
@@ -25,19 +21,16 @@ const UNENCRYPTED_BYTES = {
     delta: 3,
     undefined: 1, // frame.type is not set on audio
 };
-const ENCRYPTION_ALGORITHM = "AES-GCM";
 let print = true;
 
 /* We use a 96 bit IV for AES GCM. This is signalled in plain together with the
  packet. See https://developer.mozilla.org/en-US/docs/Web/API/AesGcmParams */
 const IV_LENGTH = 16;
 
-const RATCHET_WINDOW_SIZE = 8;
-
 export type KeyMaterial = {
     encryptionKey: CryptoKey;
-    materialOlm: CryptoKey;
-    materialPQ: CryptoKey;
+    materialOlm: Uint8Array;
+    materialPQ: Uint8Array;
 };
 
 /**
@@ -45,9 +38,10 @@ export type KeyMaterial = {
  * encode/decode functions
  */
 export class Context {
+    private _participantId: string;
     private _cryptoKeyRing: KeyMaterial[];
     private _currentKeyIndex: number;
-    private _sendCounts: Map<any, number>;
+    private _sendCounts: Map<number, number>;
     /**
      * @param {Object} options
      */
@@ -59,6 +53,26 @@ export class Context {
         this._currentKeyIndex = -1;
 
         this._sendCounts = new Map();
+
+        this._participantId = '';
+    }
+
+    /**
+     * Ratchet keys.
+     * @private
+     */
+    async ratchetKeys() {
+        const currentIndex = this._currentKeyIndex;
+        console.log(
+            `E2E: Before ratcheting: index = ${currentIndex} and ${this._cryptoKeyRing[currentIndex]}`,
+        );
+        const { materialOlm, materialPQ } = this._cryptoKeyRing[currentIndex];
+        const newMaterialOlm = await ratchet(materialOlm);
+        const newMaterialPQ = await ratchet(materialPQ);
+        console.log(
+            `E2E: After ratcheting: ${newMaterialOlm} and ${newMaterialPQ}`,
+        );
+        this.setKey(newMaterialOlm, newMaterialPQ, currentIndex + 1);
     }
 
     /**
@@ -68,21 +82,15 @@ export class Context {
      * @param {Uint8Array} pqKey bytes.
      * @param {Number} index
      */
-    async setKey(olmKey: Uint8Array, pqKey: Uint8Array, index: number = -1) {
-        let newKey: KeyMaterial;
-
-        const newEncryptionKey = await deriveKeys(
-            olmKey,
-            pqKey
-        );
-        const newMaterialOlm = await importKey(olmKey);
-        const newMaterialPQ = await importKey(pqKey);
-        newKey = {
-            materialOlm: newMaterialOlm,
-            materialPQ: newMaterialPQ,
+    async setKey(olmKey: Uint8Array, pqKey: Uint8Array, index: number = -1, pId: string = '') {
+        const newEncryptionKey = await deriveKeys(olmKey, pqKey);
+        console.log(`Set new derived encryption key based on ${olmKey} and ${pqKey}`);
+        const newKey: KeyMaterial = {
+            materialOlm: olmKey,
+            materialPQ: pqKey,
             encryptionKey: newEncryptionKey,
         };
-        this._setKeys(newKey, index);
+        this._setKeys(newKey, index, pId);
     }
 
     /**
@@ -92,11 +100,12 @@ export class Context {
      * @param {Number} keyIndex optional
      * @private
      */
-    _setKeys(keys: KeyMaterial, keyIndex: number = -1) {
+    _setKeys(keys: KeyMaterial, keyIndex: number = -1, pId: string = '') {
         if (keyIndex >= 0) {
             this._currentKeyIndex = keyIndex % this._cryptoKeyRing.length;
         }
         this._cryptoKeyRing[this._currentKeyIndex] = keys;
+        if (pId) this._participantId = pId;
 
         //this._sendCount = BigInt(0); // eslint-disable-line new-cap
     }
@@ -128,14 +137,14 @@ export class Context {
         if (this._cryptoKeyRing[keyIndex]) {
             const iv = this._makeIV(
                 encodedFrame.getMetadata().synchronizationSource,
-                encodedFrame.timestamp
+                encodedFrame.timestamp,
             );
 
             // Thіs is not encrypted and contains the VP8 payload descriptor or the Opus TOC byte.
             const frameHeader = new Uint8Array(
                 encodedFrame.data,
                 0,
-                UNENCRYPTED_BYTES[encodedFrame.type]
+                UNENCRYPTED_BYTES[encodedFrame.type],
             );
 
             // Frame trailer contains the R|IV_LENGTH and key index
@@ -155,62 +164,52 @@ export class Context {
             const key: CryptoKey = this._cryptoKeyRing[keyIndex].encryptionKey;
             const data: Uint8Array = new Uint8Array(
                 encodedFrame.data,
-                UNENCRYPTED_BYTES[encodedFrame.type]
+                UNENCRYPTED_BYTES[encodedFrame.type],
             );
             const additionalData = new Uint8Array(
                 encodedFrame.data,
                 0,
-                frameHeader.byteLength
+                frameHeader.byteLength,
             );
-            return crypto.subtle
-                .encrypt(
-                    {
-                        name: ENCRYPTION_ALGORITHM,
-                        iv,
-                        additionalData,
-                    },
-                    key,
-                    data
-                )
-                .then(
-                    (cipherText) => {
-                        if (print) {
-                            print = false;
-                        }
-                        const newData = new ArrayBuffer(
-                            frameHeader.byteLength +
-                                cipherText.byteLength +
-                                iv.byteLength +
-                                frameTrailer.byteLength
-                        );
-                        const newUint8 = new Uint8Array(newData);
-
-                        newUint8.set(frameHeader); // copy first bytes.
-                        newUint8.set(
-                            new Uint8Array(cipherText),
-                            frameHeader.byteLength
-                        ); // add ciphertext.
-                        newUint8.set(
-                            new Uint8Array(iv),
-                            frameHeader.byteLength + cipherText.byteLength
-                        ); // append IV.
-                        newUint8.set(
-                            frameTrailer,
-                            frameHeader.byteLength +
-                                cipherText.byteLength +
-                                iv.byteLength
-                        ); // append frame trailer.
-                        encodedFrame.data = newData;
-
-                        return controller.enqueue(encodedFrame);
-                    },
-                    (e) => {
-                        // TODO: surface this to the app.
-                        console.error(e);
-
-                        // We are not enqueuing the frame here on purpose.
+            return encryptData(iv, additionalData, key, data).then(
+                (cipherText) => {
+                    if (print) {
+                        print = false;
                     }
-                );
+                    const newData = new ArrayBuffer(
+                        frameHeader.byteLength +
+                            cipherText.byteLength +
+                            iv.byteLength +
+                            frameTrailer.byteLength,
+                    );
+                    const newUint8 = new Uint8Array(newData);
+
+                    newUint8.set(frameHeader); // copy first bytes.
+                    newUint8.set(
+                        new Uint8Array(cipherText),
+                        frameHeader.byteLength,
+                    ); // add ciphertext.
+                    newUint8.set(
+                        new Uint8Array(iv),
+                        frameHeader.byteLength + cipherText.byteLength,
+                    ); // append IV.
+                    newUint8.set(
+                        frameTrailer,
+                        frameHeader.byteLength +
+                            cipherText.byteLength +
+                            iv.byteLength,
+                    ); // append frame trailer.
+                    encodedFrame.data = newData;
+
+                    return controller.enqueue(encodedFrame);
+                },
+                (e) => {
+                    // TODO: surface this to the app.
+                    console.error(e);
+
+                    // We are not enqueuing the frame here on purpose.
+                },
+            );
         }
 
         /* NOTE WELL:
@@ -229,11 +228,10 @@ export class Context {
     async decodeFunction(encodedFrame, controller) {
         const data = new Uint8Array(encodedFrame.data);
         const keyIndex = data[encodedFrame.data.byteLength - 1];
-
         if (this._cryptoKeyRing[keyIndex]) {
             const decodedFrame = await this._decryptFrame(
                 encodedFrame,
-                keyIndex
+                keyIndex,
             );
 
             if (decodedFrame) {
@@ -252,14 +250,8 @@ export class Context {
      * @returns {Promise<RTCEncodedVideoFrame|RTCEncodedAudioFrame>} - The decrypted frame.
      * @private
      */
-    async _decryptFrame(
-        encodedFrame,
-        keyIndex: number,
-        initialKey = undefined,
-        ratchetCount: number = 0
-    ) {
+    async _decryptFrame(encodedFrame, keyIndex: number) {
         const { encryptionKey } = this._cryptoKeyRing[keyIndex];
-        let { materialOlm, materialPQ } = this._cryptoKeyRing[keyIndex];
 
         // Construct frame trailer. Similar to the frame header described in
         // https://tools.ietf.org/html/draft-omara-sframe-00#section-4.2
@@ -273,12 +265,12 @@ export class Context {
             const frameHeader = new Uint8Array(
                 encodedFrame.data,
                 0,
-                UNENCRYPTED_BYTES[encodedFrame.type]
+                UNENCRYPTED_BYTES[encodedFrame.type],
             );
             const frameTrailer = new Uint8Array(
                 encodedFrame.data,
                 encodedFrame.data.byteLength - 2,
-                2
+                2,
             );
 
             const ivLength = frameTrailer[0];
@@ -287,7 +279,7 @@ export class Context {
                 encodedFrame.data.byteLength -
                     ivLength -
                     frameTrailer.byteLength,
-                ivLength
+                ivLength,
             );
 
             const cipherTextStart = frameHeader.byteLength;
@@ -295,31 +287,25 @@ export class Context {
                 encodedFrame.data.byteLength -
                 (frameHeader.byteLength + ivLength + frameTrailer.byteLength);
 
-            const plainText = await crypto.subtle.decrypt(
-                {
-                    name: "AES-GCM",
-                    iv,
-                    additionalData: new Uint8Array(
-                        encodedFrame.data,
-                        0,
-                        frameHeader.byteLength
-                    ),
-                },
-                encryptionKey,
-                new Uint8Array(
-                    encodedFrame.data,
-                    cipherTextStart,
-                    cipherTextLength
-                )
+            const additionalData =  new Uint8Array(
+                encodedFrame.data,
+                0,
+                frameHeader.byteLength,
             );
-
+            const data = new Uint8Array(
+                encodedFrame.data,
+                cipherTextStart,
+                cipherTextLength,
+            );
+            const plainText = await decryptData(iv, additionalData, encryptionKey, data);
+            
             const newData = new ArrayBuffer(
-                frameHeader.byteLength + plainText.byteLength
+                frameHeader.byteLength + plainText.byteLength,
             );
             const newUint8 = new Uint8Array(newData);
 
             newUint8.set(
-                new Uint8Array(encodedFrame.data, 0, frameHeader.byteLength)
+                new Uint8Array(encodedFrame.data, 0, frameHeader.byteLength),
             );
             newUint8.set(new Uint8Array(plainText), frameHeader.byteLength);
 
@@ -327,43 +313,9 @@ export class Context {
 
             return encodedFrame;
         } catch (error) {
-
-            if (ratchetCount < RATCHET_WINDOW_SIZE) {
-                const currentKey = this._cryptoKeyRing[this._currentKeyIndex];
-
-                const newMaterialOlm =  await ratchet(materialOlm);
-                const newMaterialPQ = await ratchet(materialPQ);
-                const newEncryptionKey = await deriveKeys(
-                    newMaterialOlm,
-                    newMaterialPQ
-                );
-
-                console.log('CHECK: Decrypt frame ratches for time =', ratchetCount);
-                const newKey = {
-                    materialOlm: await importKey(newMaterialOlm),
-                    materialPQ: await importKey(newMaterialPQ),
-                    encryptionKey: newEncryptionKey,
-                };
-
-                this._setKeys(newKey);
-
-                return await this._decryptFrame(
-                    encodedFrame,
-                    keyIndex,
-                    initialKey || currentKey,
-                    ratchetCount + 1
-                );
-            }
-
-            /**
-             * Since the key it is first send and only afterwards actually used for encrypting, there were
-             * situations when the decrypting failed due to the fact that the received frame was not encrypted
-             * yet and ratcheting, of course, did not solve the problem. So if we fail RATCHET_WINDOW_SIZE times,
-             * we come back to the initial key.
-             */
-            this._setKeys(initialKey);
-
-            // TODO: notify the application about error status.
+            console.log(
+                `E2E: Got error while decrypting frame: ${error}`,
+            );
         }
     }
 
@@ -386,7 +338,7 @@ export class Context {
      *
      * See also https://developer.mozilla.org/en-US/docs/Web/API/AesGcmParams
      */
-    _makeIV(synchronizationSource, timestamp) {
+    _makeIV(synchronizationSource: number, timestamp) {
         const iv = new ArrayBuffer(IV_LENGTH);
         const ivView = new DataView(iv);
 
@@ -395,7 +347,7 @@ export class Context {
             // Initialize with a random offset, similar to the RTP sequence number.
             this._sendCounts.set(
                 synchronizationSource,
-                Math.floor(Math.random() * 0xffff)
+                Math.floor(Math.random() * 0xffff),
             );
         }
 
