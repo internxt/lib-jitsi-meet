@@ -244,16 +244,16 @@ export class ManagedKeyHandler extends Listenable {
      * 
      * @private
      */
-    _onParticipantJoined(id: string) {
+   async _onParticipantJoined(id: string) {
         logger.info(
             `E2E: A new participant ${id} joined the conference`,
         );
         if (this._conferenceJoined && this.enabled) {
-            this._ratchetKeyImpl();
             if (id > this.conference.myUserId()) {
                 const participant = this.conference.getParticipantById(id);
-                this._olmAdapter._sendSessionInit(participant);
+                await this._olmAdapter._sendSessionInit(participant);
             }
+            this._ratchetKeyImpl();
         }
     }
 
@@ -308,11 +308,12 @@ export class ManagedKeyHandler extends Listenable {
     }
 
     /**
-     * Handles an update in a participant's key.
+     * Updates a participant's key.
      *
      * @param {string} id - The participant ID.
-     * @param {Uint8Array | boolean} key - The new key for the participant.
-     * @param {Number} index - The new key's index.
+     * @param {Uint8Array} olmKey - The new olm key of the participant.
+     * @param {Uint8Array} pqKey - The new pq key of the participant.
+     * @param {number} index - The new key's index.
      * @private
      */
     _onParticipantKeyUpdated(
@@ -325,11 +326,9 @@ export class ManagedKeyHandler extends Listenable {
     }
 
     /**
-     * Handles an update in a participant's key.
+     * Ratchets a participant's key.
      *
      * @param {string} id - The participant ID.
-     * @param {Uint8Array | boolean} key - The new key for the participant.
-     * @param {Number} index - The new key's index.
      * @private
      */
     _onParticipantKeyRatchet(
