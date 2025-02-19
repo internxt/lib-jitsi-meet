@@ -323,14 +323,13 @@ export class OlmAdapter extends Listenable {
                     );
                     break;
                 case "e2ee.enabled":
-                    if (newValue) logger.info(
-                        `E2E: Participant ${participant.getId()} started encrypting their data.`,
-                    );
-                    /*if (newValue) {
-                        await this.initSessions();
-                    } else {
-                        this.clearParticipantSession(participant);
-                    }*/
+                    if (newValue) { logger.info(
+                        `E2E: Participant ${participant.getId()} STARTED encrypting data.`,
+                    );}
+                    else {
+                        logger.info(
+                            `E2E: Participant ${participant.getId()} STOPPED encrypting data.`);
+                    }
                     break;
             }
         }
