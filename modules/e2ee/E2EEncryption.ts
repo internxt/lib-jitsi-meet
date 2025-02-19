@@ -27,7 +27,7 @@ export class E2EEncryption {
             return false;
         }
 
-        if (e2ee.disabled || config.testing?.disableE2EE) {
+        if (config.e2ee?.disabled || config.testing?.disableE2EE) {
             return false;
         }
 

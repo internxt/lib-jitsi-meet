@@ -2,10 +2,6 @@ import { getLogger } from '@jitsi/logger';
 
 import * as JitsiConferenceEvents from '../../JitsiConferenceEvents';
 import * as JitsiE2EPingEvents from '../../service/e2eping/E2ePingEvents';
-import JitsiConference from '../../JitsiConference';
-import JitsiParticipant from '../../JitsiParticipant';
-import EventEmitter from '../util/EventEmitter';
-
 
 const logger = getLogger(__filename);
 
@@ -41,12 +37,6 @@ const DEFAULT_MAX_CONFERENCE_SIZE = 200;
  * Saves e2e ping related state for a single JitsiParticipant.
  */
 class ParticipantWrapper {
-    participant: JitsiParticipant;
-    e2eping: E2ePing;
-    id: String;
-    requests: {};
-    lastRequestId: number;
-    timeout: number;
     /**
      * Creates a ParticipantWrapper
      * @param {JitsiParticipant} participant - The remote participant that this
@@ -203,13 +193,6 @@ class ParticipantWrapper {
  * 4. Fires analytics events with the end-to-end RTT periodically.
  */
 export default class E2ePing {
-    conference: JitsiConference;
-    participants: Map<string, JitsiParticipant>;
-    maxConferenceSize: number;
-    numRequests: number;
-    eventEmitter: EventEmitter;
-    sendMessage: Function;
-    maxMessagesPerSecond: number;
     /**
      * @param {JitsiConference} conference - The conference.
      * @param {Function} sendMessage - The function to use to send a message.
@@ -221,7 +204,7 @@ export default class E2ePing {
         this.sendMessage = sendMessage;
 
         // Maps a participant ID to its ParticipantWrapper
-        this.participants = new Map();
+        this.participants = {};
 
         this.numRequests = DEFAULT_NUM_REQUESTS;
         this.maxConferenceSize = DEFAULT_MAX_CONFERENCE_SIZE;
@@ -377,7 +360,7 @@ export default class E2ePing {
             }
         }
 
-        this.participants = new Map();
+        this.participants = {};
     }
 }
 
