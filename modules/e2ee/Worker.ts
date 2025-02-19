@@ -15,7 +15,7 @@ const contexts = new Map(); // Map participant id => context
 function getParticipantContext(participantId) {
 
     if (!contexts.has(participantId)) {
-        contexts.set(participantId, new Context());
+        contexts.set(participantId, new Context(participantId));
     }
 
     return contexts.get(participantId);

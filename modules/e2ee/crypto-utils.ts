@@ -86,7 +86,30 @@ export async function importKey(keyBytes: Uint8Array): Promise<CryptoKey> {
             "deriveKey",
         ]);
     } catch (error) {
-        return Promise.reject(new Error(`Import key failed: ${error}`));
+        return Promise.reject(new Error(`Key import failed: ${error}`));
+    }
+}
+
+/**
+ * Converts a raw key into a WebCrypto AES key object.
+ *
+ * @param {ArrayBuffer} keyBytes - The raw key bytes.
+ * @returns {Promise<CryptoKey>} WebCrypto key.
+ */
+export async function importAESKey(keyBytes: Uint8Array): Promise<CryptoKey> {
+    try {
+        return await crypto.subtle.importKey(
+            "raw",
+            keyBytes,
+            {
+                name: AES,
+                length: KEY_LEN,
+            },
+            false,
+            ["encrypt", "decrypt"],
+        );
+    } catch (error) {
+        return Promise.reject(new Error(`AES key import failed: ${error}`));
     }
 }
 
@@ -242,22 +265,12 @@ export async function decryptKeyInfoPQ(
         const ciphertext = Buffer.from(base64js.toByteArray(ciphertextBase64));
         const iv = base64js.toByteArray(ivBase64);
 
-        const secretKey = await crypto.subtle.importKey(
-            "raw",
-            key,
-            {
-                name: AES,
-                length: KEY_LEN,
-            },
-            false,
-            ["encrypt", "decrypt"],
-        );
+        const secretKey = await importAESKey(key);
+        const additionalData = new TextEncoder().encode("PQ Key Info");
 
-        const plaintext = await crypto.subtle.decrypt(
-            {
-                name: AES,
-                iv,
-            },
+        const plaintext = await decryptData(
+            iv,
+            additionalData,
             secretKey,
             ciphertext,
         );
@@ -292,23 +305,11 @@ export async function encryptKeyInfoPQ(
 
     try {
         const iv = crypto.getRandomValues(new Uint8Array(16));
-        const secretKey = await crypto.subtle.importKey(
-            "raw",
-            key,
-            {
-                name: AES,
-                length: KEY_LEN,
-            },
-            false,
-            ["encrypt", "decrypt"],
-        );
+        const secretKey = await importAESKey(key);
 
+        const additionalData = new TextEncoder().encode("PQ Key Info");
         const ciphertext = new Uint8Array(
-            await crypto.subtle.encrypt(
-                { name: AES, iv },
-                secretKey,
-                plaintext,
-            ),
+            await encryptData(iv, additionalData, secretKey, plaintext),
         );
 
         const ciphertextBase64 = base64js.fromByteArray(ciphertext);
@@ -386,7 +387,7 @@ export function encryptData(iv, additionalData, key, data) {
  *
  * @param {ArrayBuffer} iv - The IV vector.
  * @param {ArrayBuffer} additionalData - The additional data.
- * @param {ArrayBuffer} key - The encryption key/
+ * @param {CryptoKey} key - The encryption key/
  * @param {ArrayBuffer} data - The data to be encrypted.
  * @returns {Promise<ArrayBuffer>} Resulting ciphertext.
  */
@@ -398,7 +399,6 @@ export function decryptData(iv, additionalData, key, data) {
             additionalData,
         },
         key,
-        data
+        data,
     );
 }
-
