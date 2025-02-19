@@ -19,7 +19,6 @@ const logger = getLogger(__filename);
  * {@code JingleSessionPC}.
  */
 export default class ProxyConnectionPC {
-
     /**
      * Initializes a new {@code ProxyConnectionPC} instance.
      *
@@ -37,7 +36,6 @@ export default class ProxyConnectionPC {
      */
     constructor(options = {}) {
         this._options = {
-            peerJid: undefined,
             pcConfig: {},
             isInitiator: false,
             receiveAudio: false,
@@ -94,7 +92,7 @@ export default class ProxyConnectionPC {
             break;
 
         case ACTIONS.TERMINATE:
-            this._onSessionTerminate();
+            this._onSessionTerminate($jingle);
             break;
 
         case ACTIONS.TRANSPORT_INFO:
