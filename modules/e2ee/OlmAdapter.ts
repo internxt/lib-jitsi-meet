@@ -18,7 +18,6 @@ import {
     encryptKeyInfoPQ,
     generateKey,
     ratchet,
-    importKey,
 } from "./crypto-utils";
 import JitsiConference from "../../JitsiConference";
 import JitsiParticipant from "../../JitsiParticipant";
@@ -359,7 +358,7 @@ export class OlmAdapter extends Listenable {
             const localParticipantId = this._conf.myUserId();
             const participants = this._conf.getParticipants();
             logger.debug(
-                `E2E: All participants  ${participants.map(p => p.getId())}`,
+                `E2E: List of all participants:  ${participants.map(p => p.getId())}`,
             );
             const list = participants.filter(
                 (participant) =>
@@ -367,7 +366,7 @@ export class OlmAdapter extends Listenable {
                     localParticipantId < participant.getId(),
             );
             logger.debug(
-                `E2E: Passed filter  ${list.map(p => p.getId())}`,
+                `E2E: Based on IDs, we should send session-init to those participants:  ${list.map(p => p.getId())}`,
             );
             const promises = list.map((participant) =>
                 this._sendSessionInit(participant),
@@ -1492,16 +1491,13 @@ export class OlmAdapter extends Listenable {
      * @private
      */
     async _sendSessionInit(participant: JitsiParticipant) {
-        logger.debug(
-            `E2E: Entered _sendSessionInit ${participant.getDisplayName()} `,
-        );
         const olmData = this._getParticipantOlmData(participant);
         if (olmData.status === PROTOCOL_STATUS.DONE) return;
 
         const pId = participant.getId();
         if (olmData.status === PROTOCOL_STATUS.NOT_STARTED) {
             logger.info(
-                `E2E: sending session init to ${participant.getDisplayName()} `,
+                `E2E: Sending session init to participant ${participant.getDisplayName()} `,
             );
             try {
                 // Generate a One Time Key.
@@ -1512,7 +1508,7 @@ export class OlmAdapter extends Listenable {
 
                 if (!values.length || typeof values[0] !== "string") {
                     return Promise.reject(
-                        new Error("No one-time-keys generated"),
+                        new Error("E2E: No one-time-keys generated"),
                     );
                 }
 
@@ -1530,7 +1526,7 @@ export class OlmAdapter extends Listenable {
                 const timeoutPromise = new Promise((_, reject) =>
                     setTimeout(
                         () =>
-                            reject(new Error("Session init request timed out")),
+                            reject(new Error("E2E: Session init request timed out")),
                         REQ_TIMEOUT,
                     ),
                 );
