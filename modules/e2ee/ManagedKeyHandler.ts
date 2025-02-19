@@ -240,7 +240,7 @@ export class ManagedKeyHandler extends Listenable {
 
     /**
      * Advances (using ratcheting) the current key when a new participant joins the conference.
-     * Sends a session-init to a new participant if their ID is bigger than ours.
+     * Sends a session-init to a new participant if their ID is bigger than ID of this user.
      * 
      * @private
      */

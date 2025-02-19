@@ -1,5 +1,5 @@
 /* global BigInt */
-import { deriveKeys, ratchet, encryptData, decryptData, importKey } from "./crypto-utils";
+import { deriveKeys, ratchet, encryptData, decryptData } from "./crypto-utils";
 
 // We use a ringbuffer of keys so we can change them and still decode packets that were
 // encrypted with an old key. We use a size of 16 which corresponds to the four bits
@@ -29,8 +29,8 @@ const IV_LENGTH = 16;
 
 export type KeyMaterial = {
     encryptionKey: CryptoKey;
-    materialOlm: CryptoKey;
-    materialPQ: CryptoKey;
+    materialOlm: Uint8Array;
+    materialPQ: Uint8Array;
 };
 
 /**
@@ -61,13 +61,10 @@ export class Context {
     async ratchetKeys() {
         const currentIndex = this._currentKeyIndex;
         const { materialOlm, materialPQ } = this._cryptoKeyRing[currentIndex];
-        const newOlmKey = await ratchet(materialOlm);
-        const newPQkey = await ratchet(materialPQ);
-        const newMaterialOlm = await importKey(newOlmKey);
-        const newMaterialPQ = await importKey(newPQkey);
-        const encryptionKey = await deriveKeys(newOlmKey, newPQkey);
-        this.setKeyMaterial(newMaterialOlm, newMaterialPQ, encryptionKey, currentIndex + 1);
+        const newMaterialOlm = await ratchet(materialOlm);
+        const newMaterialPQ = await ratchet(materialPQ);
         console.info(`E2E: Ratchet keys for ${this._participantId}`);
+        this.setKey(newMaterialOlm, newMaterialPQ, currentIndex + 1);
     }
 
     /**
@@ -78,17 +75,11 @@ export class Context {
      * @param {Number} index
      */
     async setKey(olmKey: Uint8Array, pqKey: Uint8Array, index: number = -1) {
-        const encryptionKey = await deriveKeys(olmKey, pqKey);
-        const materialOlm = await importKey(olmKey);
-        const materialPQ = await importKey(pqKey);
-        this.setKeyMaterial(materialOlm, materialPQ, encryptionKey, index);
-    }
-
-    setKeyMaterial(materialOlm: CryptoKey, materialPQ: CryptoKey, encryptionKey: CryptoKey, index: number = -1) {
+        const newEncryptionKey = await deriveKeys(olmKey, pqKey);
         const newKey: KeyMaterial = {
-            materialOlm,
-            materialPQ,
-            encryptionKey,
+            materialOlm: olmKey,
+            materialPQ: pqKey,
+            encryptionKey: newEncryptionKey,
         };
         if (index >= 0) {
             this._currentKeyIndex = index % this._cryptoKeyRing.length;

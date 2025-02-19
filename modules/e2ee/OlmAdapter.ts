@@ -410,10 +410,8 @@ export class OlmAdapter extends Listenable {
      */
     async _ratchetKeyImpl() {
         try {
-            const materialOlm = await importKey(this._mediaKeyOlm);
-            const materialPQ = await importKey(this._mediaKeyPQ);
-            this._mediaKeyOlm = await ratchet(materialOlm);
-            this._mediaKeyPQ = await ratchet(materialPQ);
+            this._mediaKeyOlm = await ratchet(this._mediaKeyOlm);
+            this._mediaKeyPQ = await ratchet(this._mediaKeyPQ);
             this._mediaKeyIndex++;
             this.ratchetAllKeys();
         } catch (error) {
