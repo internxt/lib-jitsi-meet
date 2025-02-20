@@ -22,7 +22,7 @@ const logger = getLogger(__filename);
  *
  * @type {number}
  */
-let lastErrorStatus = -1;
+let lastErrorStatus : number = -1;
 
 /**
  * A regular expression used to catch Strophe's log message indicating that the
@@ -30,14 +30,14 @@ let lastErrorStatus = -1;
  * {@link lastErrorStatus} will be set back to '-1'.
  * @type {RegExp}
  */
-const resetLastErrorStatusRegExpr = /request id \d+.\d+ got 200/;
+const resetLastErrorStatusRegExpr : RegExp = /request id \d+.\d+ got 200/;
 
 /**
  * A regular expression used to capture the current value of the BOSH request
  * error status (HTTP error code or '0' or something else).
  * @type {RegExp}
  */
-const lastErrorStatusRegExpr
+const lastErrorStatusRegExpr : RegExp
     = /request errored, status: (\d+), number of errors: \d+/;
 
 /**
@@ -51,7 +51,8 @@ export default function() {
         // Strophe log entry about secondary request timeout does not mean that
         // it's a final failure(the request will be restarted), so we lower it's
         // level here to a warning.
-        logger.trace('Strophe', level, msg);
+        // This line can be commented out if you are having perfomance problems while debugging on Chrome.
+        //logger.trace('Strophe', level, msg);
         if (typeof msg === 'string'
                 && msg.indexOf('Request ') !== -1
                 && msg.indexOf('timed out (secondary), restarting') !== -1) {
