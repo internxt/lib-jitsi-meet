@@ -53,11 +53,13 @@ import RTCEvents from './service/RTC/RTCEvents';
 import { SignalingEvents } from './service/RTC/SignalingEvents';
 import { getMediaTypeFromSourceName, getSourceNameForJitsiTrack } from './service/RTC/SignalingLayer';
 import { VideoType } from './service/RTC/VideoType';
+import { MAX_CONNECTION_RETRIES } from './service/connectivity/Constants';
 import {
     ACTION_JINGLE_RESTART,
     ACTION_JINGLE_SI_RECEIVED,
     ACTION_JINGLE_SI_TIMEOUT,
     ACTION_JINGLE_TERMINATE,
+    ACTION_JVB_ICE_FAILED,
     ACTION_P2P_DECLINED,
     ACTION_P2P_ESTABLISHED,
     ACTION_P2P_FAILED,
@@ -65,6 +67,7 @@ import {
     ICE_ESTABLISHMENT_DURATION_DIFF,
     createConferenceEvent,
     createJingleEvent,
+    createJvbIceFailedEvent,
     createP2PEvent
 } from './service/statistics/AnalyticsEvents';
 import { XMPPEvents } from './service/xmpp/XMPPEvents';
@@ -77,6 +80,11 @@ const logger = getLogger(__filename);
  * @type {number}
  */
 const JINGLE_SI_TIMEOUT = 5000;
+
+/**
+ * Default source language for transcribing the local participant.
+ */
+const DEFAULT_TRANSCRIPTION_LANGUAGE = 'en-US';
 
 /**
  * Checks if a given string is a valid video codec mime type.
