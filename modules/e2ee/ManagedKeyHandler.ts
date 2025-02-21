@@ -10,6 +10,7 @@ import { OlmAdapter } from "./OlmAdapter";
 import JitsiConference from "../../JitsiConference";
 import E2EEContext from "./E2EEContext";
 import RTCEvents from "../../service/RTC/RTCEvents";
+import JitsiParticipant from "../../JitsiParticipant";
 
 const logger = getLogger(__filename);
 
@@ -32,6 +33,11 @@ export class ManagedKeyHandler extends Listenable {
         this.e2eeCtx = new E2EEContext();
 
         this.enabled = false;
+
+         this.conference.on(
+            JitsiConferenceEvents.PARTICIPANT_PROPERTY_CHANGED,
+            this._onParticipantDataDecryption.bind(this),
+         );
 
         this.conference.on(
             JitsiConferenceEvents.USER_JOINED,
@@ -115,8 +121,6 @@ export class ManagedKeyHandler extends Listenable {
             logger.info("E2E: Enabling e2ee");
 
             this.enabled = true;
-            await this._olmAdapter.initSessions();
-
             const { olmKey, pqKey, index } = this._olmAdapter.getCurrentKeys();
             this.e2eeCtx.setKey(
                 this.conference.myUserId(),
@@ -124,6 +128,7 @@ export class ManagedKeyHandler extends Listenable {
                 pqKey,
                 index,
             );
+            await this._olmAdapter.initSessions();
 
             this.conference.setLocalParticipantProperty("e2ee.enabled", true);
             this.conference._restartMediaSessions();
@@ -135,6 +140,18 @@ export class ManagedKeyHandler extends Listenable {
             this.e2eeCtx.cleanupAll();
         }
     }
+
+     async _onParticipantDataDecryption(
+            participant: JitsiParticipant,
+            name: string,
+            oldValue,
+            newValue,
+        ) {
+            if ((newValue !== oldValue) && (name ==  "e2ee.enabled")) {
+               if (newValue) this.e2eeCtx.setDecryptionFlag(participant.getId(), true);
+                else this.e2eeCtx.setDecryptionFlag(participant.getId(), false);
+            }
+        }
 
     /**
      * Setup E2EE on the new track that has been added to the conference, apply it on all the open peerconnections.
@@ -249,11 +266,7 @@ export class ManagedKeyHandler extends Listenable {
             `E2E: A new participant ${id} joined the conference`,
         );
         if (this._conferenceJoined && this.enabled) {
-            if (id > this.conference.myUserId()) {
-                const participant = this.conference.getParticipantById(id);
-                await this._olmAdapter._sendSessionInit(participant);
-            }
-            this._ratchetKeyImpl();
+            await this._ratchetKeyImpl();
         }
     }
 
@@ -297,7 +310,7 @@ export class ManagedKeyHandler extends Listenable {
      */
     async _ratchetKeyImpl() {
         try {
-            logger.info("Ratchetting my keys.");
+            logger.info("E2E: Ratchetting my keys.");
             await this._olmAdapter._ratchetKeyImpl();
             const { olmKey, pqKey, index } = this._olmAdapter.getCurrentKeys();
             this.setKey(olmKey, pqKey, index);
