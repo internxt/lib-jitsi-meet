@@ -216,4 +216,20 @@ export default class E2EEcontext {
             participantId,
         });
     }
+
+     /**
+     * Request to ratchet keys for the specified participant.
+     *
+     * @param {string} participantId - The ID of the participant
+     */
+     setDecryptionFlag(
+        participantId: string,
+        doDecrypt: boolean,
+    ) {
+        this._worker.postMessage({
+            operation: "setDecryptionFlag",
+            participantId,
+            doDecrypt
+        });
+    }
 }

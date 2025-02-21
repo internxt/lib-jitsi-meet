@@ -62,6 +62,10 @@ onmessage = async (event) => {
         const { participantId } = event.data;
         const context = getParticipantContext(participantId);
         context.ratchetKeys();
+    } else if (operation === "setDecryptionFlag") {
+        const { participantId, doDecrypt } = event.data;
+        const context = getParticipantContext(participantId);
+        context.setDecryptionFlag(doDecrypt);
     } 
     else if (operation === "cleanup") {
         const { participantId } = event.data;

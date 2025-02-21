@@ -10,6 +10,7 @@ import { OlmAdapter } from "./OlmAdapter";
 import JitsiConference from "../../JitsiConference";
 import E2EEContext from "./E2EEContext";
 import RTCEvents from "../../service/RTC/RTCEvents";
+import JitsiParticipant from "../../JitsiParticipant";
 
 const logger = getLogger(__filename);
 
@@ -32,6 +33,11 @@ export class ManagedKeyHandler extends Listenable {
         this.e2eeCtx = new E2EEContext();
 
         this.enabled = false;
+
+         this.conference.on(
+            JitsiConferenceEvents.PARTICIPANT_PROPERTY_CHANGED,
+            this._onParticipantDataDecryption.bind(this),
+         );
 
         this.conference.on(
             JitsiConferenceEvents.USER_JOINED,
@@ -115,8 +121,6 @@ export class ManagedKeyHandler extends Listenable {
             logger.info("E2E: Enabling e2ee");
 
             this.enabled = true;
-            await this._olmAdapter.initSessions();
-
             const { olmKey, pqKey, index } = this._olmAdapter.getCurrentKeys();
             this.e2eeCtx.setKey(
                 this.conference.myUserId(),
@@ -124,6 +128,7 @@ export class ManagedKeyHandler extends Listenable {
                 pqKey,
                 index,
             );
+            await this._olmAdapter.initSessions();
 
             this.conference.setLocalParticipantProperty("e2ee.enabled", true);
             this.conference._restartMediaSessions();
@@ -135,6 +140,18 @@ export class ManagedKeyHandler extends Listenable {
             this.e2eeCtx.cleanupAll();
         }
     }
+
+     async _onParticipantDataDecryption(
+            participant: JitsiParticipant,
+            name: string,
+            oldValue,
+            newValue,
+        ) {
+            if ((newValue !== oldValue) && (name ==  "e2ee.enabled")) {
+               if (newValue) this.e2eeCtx.setDecryptionFlag(participant.getId(), true);
+                else this.e2eeCtx.setDecryptionFlag(participant.getId(), false);
+            }
+        }
 
     /**
      * Setup E2EE on the new track that has been added to the conference, apply it on all the open peerconnections.
@@ -244,16 +261,12 @@ export class ManagedKeyHandler extends Listenable {
      * 
      * @private
      */
-    _onParticipantJoined(id: string) {
+   async _onParticipantJoined(id: string) {
         logger.info(
             `E2E: A new participant ${id} joined the conference`,
         );
         if (this._conferenceJoined && this.enabled) {
-            this._ratchetKeyImpl();
-            if (id > this.conference.myUserId()) {
-                const participant = this.conference.getParticipantById(id);
-                this._olmAdapter._sendSessionInit(participant);
-            }
+            await this._ratchetKeyImpl();
         }
     }
 
@@ -297,7 +310,7 @@ export class ManagedKeyHandler extends Listenable {
      */
     async _ratchetKeyImpl() {
         try {
-            logger.info("Ratchetting my keys.");
+            logger.info("E2E: Ratchetting my keys.");
             await this._olmAdapter._ratchetKeyImpl();
             const { olmKey, pqKey, index } = this._olmAdapter.getCurrentKeys();
             this.setKey(olmKey, pqKey, index);
@@ -308,11 +321,12 @@ export class ManagedKeyHandler extends Listenable {
     }
 
     /**
-     * Handles an update in a participant's key.
+     * Updates a participant's key.
      *
      * @param {string} id - The participant ID.
-     * @param {Uint8Array | boolean} key - The new key for the participant.
-     * @param {Number} index - The new key's index.
+     * @param {Uint8Array} olmKey - The new olm key of the participant.
+     * @param {Uint8Array} pqKey - The new pq key of the participant.
+     * @param {number} index - The new key's index.
      * @private
      */
     _onParticipantKeyUpdated(
@@ -325,11 +339,9 @@ export class ManagedKeyHandler extends Listenable {
     }
 
     /**
-     * Handles an update in a participant's key.
+     * Ratchets a participant's key.
      *
      * @param {string} id - The participant ID.
-     * @param {Uint8Array | boolean} key - The new key for the participant.
-     * @param {Number} index - The new key's index.
      * @private
      */
     _onParticipantKeyRatchet(

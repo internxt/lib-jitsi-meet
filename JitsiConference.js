@@ -36,7 +36,6 @@ import SpeakerStatsCollector from './modules/statistics/SpeakerStatsCollector';
 import Statistics from './modules/statistics/statistics';
 import EventEmitter from './modules/util/EventEmitter';
 import { safeSubtract } from './modules/util/MathUtil';
-import RandomUtil from './modules/util/RandomUtil';
 import { getJitterDelay } from './modules/util/Retry';
 import ComponentsVersions from './modules/version/ComponentsVersions';
 import VideoSIPGW from './modules/videosipgw/VideoSIPGW';
@@ -54,13 +53,11 @@ import RTCEvents from './service/RTC/RTCEvents';
 import { SignalingEvents } from './service/RTC/SignalingEvents';
 import { getMediaTypeFromSourceName, getSourceNameForJitsiTrack } from './service/RTC/SignalingLayer';
 import { VideoType } from './service/RTC/VideoType';
-import { MAX_CONNECTION_RETRIES } from './service/connectivity/Constants';
 import {
     ACTION_JINGLE_RESTART,
     ACTION_JINGLE_SI_RECEIVED,
     ACTION_JINGLE_SI_TIMEOUT,
     ACTION_JINGLE_TERMINATE,
-    ACTION_JVB_ICE_FAILED,
     ACTION_P2P_DECLINED,
     ACTION_P2P_ESTABLISHED,
     ACTION_P2P_FAILED,
@@ -68,7 +65,6 @@ import {
     ICE_ESTABLISHMENT_DURATION_DIFF,
     createConferenceEvent,
     createJingleEvent,
-    createJvbIceFailedEvent,
     createP2PEvent
 } from './service/statistics/AnalyticsEvents';
 import { XMPPEvents } from './service/xmpp/XMPPEvents';
@@ -81,11 +77,6 @@ const logger = getLogger(__filename);
  * @type {number}
  */
 const JINGLE_SI_TIMEOUT = 5000;
-
-/**
- * Default source language for transcribing the local participant.
- */
-const DEFAULT_TRANSCRIPTION_LANGUAGE = 'en-US';
 
 /**
  * Checks if a given string is a valid video codec mime type.
@@ -332,40 +323,17 @@ export default function JitsiConference(options) {
 JitsiConference.prototype.constructor = JitsiConference;
 
 /**
- * Create a resource for the a jid. We use the room nickname (the resource part
- * of the occupant JID, see XEP-0045) as the endpoint ID in colibri. We require
+ * Create a resource for the a jid. We require
  * endpoint IDs to be 8 hex digits because in some cases they get serialized
  * into a 32bit field.
  *
- * @param {string} jid - The id set onto the XMPP connection.
- * @param {boolean} isAuthenticatedUser - Whether or not the user has connected
- * to the XMPP service with a password.
  * @returns {string}
  * @static
  */
-JitsiConference.resourceCreator = function(jid, isAuthenticatedUser) {
-    let mucNickname;
-
-    if (isAuthenticatedUser) {
-        // For authenticated users generate a random ID.
-        mucNickname = RandomUtil.randomHexString(8).toLowerCase();
-    } else {
-        // We try to use the first part of the node (which for anonymous users
-        // on prosody is a UUID) to match the previous behavior (and maybe make
-        // debugging easier).
-        mucNickname = Strophe.getNodeFromJid(jid)?.substr(0, 8)
-            .toLowerCase();
-
-        // But if this doesn't have the required format we just generate a new
-        // random nickname.
-        const re = /[0-9a-f]{8}/g;
-
-        if (!mucNickname || !re.test(mucNickname)) {
-            mucNickname = RandomUtil.randomHexString(8).toLowerCase();
-        }
-    }
-
-    return mucNickname;
+JitsiConference.resourceCreator = function() {
+    const d = new Date();
+    const time = d.getTime();
+    return time.toString().slice(-8);
 };
 
 /**
