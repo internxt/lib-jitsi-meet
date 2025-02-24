@@ -1,27 +1,19 @@
-import browser from '../browser';
+import browser from "../browser";
 
-import { ExternallyManagedKeyHandler } from './ExternallyManagedKeyHandler';
-import { ManagedKeyHandler } from './ManagedKeyHandler';
-import { OlmAdapter } from './OlmAdapter';
+import { ManagedKeyHandler } from "./ManagedKeyHandler";
+import { OlmAdapter } from "./OlmAdapter";
 
 /**
- * This module integrates {@link KeyHandler} with {@link JitsiConference} in order to enable E2E encryption.
+ * This module integrates {@link ManagedKeyHandler} with {@link JitsiConference} in order to enable E2E encryption.
  */
 export class E2EEncryption {
+    private _keyHandler: ManagedKeyHandler;
     /**
      * A constructor.
      * @param {JitsiConference} conference - The conference instance for which E2E encryption is to be enabled.
      */
     constructor(conference) {
-        const { e2ee = {} } = conference.options.config;
-
-        this._externallyManaged = e2ee.externallyManagedKey;
-
-        if (this._externallyManaged) {
-            this._keyHandler = new ExternallyManagedKeyHandler(conference);
-        } else {
-            this._keyHandler = new ManagedKeyHandler(conference);
-        }
+        this._keyHandler = new ManagedKeyHandler(conference);
     }
 
     /**
@@ -31,13 +23,11 @@ export class E2EEncryption {
      * @returns {boolean}
      */
     static isSupported(config) {
-        const { e2ee = {} } = config;
-
-        if (!e2ee.externallyManagedKey && !OlmAdapter.isSupported()) {
+        if (!OlmAdapter.isSupported()) {
             return false;
         }
 
-        if (e2ee.disabled || config.testing?.disableE2EE) {
+        if (config.e2ee?.disabled || config.testing?.disableE2EE) {
             return false;
         }
 
@@ -60,7 +50,7 @@ export class E2EEncryption {
      * @param {boolean} enabled - whether E2EE should be enabled or not.
      * @returns {void}
      */
-    async setEnabled(enabled) {
+    async setEnabled(enabled: boolean): Promise<void> {
         await this._keyHandler.setEnabled(enabled);
     }
 
@@ -71,8 +61,8 @@ export class E2EEncryption {
      * @param {Number} [keyInfo.index] - the index of the encryption key.
      * @returns {void}
      */
-    setEncryptionKey(keyInfo) {
-        this._keyHandler.setKey(keyInfo);
+    setEncryptionKey(olmKey, pqKey, index) {
+        this._keyHandler.setKey(olmKey, pqKey, index);
     }
 
     /**
@@ -93,6 +83,9 @@ export class E2EEncryption {
      * @returns {void}
      */
     markParticipantVerified(participant, isVerified) {
-        this._keyHandler.sasVerification?.markParticipantVerified(participant, isVerified);
+        this._keyHandler.sasVerification?.markParticipantVerified(
+            participant,
+            isVerified
+        );
     }
 }
