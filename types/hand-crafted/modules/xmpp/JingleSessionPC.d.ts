@@ -8,12 +8,10 @@ import JitsiRemoteTrack from '../RTC/JitsiRemoteTrack';
 export default class JingleSessionPC extends JingleSession {
   static parseVideoSenders: ( jingleContents: JQuery ) => string | null;
   constructor( sid: string, localJid: string, remoteJid: string, connection: XmppConnection, mediaConstraints: unknown, iceConfig: unknown, isP2P: boolean, isInitiator: boolean ); // TODO:
-  doInitialize: ( options: unknown ) => void;
-  getRemoteRecvMaxFrameHeight: () => number | undefined;
+  doInitialize: ( options: {} ) => void;
   sendIceCandidate: ( candidate: RTCIceCandidate ) => void;
   sendIceCandidates: ( candidates: RTCIceCandidate[] ) => void;
   addIceCandidates: ( elem: unknown ) => void; // TODO:
-  readSsrcInfo: ( contents: unknown ) => void; // TODO:
   getConfiguredVideoCodec: () => CodecMimeType;
   acceptOffer: ( jingleOffer: JQuery, success: ( params: unknown ) => unknown, failure: ( params: unknown ) => unknown, localTracks?: JitsiLocalTrack[] ) => void; // TODO:
   invite: ( localTracks?: JitsiLocalTrack[] ) => void;
@@ -21,8 +19,6 @@ export default class JingleSessionPC extends JingleSession {
   setAnswer: ( jingleAnswer: unknown ) => void; // TODO:
   setOfferAnswerCycle: ( jingleOfferAnswerIq: JQuery, success: ( params: unknown ) => unknown, failure: ( params: unknown ) => unknown, localTracks?: JitsiLocalTrack[] ) => void; // TODO:
   setVideoCodecs: ( preferred?: CodecMimeType, disabled?: CodecMimeType ) => void;
-  sendSessionAccept: ( success: ( params: unknown ) => unknown, failure: ( params: unknown ) => unknown ) => void; // TODO:
-  sendContentModify: () => void;
   setReceiverVideoConstraint: ( maxFrameHeight: number ) => void;
   setSenderMaxBitrates: () => Promise<void>;
   setSenderVideoConstraint: ( maxFrameHeight: number ) => Promise<unknown>; // TODO:
