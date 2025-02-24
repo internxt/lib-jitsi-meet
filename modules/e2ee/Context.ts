@@ -39,6 +39,7 @@ export type KeyMaterial = {
  */
 export class Context {
     private _participantId: string;
+    private _doDecrypt: boolean; 
     private _cryptoKeyRing: KeyMaterial[];
     private _currentKeyIndex: number;
     private _sendCounts: Map<number, number>;
@@ -52,6 +53,16 @@ export class Context {
         this._currentKeyIndex = -1;
         this._sendCounts = new Map();
         this._participantId = pId;
+        this._doDecrypt = false;
+    }
+
+     /**
+     * Ratchet keys.
+     * @private
+     */
+     async setDecryptionFlag(doDecrypt: boolean) {
+        console.info(`E2E: Set decryption flag as ${doDecrypt} for participant ${this._participantId}`);
+        this._doDecrypt = doDecrypt;
     }
 
     /**
@@ -213,7 +224,7 @@ export class Context {
     async decodeFunction(encodedFrame, controller) {
         const data = new Uint8Array(encodedFrame.data);
         const keyIndex = data[encodedFrame.data.byteLength - 1];
-        if (this._cryptoKeyRing[keyIndex]) {
+        if (this._cryptoKeyRing[keyIndex] && this._doDecrypt) {
             const decodedFrame = await this._decryptFrame(
                 encodedFrame,
                 keyIndex,
