@@ -16,6 +16,7 @@
   "author": "",
   "readmeFilename": "README.md",
   "dependencies": {
+    "@dashlane/pqc-kem-kyber512-browser": "^1.0.0",
     "@jitsi/js-utils": "2.2.1",
     "@jitsi/logger": "2.0.2",
     "@jitsi/precall-test": "1.0.6",
@@ -56,6 +57,7 @@
     "karma-webpack": "5.0.0",
     "process": "0.11.10",
     "string-replace-loader": "3.0.3",
+    "ts-loader": "^9.5.2",
     "typescript": "5.0.4",
     "webpack": "5.76.0",
     "webpack-bundle-analyzer": "4.4.2",
@@ -69,14 +71,17 @@
     "gen-types": "tsc --declaration --emitDeclarationOnly --outFile types/index.d.ts",
     "lint": "eslint .",
     "lint-fix": "eslint . --fix",
-    "postinstall": "patch-package",
+    "postinstall": "patch-package && mkdir -p public/libs && cp node_modules/@dashlane/pqc-kem-kyber512-browser/dist/pqc-kem-kyber512.wasm dist/umd",
     "prepack": "npm run build && npm run gen-types",
     "test": "karma start karma.conf.js",
     "test-watch": "karma start karma.conf.js --no-single-run",
     "validate": "npm ls",
     "watch": "webpack --config webpack.config.js --watch --mode development"
   },
-  "browser": "dist/umd/lib-jitsi-meet.min.js",
+  "browser": {
+    "dist/umd/lib-jitsi-meet.min.js": "dist/umd/lib-jitsi-meet.min.js",
+    "pqc-kem-kyber512.wasm": "dist/umd/pqc-kem-kyber512.wasm"
+  },
   "module": "dist/esm/JitsiMeetJS.js",
   "files": [
     "dist",

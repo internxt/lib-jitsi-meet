@@ -1,6 +1,6 @@
 /* eslint-disable no-bitwise */
 import { Context } from './Context';
-import { importKey, ratchet } from './crypto-utils';
+import { ratchet } from './crypto-utils';
 
 /*
 function hexdump(buffer) {
@@ -65,6 +65,11 @@ describe('E2EE Context', () => {
         0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
     ]);
 
+    const pqKey = new Uint8Array([
+        2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+    ]);
+
     beforeEach(() => {
         sender = new Context('sender');
         receiver = new Context('receiver');
@@ -72,8 +77,8 @@ describe('E2EE Context', () => {
 
     describe('encode function', () => {
         beforeEach(async () => {
-            await sender.setKey(key, 0);
-            await receiver.setKey(key, 0);
+            await sender.setKey(key, pqKey, 0);
+            await receiver.setKey(key, pqKey, 0);
         });
 
         it('with an audio frame', done => {
@@ -113,11 +118,14 @@ describe('E2EE Context', () => {
 
     describe('end-to-end test', () => {
         beforeEach(async () => {
-            await sender.setKey(key, 0);
-            await receiver.setKey(key, 0);
+            await sender.setKey(key, pqKey, 0);
+            await receiver.setKey(key, pqKey, 0);
+            receiver.setDecryptionFlag(true);
+            sender.setDecryptionFlag(true);
             sendController = {
                 enqueue: async encodedFrame => {
                     await receiver.decodeFunction(encodedFrame, receiveController);
+
                 }
             };
         });
@@ -132,7 +140,6 @@ describe('E2EE Context', () => {
                     done();
                 }
             };
-
             sender.encodeFunction(makeAudioFrame(), sendController);
         });
 
@@ -162,11 +169,12 @@ describe('E2EE Context', () => {
             };
 
             const encodeFunction = async () => {
-                // Ratchet the key. We reimport from the raw bytes.
-                const material = await importKey(key);
+                // Ratchet the key for both
+                const newKey = await ratchet(key);
+                const newPQkey = await ratchet(pqKey);
 
-                await sender.setKey(await ratchet(material), 0);
-
+                await sender.setKey(newKey, newPQkey, 1);
+                await receiver.setKey(newKey, newPQkey, 1);
                 sender.encodeFunction(makeAudioFrame(), sendController);
             };
 
