@@ -5,10 +5,6 @@ export function deriveKeys(
 
 export function ratchet(keyBytes: Uint8Array): Promise<Uint8Array>;
 
-export function importKey(keyBytes: Uint8Array): Promise<CryptoKey>;
-
-export function importAESKey(keyBytes: Uint8Array): Promise<CryptoKey>;
-
 export function generateKyberKeys(): Promise<{
     publicKeyBase64: string;
     privateKey: Uint8Array;

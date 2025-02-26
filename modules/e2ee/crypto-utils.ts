@@ -79,7 +79,7 @@ export async function ratchet(keyBytes: Uint8Array): Promise<Uint8Array> {
  * @param {ArrayBuffer} keyBytes - The raw key bytes.
  * @returns {Promise<CryptoKey>} WebCrypto key.
  */
-export async function importKey(keyBytes: Uint8Array): Promise<CryptoKey> {
+async function importKey(keyBytes: Uint8Array): Promise<CryptoKey> {
     try {
         return crypto.subtle.importKey("raw", keyBytes, KDF, false, [
             "deriveBits",
@@ -96,7 +96,7 @@ export async function importKey(keyBytes: Uint8Array): Promise<CryptoKey> {
  * @param {ArrayBuffer} keyBytes - The raw key bytes.
  * @returns {Promise<CryptoKey>} WebCrypto key.
  */
-export async function importAESKey(keyBytes: Uint8Array): Promise<CryptoKey> {
+async function importAESKey(keyBytes: Uint8Array): Promise<CryptoKey> {
     try {
         return await crypto.subtle.importKey(
             "raw",
