@@ -39,7 +39,7 @@ function handleTransform(context, operation, readableStream, writableStream) {
 
         readableStream.pipeThrough(transformStream).pipeTo(writableStream);
     } else {
-        console.error(`Invalid operation: ${operation}`);
+        console.error(`E2E: Invalid operation: ${operation}`);
     }
 }
 
@@ -68,8 +68,9 @@ onmessage = async (event) => {
         contexts.delete(participantId);
     } else if (operation === "cleanupAll") {
         contexts.clear();
+        console.info("E2E: Stopped encryption of my frames!");
     } else {
-        console.error("e2ee worker", operation);
+        console.error("E2E: e2ee worker", operation);
     }
 };
 

@@ -24,7 +24,7 @@ import JitsiParticipant from "../../JitsiParticipant";
 
 const logger = getLogger(__filename);
 
-export type KeyInfo = {
+type KeyInfo = {
     encryptionKey: string;
     index: number;
 };

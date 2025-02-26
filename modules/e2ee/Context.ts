@@ -21,13 +21,13 @@ const UNENCRYPTED_BYTES = {
     delta: 3,
     undefined: 1, // frame.type is not set on audio
 };
-let print = true;
+let printEncStart = true;
 
 /* We use a 96 bit IV for AES GCM. This is signalled in plain together with the
  packet. See https://developer.mozilla.org/en-US/docs/Web/API/AesGcmParams */
 const IV_LENGTH = 12;
 
-export type KeyMaterial = {
+type KeyMaterial = {
     encryptionKey: CryptoKey;
     materialOlm: Uint8Array;
     materialPQ: Uint8Array;
@@ -65,6 +65,7 @@ export class Context {
             `E2E: Decryption flag is ${decryptionFlag} for participant ${this._participantId}`,
         );
         this._framesEncrypted = decryptionFlag;
+        if(!decryptionFlag &&!printEncStart) printEncStart = true;
     }
 
     /**
@@ -162,9 +163,9 @@ export class Context {
             );
             return encryptData(iv, additionalData, key, data).then(
                 (cipherText) => {
-                    if (print) {
-                        console.log("E2E: Start encryption of my frames!");
-                        print = false;
+                    if (printEncStart) {
+                        console.info("E2E: Start encryption of my frames!");
+                        printEncStart = false;
                     }
                     const newData = new ArrayBuffer(
                         frameHeader.byteLength +
@@ -196,16 +197,16 @@ export class Context {
                 (e) => {
                     // TODO: surface this to the app.
                     console.error(`E2E: Encryption failed: ${e}`);
-                    print = true;
+                    printEncStart = true;
 
                     // We are not enqueuing the frame here on purpose.
                 },
             );
         } else {
             console.error(
-                "E2E: No key is configured. Data is not encrypted and only protected by DTLS transport encryption.",
+                "E2E: No key is configured. Frames are not encrypted and only protected by DTLS transport encryption.",
             );
-            print = true;
+            printEncStart = true;
         }
 
         /* NOTE WELL:

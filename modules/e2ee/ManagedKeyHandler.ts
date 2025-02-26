@@ -346,9 +346,6 @@ export class ManagedKeyHandler extends Listenable {
         pqKey: Uint8Array,
         index: number,
     ) {
-        logger.debug(
-            `E2E: _onParticipantKeyUpdated setting key for participant ${id}`,
-        );
         this.e2eeCtx.setKey(id, olmKey, pqKey, index);
     }
 
