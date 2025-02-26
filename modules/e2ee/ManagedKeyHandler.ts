@@ -121,6 +121,7 @@ export class ManagedKeyHandler extends Listenable {
             logger.info("E2E: Enabling e2ee");
 
             this.enabled = true;
+            this._olmAdapter.generateNewKeys();
             const { olmKey, pqKey, index } = this._olmAdapter.getCurrentKeys();
             this.e2eeCtx.setKey(
                 this.conference.myUserId(),
@@ -130,15 +131,17 @@ export class ManagedKeyHandler extends Listenable {
             );
             await this._olmAdapter.initSessions();
 
-            this.conference.setLocalParticipantProperty("e2ee.enabled", true);
-            this.conference._restartMediaSessions();
         }
 
         if (!enabled) {
             logger.info("E2E: Disabling e2ee");
             this.enabled = false;
             this.e2eeCtx.cleanupAll();
+            this._olmAdapter.clearAllParticipantsSessions();
         }
+
+        this.conference.setLocalParticipantProperty("e2ee.enabled", enabled);
+        this.conference._restartMediaSessions();
     }
 
     /**
@@ -343,9 +346,6 @@ export class ManagedKeyHandler extends Listenable {
         pqKey: Uint8Array,
         index: number,
     ) {
-        logger.debug(
-            `E2E: _onParticipantKeyUpdated setting key for participant ${id}`,
-        );
         this.e2eeCtx.setKey(id, olmKey, pqKey, index);
     }
 
