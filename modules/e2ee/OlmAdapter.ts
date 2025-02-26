@@ -179,10 +179,6 @@ export class OlmAdapter extends Listenable {
             const { publicKeyBase64, privateKey } = await generateKyberKeys();
             this._publicKeyBase64 = publicKeyBase64;
             this._privateKey = privateKey;
-            this._mediaKeyOlm = generateKey();
-            this._mediaKeyPQ = generateKey();
-            this._mediaKeyIndex++;
-
             this._onIdKeysReady(this._idKeys);
 
             return true;
@@ -346,7 +342,7 @@ export class OlmAdapter extends Listenable {
     async initSessions() {
         if (!(await this._olmWasInitialized)) {
             throw new Error(
-                "Cannot init sessions because olm was not initialized",
+                "E2E: Cannot init sessions because olm was not initialized",
             );
         }
         try {
@@ -424,9 +420,7 @@ export class OlmAdapter extends Listenable {
     async _rotateKeyImpl() {
         try {
             logger.info("E2E: Rotating my keys");
-            this._mediaKeyOlm = generateKey();
-            this._mediaKeyPQ = generateKey();
-            this._mediaKeyIndex++;
+            this.generateNewKeys();
             await this.sendKeyInfoToAll();
         } catch (error) {
             logger.error(`E2E: Failed to rotate my keys: ${error}`);
@@ -449,6 +443,17 @@ export class OlmAdapter extends Listenable {
     }
 
     /**
+     * Generate new keys and advance the index.
+     * @private
+     */
+    generateNewKeys() {
+        this._mediaKeyOlm = generateKey();
+        this._mediaKeyPQ = generateKey();
+        this._mediaKeyIndex++;
+    }
+
+
+    /**
      * Frees the olmData session for the given participant.
      *
      *  @param {JitsiParticipant} participant - The participant.
@@ -461,6 +466,7 @@ export class OlmAdapter extends Listenable {
             if (olmData.session) {
                 olmData.session.free();
                 olmData.session = undefined;
+                olmData.status = PROTOCOL_STATUS.NOT_STARTED;
             }
         } catch (error) {
             logger.error(
