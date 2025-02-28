@@ -76,7 +76,7 @@ export async function ratchetKey(keyBytes: Uint8Array): Promise<Uint8Array> {
 }
 
 /**
- * Converts a raw key into a WebCrypto key object with default options.
+ * Converts a raw key into a WebCrypto key object suitable for key derivation.
  *
  * @param {ArrayBuffer} keyBytes - The raw key bytes.
  * @returns {Promise<CryptoKey>} WebCrypto key.
@@ -152,7 +152,7 @@ export async function encapsulateSecret(publicKyberKeyBase64: string): Promise<{
  *
  * @param {Uint8Array} ciphertextBase64 - The ciphertext.
  * @param {Uint8Array} privateKey - The private key.
- * @returns {Promise<{ sharedSecret: Uint8Array }>} Shared secret.
+ * @returns {Promise<Uint8Array>} Shared secret.
  */
 export async function decapsulateSecret(
     ciphertextBase64: string,

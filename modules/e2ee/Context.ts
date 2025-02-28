@@ -87,11 +87,10 @@ export class Context {
     }
 
     /**
-     * Derives the different subkeys and starts using them for encryption or
-     * decryption.
-     * @param {Uint8Array} olmKey bytes.
-     * @param {Uint8Array} pqKey bytes.
-     * @param {number} index
+     * Derives the encryption key and sets participant key.
+     * @param {Uint8Array} olmKey The olm key.
+     * @param {Uint8Array} pqKey The pq key.
+     * @param {number} index The keys index.
      */
     async setKey(olmKey: Uint8Array, pqKey: Uint8Array, index: number) {
         const newEncryptionKey = await deriveEncryptionKey(olmKey, pqKey);
@@ -111,21 +110,6 @@ export class Context {
      * @param {RTCEncodedVideoFrame|RTCEncodedAudioFrame} encodedFrame - Encoded video frame.
      * @param {TransformStreamDefaultController} controller - TransportStreamController.
      *
-     * The VP8 payload descriptor described in
-     * https://tools.ietf.org/html/rfc7741#section-4.2
-     * is part of the RTP packet and not part of the frame and is not controllable by us.
-     * This is fine as the SFU keeps having access to it for routing.
-     *
-     * The encrypted frame is formed as follows:
-     * 1) Leave the first (10, 3, 1) bytes unencrypted, depending on the frame type and kind.
-     * 2) Form the GCM IV for the frame as described above.
-     * 3) Encrypt the rest of the frame using AES-GCM.
-     * 4) Allocate space for the encrypted frame.
-     * 5) Copy the unencrypted bytes to the start of the encrypted frame.
-     * 6) Append the ciphertext to the encrypted frame.
-     * 7) Append the IV.
-     * 8) Append a single byte for the key identifier.
-     * 9) Enqueue the encrypted frame for sending.
      */
     async encodeFunction(
         encodedFrame: RTCEncodedVideoFrame|RTCEncodedAudioFrame,
@@ -144,6 +128,29 @@ export class Context {
         }
     }
 
+    /**
+     * Function that will encrypt the given encoded frame.
+     *
+     * @param {RTCEncodedVideoFrame|RTCEncodedAudioFrame} encodedFrame - Encoded video frame.
+     * @param {number} keyIndex - The index of the encryption key in _cryptoKeyRing array.
+     * @returns {Promise<RTCEncodedVideoFrame|RTCEncodedAudioFrame>} - The encrypted frame.
+     * @private
+     * The VP8 payload descriptor described in
+     * https://tools.ietf.org/html/rfc7741#section-4.2
+     * is part of the RTP packet and not part of the frame and is not controllable by us.
+     * This is fine as the SFU keeps having access to it for routing.
+     *
+     * The encrypted frame is formed as follows:
+     * 1) Leave the first (10, 3, 1) bytes unencrypted, depending on the frame type and kind.
+     * 2) Form the GCM IV for the frame as described above.
+     * 3) Encrypt the rest of the frame using AES-GCM.
+     * 4) Allocate space for the encrypted frame.
+     * 5) Copy the unencrypted bytes to the start of the encrypted frame.
+     * 6) Append the ciphertext to the encrypted frame.
+     * 7) Append the IV.
+     * 8) Append a single byte for the key identifier.
+     * 9) Enqueue the encrypted frame for sending.
+     */
     async _encryptFrame(encodedFrame, keyIndex: number) {
         const key: CryptoKey = this._cryptoKeyRing[keyIndex].encryptionKey;
         try {
