@@ -1,5 +1,5 @@
 import kemBuilder from "@dashlane/pqc-kem-kyber512-browser";
-import base64js from "base64-js";
+import * as base64js from "base64-js";
 
 const AES = "AES-GCM";
 const HASH = "SHA-256";
@@ -20,7 +20,9 @@ export async function deriveEncryptionKey(
 ): Promise<CryptoKey> {
     try {
         const textEncoder = new TextEncoder();
-        const data = new Uint8Array([...key1, ...key2]);
+        const data = new Uint8Array(key1.length + key2.length);
+        data.set(key1, 0);
+        data.set(key2, key1.length);
         const concatKey = await crypto.subtle.digest(HASH, data);
         const material = await importKey(new Uint8Array(concatKey));
 
@@ -250,7 +252,10 @@ export async function encryptKeyInfoPQ(
             await encryptData(iv, additionalData, key, plaintext),
         );
 
-        const result = new Uint8Array([...iv, ...ciphertext]);
+        const result = new Uint8Array(IV_LENGTH + ciphertext.length);
+        result.set(iv, 0);
+        result.set(ciphertext, IV_LENGTH);
+
         const resultBase64 = base64js.fromByteArray(result);
 
         return resultBase64;

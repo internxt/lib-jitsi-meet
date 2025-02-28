@@ -1,7 +1,6 @@
 import { safeJsonParse } from "@jitsi/js-utils/json";
 import { getLogger } from "@jitsi/logger";
-import base64js from "base64-js";
-import { isEqual } from "lodash-es";
+import * as base64js from "base64-js";
 import { v4 as uuidv4 } from "uuid";
 
 import * as JitsiConferenceEvents from "../../JitsiConferenceEvents";
@@ -114,6 +113,10 @@ export class OlmAdapter extends Listenable {
         PARTICIPANT_KEY_UPDATED: string;
         PARTICIPANT_VERIFICATION_COMPLETED: string;
     };
+
+    emit(event: string, ...args: any[]) {
+        super.emit(event, ...args);
+    }
 
     /**
      * Creates an adapter instance for the given conference.
@@ -260,10 +263,7 @@ export class OlmAdapter extends Listenable {
         const pId = participant.getId();
         const olmData = this._getParticipantOlmData(participant);
         if (olmData.gotKeys) {
-            this.eventEmitter.emit(
-                OlmAdapterEvents.PARTICIPANT_KEY_RATCHET,
-                pId,
-            );
+            this.emit(OlmAdapterEvents.PARTICIPANT_KEY_RATCHET, pId);
         }
     }
 
@@ -304,7 +304,7 @@ export class OlmAdapter extends Listenable {
                     const participantId = participant.getId();
                     const olmData = this._getParticipantOlmData(participant);
                     olmData.ed25519 = newValue;
-                    this.eventEmitter.emit(
+                    this.emit(
                         OlmAdapterEvents.PARTICIPANT_SAS_AVAILABLE,
                         participantId,
                     );
@@ -499,7 +499,7 @@ export class OlmAdapter extends Listenable {
         if (!isVerified) {
             olmData.sasVerification = undefined;
             logger.warn(`E2E: Verification failed for participant ${pId}`);
-            this.eventEmitter.emit(
+            this.emit(
                 OlmAdapterEvents.PARTICIPANT_VERIFICATION_COMPLETED,
                 pId,
                 false,
@@ -513,7 +513,7 @@ export class OlmAdapter extends Listenable {
             logger.warn(
                 `E2E: Participant ${pId} does not have valid sasVerification`,
             );
-            this.eventEmitter.emit(
+            this.emit(
                 OlmAdapterEvents.PARTICIPANT_VERIFICATION_COMPLETED,
                 pId,
                 false,
@@ -889,7 +889,8 @@ export class OlmAdapter extends Listenable {
                         olmData.status ===
                         PROTOCOL_STATUS.WAITING_PQ_SESSION_INIT
                     ) {
-                        const { publicKyberKey, ciphertext, encapsKyber } = msg.data;
+                        const { publicKyberKey, ciphertext, encapsKyber } =
+                            msg.data;
 
                         const { encapsulatedBase64, sharedSecret } =
                             await encapsulateSecret(publicKyberKey);
@@ -941,7 +942,8 @@ export class OlmAdapter extends Listenable {
                         olmData.status ===
                         PROTOCOL_STATUS.WAITING_PQ_SESSION_ACK
                     ) {
-                        const { ciphertext, pqCiphertext, encapsKyber } = msg.data;
+                        const { ciphertext, pqCiphertext, encapsKyber } =
+                            msg.data;
 
                         olmData.pqSessionKey = await decapsulateAndDeriveOneKey(
                             encapsKyber,
@@ -961,7 +963,7 @@ export class OlmAdapter extends Listenable {
                         );
 
                         logger.info(`E2E: Recived new keys from ${pId}`);
-                        this.eventEmitter.emit(
+                        this.emit(
                             OlmAdapterEvents.PARTICIPANT_KEY_UPDATED,
                             pId,
                             key,
@@ -1000,7 +1002,7 @@ export class OlmAdapter extends Listenable {
                         );
 
                         logger.info(`E2E: Recived new keys from ${pId}`);
-                        this.eventEmitter.emit(
+                        this.emit(
                             OlmAdapterEvents.PARTICIPANT_KEY_UPDATED,
                             pId,
                             olmData.newKey,
@@ -1040,7 +1042,7 @@ export class OlmAdapter extends Listenable {
                         logger.info(
                             `E2E: sending my keys to participant ${pId}`,
                         );
-                        this.eventEmitter.emit(
+                        this.emit(
                             OlmAdapterEvents.PARTICIPANT_KEY_UPDATED,
                             pId,
                             key,
@@ -1064,7 +1066,7 @@ export class OlmAdapter extends Listenable {
                         logger.warn(
                             `E2E: SAS already created for participant ${pId}`,
                         );
-                        this.eventEmitter.emit(
+                        this.emit(
                             OlmAdapterEvents.PARTICIPANT_VERIFICATION_COMPLETED,
                             pId,
                             false,
@@ -1123,7 +1125,7 @@ export class OlmAdapter extends Listenable {
                         logger.warn(
                             `E2E: SAS_ACCEPT Participant ${pId} does not have valid sasVerification`,
                         );
-                        this.eventEmitter.emit(
+                        this.emit(
                             OlmAdapterEvents.PARTICIPANT_VERIFICATION_COMPLETED,
                             pId,
                             false,
@@ -1177,7 +1179,7 @@ export class OlmAdapter extends Listenable {
                         logger.warn(
                             `E2E: SAS_KEY Participant ${pId} does not have valid sasVerification`,
                         );
-                        this.eventEmitter.emit(
+                        this.emit(
                             OlmAdapterEvents.PARTICIPANT_VERIFICATION_COMPLETED,
                             pId,
                             false,
@@ -1214,7 +1216,7 @@ export class OlmAdapter extends Listenable {
                                 pId,
                                 "OlmAdapter commitments mismatched",
                             );
-                            this.eventEmitter.emit(
+                            this.emit(
                                 OlmAdapterEvents.PARTICIPANT_VERIFICATION_COMPLETED,
                                 pId,
                                 false,
@@ -1243,7 +1245,7 @@ export class OlmAdapter extends Listenable {
                     );
                     const generatedSas = generateSas(sasBytes);
 
-                    this.eventEmitter.emit(
+                    this.emit(
                         OlmAdapterEvents.PARTICIPANT_SAS_READY,
                         pId,
                         generatedSas,
@@ -1308,7 +1310,7 @@ export class OlmAdapter extends Listenable {
                         logger.error(
                             "E2E: SAS verification error: keys MAC mismatch",
                         );
-                        this.eventEmitter.emit(
+                        this.emit(
                             OlmAdapterEvents.PARTICIPANT_VERIFICATION_COMPLETED,
                             pId,
                             false,
@@ -1323,7 +1325,7 @@ export class OlmAdapter extends Listenable {
                             "E2E: SAS verification error: Missing ed25519 key",
                         );
 
-                        this.eventEmitter.emit(
+                        this.emit(
                             OlmAdapterEvents.PARTICIPANT_VERIFICATION_COMPLETED,
                             pId,
                             false,
@@ -1343,7 +1345,7 @@ export class OlmAdapter extends Listenable {
                             logger.error(
                                 "E2E: SAS verification error: MAC mismatch",
                             );
-                            this.eventEmitter.emit(
+                            this.emit(
                                 OlmAdapterEvents.PARTICIPANT_VERIFICATION_COMPLETED,
                                 pId,
                                 false,
@@ -1354,7 +1356,7 @@ export class OlmAdapter extends Listenable {
                         }
                     }
 
-                    this.eventEmitter.emit(
+                    this.emit(
                         OlmAdapterEvents.PARTICIPANT_VERIFICATION_COMPLETED,
                         pId,
                         true,
