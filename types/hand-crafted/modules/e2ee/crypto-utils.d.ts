@@ -1,9 +1,9 @@
-export function deriveKeys(
+export function deriveEncryptionKey(
     olmKey: Uint8Array,
     pqKey: Uint8Array,
 ): Promise<CryptoKey>;
 
-export function ratchet(keyBytes: Uint8Array): Promise<Uint8Array>;
+export function ratchetKey(keyBytes: Uint8Array): Promise<Uint8Array>;
 
 export function generateKyberKeys(): Promise<{
     publicKeyBase64: string;

@@ -1,5 +1,5 @@
 /* global BigInt */
-import { deriveKeys, ratchet, encryptData, decryptData } from "./crypto-utils";
+import { deriveEncryptionKey, ratchetKey, encryptData, decryptData } from "./crypto-utils";
 
 // We use a ringbuffer of keys so we can change them and still decode packets that were
 // encrypted with an old key. We use a size of 16 which corresponds to the four bits
@@ -75,8 +75,8 @@ export class Context {
     async ratchetKeys() {
         const currentIndex = this._currentKeyIndex;
         const { materialOlm, materialPQ } = this._cryptoKeyRing[currentIndex];
-        const newMaterialOlm = await ratchet(materialOlm);
-        const newMaterialPQ = await ratchet(materialPQ);
+        const newMaterialOlm = await ratchetKey(materialOlm);
+        const newMaterialPQ = await ratchetKey(materialPQ);
         console.info(`E2E: Ratchet keys of ${this._participantId}`);
         this.setKey(newMaterialOlm, newMaterialPQ, currentIndex + 1);
     }
@@ -89,7 +89,7 @@ export class Context {
      * @param {number} index
      */
     async setKey(olmKey: Uint8Array, pqKey: Uint8Array, index: number) {
-        const newEncryptionKey = await deriveKeys(olmKey, pqKey);
+        const newEncryptionKey = await deriveEncryptionKey(olmKey, pqKey);
         const newKey: KeyMaterial = {
             materialOlm: olmKey,
             materialPQ: pqKey,
