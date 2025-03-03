@@ -1,6 +1,6 @@
 /* eslint-disable no-bitwise */
 import { Context } from './Context';
-import { ratchet } from './crypto-utils';
+import { ratchetKey } from './crypto-utils';
 
 /*
 function hexdump(buffer) {
@@ -170,8 +170,8 @@ describe('E2EE Context', () => {
 
             const encodeFunction = async () => {
                 // Ratchet the key for both
-                const newKey = await ratchet(key);
-                const newPQkey = await ratchet(pqKey);
+                const newKey = await ratchetKey(key);
+                const newPQkey = await ratchetKey(pqKey);
 
                 await sender.setKey(newKey, newPQkey, 1);
                 await receiver.setKey(newKey, newPQkey, 1);

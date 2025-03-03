@@ -83,17 +83,20 @@ describe("Test Kyber KEM", () => {
 
 describe("Test key encryption", () => {
     it("key encryption and decryption should work", async () => {
-        const key = generateKey();
+        const keyBytes = generateKey();
+        const key = await crypto.subtle.importKey(
+            "raw",
+            keyBytes,
+            {
+                name: "AES-GCM",
+                length: 256,
+            },
+            false,
+            ["encrypt", "decrypt"],
+        );
         const message = generateKey();
-        const { ciphertextBase64, ivBase64 } = await encryptKeyInfoPQ(
-            key,
-            message,
-        );
-        const decryptedMessage = await decryptKeyInfoPQ(
-            ciphertextBase64,
-            ivBase64,
-            key,
-        );
+        const ciphertextBase64 = await encryptKeyInfoPQ(key, message);
+        const decryptedMessage = await decryptKeyInfoPQ(ciphertextBase64, key);
 
         expect(decryptedMessage).toEqual(message);
     });
