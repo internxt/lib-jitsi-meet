@@ -2,7 +2,6 @@ import browser from "../browser";
 
 import { ManagedKeyHandler } from "./ManagedKeyHandler";
 import { OlmAdapter } from "./OlmAdapter";
-import JitsiParticipant from "../../JitsiParticipant";
 
 /**
  * This module integrates {@link ManagedKeyHandler} with {@link JitsiConference} in order to enable E2E encryption.
@@ -70,30 +69,4 @@ export class E2EEncryption {
         this._keyHandler.setKey(olmKey, pqKey, index);
     }
 
-    /**
-     * Starts the verification process of the participant
-     *
-     * @param {Participant} - participant to be verified.
-     * @returns {void}
-     */
-    startVerification(participant: JitsiParticipant) {
-        this._keyHandler.sasVerification?.startVerification(participant);
-    }
-
-    /**
-     * Marks the channel as verified
-     *
-     * @param {JitsiParticipant} - participant to be verified.
-     * @param {boolean} isVerified - whether the verification was succesfull.
-     * @returns {void}
-     */
-    markParticipantVerified(
-        participant: JitsiParticipant,
-        isVerified: boolean,
-    ) {
-        this._keyHandler.sasVerification?.markParticipantVerified(
-            participant,
-            isVerified,
-        );
-    }
 }

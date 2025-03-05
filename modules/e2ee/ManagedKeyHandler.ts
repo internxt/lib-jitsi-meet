@@ -77,24 +77,17 @@ export class ManagedKeyHandler extends Listenable {
         );
 
         this._olmAdapter.on(
+            OlmAdapter.events.PARTICIPANT_KEYS_COMMITMENT,
+            this._onParticipantKeysCommitment.bind(this),
+        );
+
+        this._olmAdapter.on(
             OlmAdapter.events.PARTICIPANT_KEY_RATCHET,
             this._onParticipantKeyRatchet.bind(this),
         );
 
-        this._olmAdapter.on(
-            OlmAdapter.events.PARTICIPANT_SAS_READY,
-            this._onParticipantSasReady.bind(this),
-        );
 
-        this._olmAdapter.on(
-            OlmAdapter.events.PARTICIPANT_SAS_AVAILABLE,
-            this._onParticipantSasAvailable.bind(this),
-        );
-
-        this._olmAdapter.on(
-            OlmAdapter.events.PARTICIPANT_VERIFICATION_COMPLETED,
-            this._onParticipantVerificationCompleted.bind(this),
-        );
+        
     }
 
     /**
@@ -130,7 +123,6 @@ export class ManagedKeyHandler extends Listenable {
                 index,
             );
             await this._olmAdapter.initSessions();
-
         }
 
         if (!enabled) {
@@ -253,15 +245,6 @@ export class ManagedKeyHandler extends Listenable {
     }
 
     /**
-     * Returns the sasVerficiation object.
-     *
-     * @returns {Object}
-     */
-    get sasVerification() {
-        return this._olmAdapter;
-    }
-
-    /**
      * Advances (using ratcheting) the current key when a new participant joins the conference.
      * Sends a session-init to a new participant if their ID is bigger than ID of this user.
      *
@@ -350,13 +333,26 @@ export class ManagedKeyHandler extends Listenable {
     }
 
     /**
+     * Updates a participant's key.
+     *
+     * @param {string} id - The participant ID.
+     * @param {Uint8Array} commitment - The commitment to participant's keys.
+     * @private
+     */
+    _onParticipantKeysCommitment(
+        id: string,
+        commitment: Uint8Array,
+    ) {
+        this.e2eeCtx.setKeyCommitment(id, commitment);
+    }
+
+    /**
      * Ratchets a participant's key.
      *
      * @param {string} id - The participant ID.
      * @private
      */
     _onParticipantKeyRatchet(id: string) {
-        logger.info(`E2E: Ratcheting keys of participant ${id}`);
         this.e2eeCtx.ratchetKeys(id);
     }
 
@@ -372,39 +368,6 @@ export class ManagedKeyHandler extends Listenable {
             JitsiConferenceEvents.E2EE_VERIFICATION_READY,
             pId,
             sas,
-        );
-    }
-
-    /**
-     * Handles the sas available event.
-     *
-     * @param {string} pId - The participant ID.
-     * @private
-     */
-    _onParticipantSasAvailable(pId: string) {
-        this.conference.eventEmitter.emit(
-            JitsiConferenceEvents.E2EE_VERIFICATION_AVAILABLE,
-            pId,
-        );
-    }
-
-    /**
-     * Handles the SAS completed event.
-     *
-     * @param {string} pId - The participant ID.
-     * @param {boolean} success - Wheter the verification was succesfull.
-     * @private
-     */
-    _onParticipantVerificationCompleted(
-        pId: string,
-        success: boolean,
-        message,
-    ) {
-        this.conference.eventEmitter.emit(
-            JitsiConferenceEvents.E2EE_VERIFICATION_COMPLETED,
-            pId,
-            success,
-            message,
         );
     }
 }
