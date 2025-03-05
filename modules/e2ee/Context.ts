@@ -48,6 +48,8 @@ export class Context {
     private _cryptoKeyRing: KeyMaterial[];
     private _currentKeyIndex: number;
     private _sendCounts: Map<number, number>;
+    private _hash: string;
+    private _keyCommtiment: string;
     /**
      * @param {string} id
      */
@@ -59,6 +61,8 @@ export class Context {
         this._sendCounts = new Map();
         this._participantId = id;
         this._framesEncrypted = false;
+        this._hash = '';
+        this._keyCommtiment = '';
     }
 
     /**
@@ -82,8 +86,15 @@ export class Context {
         const { materialOlm, materialPQ } = this._cryptoKeyRing[currentIndex];
         const newMaterialOlm = await ratchetKey(materialOlm);
         const newMaterialPQ = await ratchetKey(materialPQ);
-        console.info(`E2E: Ratchet keys of ${this._participantId}`);
+        console.info(`E2E: Ratchet keys of participant ${this._participantId}`);
         this.setKey(newMaterialOlm, newMaterialPQ, currentIndex + 1);
+    }
+
+    /**
+     * Returns the key hash.
+     */
+    getHash() {
+        return this._hash;
     }
 
     /**
@@ -93,15 +104,25 @@ export class Context {
      * @param {number} index The keys index.
      */
     async setKey(olmKey: Uint8Array, pqKey: Uint8Array, index: number) {
-        const newEncryptionKey = await deriveEncryptionKey(olmKey, pqKey);
+        const { encryptionKey, hash} = await deriveEncryptionKey(olmKey, pqKey);
         const newKey: KeyMaterial = {
             materialOlm: olmKey,
             materialPQ: pqKey,
-            encryptionKey: newEncryptionKey,
+            encryptionKey,
         };
         this._currentKeyIndex = index % this._cryptoKeyRing.length;
+        this._hash = 'hash=' + hash + 'commitment=' + this._keyCommtiment + 'index=' + this._currentKeyIndex;
         this._cryptoKeyRing[this._currentKeyIndex] = newKey;
         console.info(`E2E: Set keys for ${this._participantId}`);
+    }
+
+    /**
+     * Sets commitment to the participant's keys.
+     * @param {string} commitment The commitment to participant's keys.
+     */
+    async setKeyCommitment(commitment: string) {
+        console.info(`E2E: Set keys commitment for ${this._participantId}.`);
+        this._keyCommtiment = commitment;
     }
 
     /**

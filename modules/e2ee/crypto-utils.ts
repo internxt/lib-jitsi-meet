@@ -5,26 +5,80 @@ const AES = "AES-GCM";
 const HASH = "SHA-256";
 const KDF = "HKDF";
 const KEY_LEN = 256;
+const SAS_LEN = 48;
 const IV_LENGTH = 16;
+
+/**
+ * Computes commitment to the keys.
+ *
+ * @param {string} publicKyberKey - The public keyber key.
+ * @returns {Promise<string>} Computed commitment.
+ */
+export async function computeKeyCommitment(publicKyberKey: string, curve25519Key: string): Promise<string> {
+    const publicKyberKeyArray: Uint8Array =
+            base64js.toByteArray(publicKyberKey);
+    const curve25519KeyArray = new TextEncoder().encode(curve25519Key);
+
+    const data = new Uint8Array(publicKyberKeyArray.length + curve25519KeyArray.length);
+    data.set(publicKyberKeyArray, 0);
+    data.set(curve25519KeyArray, publicKyberKeyArray.length);
+
+    const hash = await crypto.subtle.digest(HASH, data);
+    const str = base64js.fromByteArray(new Uint8Array(hash));
+    return str;
+}
+
+
+/**
+ * Computes hash of the data.
+ *
+ * @param {Uint8Array} data - The input data.
+ * @returns {Promise<ArrayBuffer>} Computed hash.
+ */
+export async function computeHash(data: Uint8Array): Promise<ArrayBuffer> {
+    return crypto.subtle.digest(HASH, data);
+}
+
+/**
+ * Derives SAS bytes.
+ *
+ * @param {Uint8Array} data - The input data.
+ * @returns {Promise<ArrayBuffer>} Computed hash.
+ */
+export async function deriveSASbytes(data: Uint8Array): Promise<Uint8Array> {
+    const material = await importKey(data);
+    const textEncoder = new TextEncoder();
+    const key = await crypto.subtle.deriveBits(
+        {
+            name: KDF,
+            salt: textEncoder.encode("SAS_bytes_derivation"),
+            hash: HASH,
+            info: textEncoder.encode("SAS_verification"),
+        },
+        material,
+        SAS_LEN,
+    );
+    return new Uint8Array(key);
+}
 
 /**
  * Derives an AES encryption key from two keys.
  *
  * @param {Uint8Array} key1 - The first key.
  * @param {Uint8Array} key2 - The second key.
- * @returns {Promise<CryptoKey>} Derived key.
+ * @returns {Promise<{ encryptionKey: CryptoKey; hash: string }>} Derived key and hash.
  */
 export async function deriveEncryptionKey(
     key1: Uint8Array,
     key2: Uint8Array,
-): Promise<CryptoKey> {
+): Promise<{ encryptionKey: CryptoKey; hash: string }> {
     try {
         const textEncoder = new TextEncoder();
         const data = new Uint8Array(key1.length + key2.length);
         data.set(key1, 0);
         data.set(key2, key1.length);
-        const concatKey = await crypto.subtle.digest(HASH, data);
-        const material = await importKey(new Uint8Array(concatKey));
+        const hashArray = new Uint8Array(await computeHash(data));
+        const material = await importKey(hashArray);
 
         const encryptionKey = await crypto.subtle.deriveKey(
             {
@@ -42,7 +96,8 @@ export async function deriveEncryptionKey(
             ["encrypt", "decrypt"],
         );
 
-        return encryptionKey;
+        const hash =  base64js.fromByteArray(hashArray);
+        return { encryptionKey, hash };
     } catch (error) {
         return Promise.reject(new Error(`AES key derivation failed: ${error}`));
     }
@@ -295,8 +350,11 @@ export async function decapsulateAndDeriveOneKey(
         );
 
         if (extraSecretGoesFirst)
-            return deriveEncryptionKey(extraSecret, decapsulatedSecret);
-        else return deriveEncryptionKey(decapsulatedSecret, extraSecret);
+            return (await deriveEncryptionKey(extraSecret, decapsulatedSecret))
+                .encryptionKey;
+        else
+            return (await deriveEncryptionKey(decapsulatedSecret, extraSecret))
+                .encryptionKey;
     } catch (error) {
         return Promise.reject(
             new Error(`Decapsulate and derive secret failed: ${error}`),

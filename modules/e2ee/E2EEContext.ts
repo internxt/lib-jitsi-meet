@@ -73,6 +73,8 @@ export default class E2EEcontext {
         this._worker = new Worker(workerUrl, { name: "E2EE Worker" });
 
         this._worker.onerror = (e) => logger.error(e);
+
+        this._worker.onmessage = this.updateSAS.bind(this);
     }
 
     /**
@@ -197,6 +199,23 @@ export default class E2EEcontext {
     }
 
     /**
+     * Set the commitment to keys for the specified participant.
+     *
+     * @param {string} participantId - The ID of the participant who's key we are setting.
+     * @param {Uint8Array} commitment - The commitment to the participant's keys.
+     */
+    setKeyCommitment(
+        participantId: string,
+        commitment: Uint8Array,
+    ) {
+        this._worker.postMessage({
+            operation: "setKeyCommitment",
+            commitment,
+            participantId,
+        });
+    }
+
+    /**
      * Request to ratchet keys for the specified participant.
      *
      * @param {string} participantId - The ID of the participant
@@ -219,5 +238,14 @@ export default class E2EEcontext {
             participantId,
             decryptionFlag,
         });
+    }
+
+     /**
+     * Update SAS string.
+     */
+    private updateSAS(event: MessageEvent) {
+        if (event.data.operation === "updateSAS") {
+            console.log("E2E: worker response:", event.data.sas);
+        }
     }
 }
