@@ -14,9 +14,8 @@ import {
     decryptKeyInfoPQ,
     encryptKeyInfoPQ,
     generateKey,
-    ratchetKey,
-    computeKeyCommitment
 } from "./crypto-utils";
+import { ratchetKey, computeKeyCommitment } from "./crypto-workers";
 import JitsiConference from "../../JitsiConference";
 import JitsiParticipant from "../../JitsiParticipant";
 
@@ -163,7 +162,10 @@ export class OlmAdapter extends Listenable {
             this._privateKey = privateKey;
             this._onIdKeysReady(this._idKeys);
 
-            const commitment = await computeKeyCommitment(publicKeyBase64, this._idKeys.curve25519);
+            const commitment = await computeKeyCommitment(
+                publicKeyBase64,
+                this._idKeys.curve25519,
+            );
             this.emit(
                 OlmAdapterEvents.PARTICIPANT_KEYS_COMMITMENT,
                 this.myId,
@@ -203,7 +205,9 @@ export class OlmAdapter extends Listenable {
                     olmData.pqSessionKey,
                     this._mediaKeyPQ,
                 );
-                const olmCiphertext = this._encryptKeyInfo(olmData.session_for_sending);
+                const olmCiphertext = this._encryptKeyInfo(
+                    olmData.session_for_sending,
+                );
                 logger.info(`E2E: Sending KEY_INFO to ${pId}`);
                 this._sendKeyInfoMessage(
                     uuid,
@@ -733,7 +737,10 @@ export class OlmAdapter extends Listenable {
                     if (olmData.status === PROTOCOL_STATUS.NOT_STARTED) {
                         const { publicKyberKey, idKey, otKey } = msg.data;
 
-                        const commitment = await computeKeyCommitment(publicKyberKey, idKey);
+                        const commitment = await computeKeyCommitment(
+                            publicKyberKey,
+                            idKey,
+                        );
                         this.emit(
                             OlmAdapterEvents.PARTICIPANT_KEYS_COMMITMENT,
                             pId,
@@ -741,17 +748,21 @@ export class OlmAdapter extends Listenable {
                         );
 
                         const session_outbound = new window.Olm.Session();
-                        session_outbound.create_outbound(this._olmAccount, idKey, otKey);
+                        session_outbound.create_outbound(
+                            this._olmAccount,
+                            idKey,
+                            otKey,
+                        );
                         olmData.session_for_sending = session_outbound;
 
                         const { encapsulatedBase64, sharedSecret } =
                             await encapsulateSecret(publicKyberKey);
                         olmData._kemSecret = sharedSecret;
 
-                        const olmEncKey = this._encryptKeyInfo(session_outbound);
+                        const olmEncKey =
+                            this._encryptKeyInfo(session_outbound);
 
                         const myOtKey = this._getOneTimeKey(this._olmAccount);
-
 
                         this._sendPQSessionInitMessage(
                             uuid,
@@ -773,10 +784,18 @@ export class OlmAdapter extends Listenable {
                         olmData.status ===
                         PROTOCOL_STATUS.WAITING_PQ_SESSION_INIT
                     ) {
-                        const { publicKyberKey, ciphertext, encapsKyber, idKey, otKey } =
-                            msg.data;
+                        const {
+                            publicKyberKey,
+                            ciphertext,
+                            encapsKyber,
+                            idKey,
+                            otKey,
+                        } = msg.data;
 
-                        const commitment = await computeKeyCommitment(publicKyberKey, idKey);
+                        const commitment = await computeKeyCommitment(
+                            publicKyberKey,
+                            idKey,
+                        );
                         this.emit(
                             OlmAdapterEvents.PARTICIPANT_KEYS_COMMITMENT,
                             pId,
@@ -814,7 +833,11 @@ export class OlmAdapter extends Listenable {
                         );
 
                         const session_outbound = new window.Olm.Session();
-                        session_outbound.create_outbound(this._olmAccount, idKey, otKey);
+                        session_outbound.create_outbound(
+                            this._olmAccount,
+                            idKey,
+                            otKey,
+                        );
                         olmData.session_for_sending = session_outbound;
 
                         const olmCiphertext = this._encryptKeyInfo(
@@ -1010,7 +1033,6 @@ export class OlmAdapter extends Listenable {
     }
 
     _getOneTimeKey(olmAccount): string {
-
         // Generate a One Time Key.
         olmAccount.generate_one_time_keys(1);
 

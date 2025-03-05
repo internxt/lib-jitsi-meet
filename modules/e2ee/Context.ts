@@ -1,10 +1,9 @@
-/* global BigInt */
 import {
     deriveEncryptionKey,
     ratchetKey,
     encryptData,
     decryptData,
-} from "./crypto-utils";
+} from "./crypto-workers";
 
 // We use a ringbuffer of keys so we can change them and still decode packets that were
 // encrypted with an old key. We use a size of 16 which corresponds to the four bits
@@ -61,8 +60,8 @@ export class Context {
         this._sendCounts = new Map();
         this._participantId = id;
         this._framesEncrypted = false;
-        this._hash = '';
-        this._keyCommtiment = '';
+        this._hash = "";
+        this._keyCommtiment = "";
     }
 
     /**
@@ -104,14 +103,23 @@ export class Context {
      * @param {number} index The keys index.
      */
     async setKey(olmKey: Uint8Array, pqKey: Uint8Array, index: number) {
-        const { encryptionKey, hash} = await deriveEncryptionKey(olmKey, pqKey);
+        const { encryptionKey, hash } = await deriveEncryptionKey(
+            olmKey,
+            pqKey,
+        );
         const newKey: KeyMaterial = {
             materialOlm: olmKey,
             materialPQ: pqKey,
             encryptionKey,
         };
         this._currentKeyIndex = index % this._cryptoKeyRing.length;
-        this._hash = 'hash=' + hash + 'commitment=' + this._keyCommtiment + 'index=' + this._currentKeyIndex;
+        this._hash =
+            "hash=" +
+            hash +
+            "commitment=" +
+            this._keyCommtiment +
+            "index=" +
+            this._currentKeyIndex;
         this._cryptoKeyRing[this._currentKeyIndex] = newKey;
         console.info(`E2E: Set keys for ${this._participantId}`);
     }
@@ -133,7 +141,7 @@ export class Context {
      *
      */
     async encodeFunction(
-        encodedFrame: RTCEncodedVideoFrame|RTCEncodedAudioFrame,
+        encodedFrame: RTCEncodedVideoFrame | RTCEncodedAudioFrame,
         controller: TransformStreamDefaultController,
     ) {
         const keyIndex = this._currentKeyIndex;
@@ -252,7 +260,10 @@ export class Context {
      * @param {RTCEncodedVideoFrame|RTCEncodedAudioFrame} encodedFrame - Encoded video frame.
      * @param {TransformStreamDefaultController} controller - TransportStreamController.
      */
-    async decodeFunction(encodedFrame: RTCEncodedVideoFrame|RTCEncodedAudioFrame, controller: TransformStreamDefaultController) {
+    async decodeFunction(
+        encodedFrame: RTCEncodedVideoFrame | RTCEncodedAudioFrame,
+        controller: TransformStreamDefaultController,
+    ) {
         const data = new Uint8Array(encodedFrame.data);
         const keyIndex = data[encodedFrame.data.byteLength - 1];
         if (this._cryptoKeyRing[keyIndex] && this._framesEncrypted) {

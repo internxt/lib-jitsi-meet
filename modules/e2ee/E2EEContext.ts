@@ -1,5 +1,6 @@
 /* global RTCRtpScriptTransform */
 import { getLogger } from "@jitsi/logger";
+import { generateEmojiSas } from "./SAS";
 
 // Extend the RTCRtpReceiver interface due to lack of support of streams
 interface CustomRTCRtpReceiver extends RTCRtpReceiver {
@@ -204,10 +205,7 @@ export default class E2EEcontext {
      * @param {string} participantId - The ID of the participant who's key we are setting.
      * @param {Uint8Array} commitment - The commitment to the participant's keys.
      */
-    setKeyCommitment(
-        participantId: string,
-        commitment: Uint8Array,
-    ) {
+    setKeyCommitment(participantId: string, commitment: Uint8Array) {
         this._worker.postMessage({
             operation: "setKeyCommitment",
             commitment,
@@ -240,12 +238,14 @@ export default class E2EEcontext {
         });
     }
 
-     /**
+    /**
      * Update SAS string.
      */
     private updateSAS(event: MessageEvent) {
         if (event.data.operation === "updateSAS") {
-            console.log("E2E: worker response:", event.data.sas);
+            const sasBytes = event.data.sas;
+            const sas = generateEmojiSas(sasBytes);
+            logger.info(`E2E: worker response: ${sas}`);
         }
     }
 }

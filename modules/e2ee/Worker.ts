@@ -2,8 +2,7 @@
 
 // Worker for E2EE/Insertable streams.
 import { Context } from "./Context";
-import { computeHash, deriveSASbytes } from "./crypto-utils";
-import { generateEmojiSas } from "./SAS";
+import { deriveSASBytes } from "./crypto-workers";
 
 const contexts = new Map<string, Context>(); // Map participant id => context
 
@@ -22,11 +21,11 @@ function getParticipantContext(participantId) {
 }
 
 /**
- * Computes SAS based on current keys in contexts.
+ * Computes SAS bytes based on current keys in contexts.
  *
- * @returns {string[][]} The sas.
+ * @returns {Uint8Array} The sas bytes.
  */
-async function getCurrentSAS() {
+async function getCurrentSASBytes() {
     let array = [];
     for (const [pId, context] of contexts) {
         const pHash = context.getHash();
@@ -35,13 +34,7 @@ async function getCurrentSAS() {
     }
     array.sort();
     const str = array.join("");
-    const hash = new Uint8Array(
-        await computeHash(new TextEncoder().encode(str)),
-    );
-    const sasBytes = await deriveSASbytes(hash);
-    const result = generateEmojiSas(sasBytes);
-    console.info(`E2E: new SAS is ${JSON.stringify(result)}`);
-    return result;
+    return deriveSASBytes(str);
 }
 
 /**
@@ -80,7 +73,7 @@ onmessage = async (event) => {
         const { participantId, olmKey, pqKey, index } = event.data;
         const context = getParticipantContext(participantId);
         await context.setKey(olmKey, pqKey, index);
-        const sas = await getCurrentSAS();
+        const sas = await getCurrentSASBytes();
         self.postMessage({ operation: "updateSAS", sas });
     } else if (operation === "setKeyCommitment") {
         const { participantId, commitment } = event.data;
