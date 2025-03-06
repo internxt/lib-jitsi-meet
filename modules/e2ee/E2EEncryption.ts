@@ -1,6 +1,7 @@
 import browser from "../browser";
 
 import { ManagedKeyHandler } from "./ManagedKeyHandler";
+import JitsiConference from "../../JitsiConference";
 import { OlmAdapter } from "./OlmAdapter";
 
 /**
@@ -12,7 +13,7 @@ export class E2EEncryption {
      * A constructor.
      * @param {JitsiConference} conference - The conference instance for which E2E encryption is to be enabled.
      */
-    constructor(conference) {
+    constructor(conference: JitsiConference) {
         this._keyHandler = new ManagedKeyHandler(conference);
     }
 
@@ -68,5 +69,4 @@ export class E2EEncryption {
     setEncryptionKey(olmKey: Uint8Array, pqKey: Uint8Array, index: number) {
         this._keyHandler.setKey(olmKey, pqKey, index);
     }
-
 }

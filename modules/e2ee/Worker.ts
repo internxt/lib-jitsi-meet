@@ -11,21 +11,20 @@ const contexts = new Map<string, Context>(); // Map participant id => context
  * @param {string} participantId - The participant whose context we need.
  * @returns {Context} The context.
  */
-function getParticipantContext(participantId) {
+function getParticipantContext(participantId: string): Context {
     if (!contexts.has(participantId)) {
         contexts.set(participantId, new Context(participantId));
     }
-
     return contexts.get(participantId);
 }
 
 /**
- * Computes SAS bytes based on current keys in contexts.
+ * Computes SAS material based on current keys in contexts.
  *
- * @returns {Uint8Array} The sas bytes.
+ * @returns {string} The sas material.
  */
-async function getCurrentSASMaterial() {
-    let array = [];
+function getCurrentSASMaterial(): string {
+    let array: string[] = [];
     for (const [pId, context] of contexts) {
         const pHash = context.getHash();
         console.log(`E2E: SAS got hash from ${pId}: ${pHash}`);
@@ -38,12 +37,17 @@ async function getCurrentSASMaterial() {
 /**
  * Sets an encode / decode transform.
  *
- * @param {Object} context - The participant context where the transform will be applied.
+ * @param {Context} context - The participant context where the transform will be applied.
  * @param {string} operation - Encode / decode.
- * @param {Object} readableStream - Readable stream part.
- * @param {Object} writableStream - Writable stream part.
+ * @param {ReadableStream} readableStream - Readable stream part.
+ * @param {WritableStream} writableStream - Writable stream part.
  */
-function handleTransform(context, operation, readableStream, writableStream) {
+function handleTransform(
+    context: Context,
+    operation: string,
+    readableStream: ReadableStream,
+    writableStream: WritableStream,
+) {
     if (operation === "encode" || operation === "decode") {
         const transformFn =
             operation === "encode"
@@ -71,7 +75,7 @@ onmessage = async (event) => {
         const { participantId, olmKey, pqKey, index } = event.data;
         const context = getParticipantContext(participantId);
         await context.setKey(olmKey, pqKey, index);
-        const sas = await getCurrentSASMaterial();
+        const sas = getCurrentSASMaterial();
         self.postMessage({ operation: "updateSAS", sas });
     } else if (operation === "setKeyCommitment") {
         const { participantId, commitment } = event.data;

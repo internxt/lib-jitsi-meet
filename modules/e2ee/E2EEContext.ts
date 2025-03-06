@@ -3,7 +3,8 @@ import { getLogger } from "@jitsi/logger";
 import { generateEmojiSas } from "./SAS";
 
 // Extend the RTCRtpReceiver interface due to lack of support of streams
-interface CustomRTCRtpReceiver extends RTCRtpReceiver {
+export interface CustomRTCRtpReceiver extends RTCRtpReceiver {
+    kJitsiE2EE: boolean;
     createEncodedStreams?: () => {
         readable: ReadableStream;
         writable: WritableStream;
@@ -11,7 +12,8 @@ interface CustomRTCRtpReceiver extends RTCRtpReceiver {
     transform: RTCRtpScriptTransform;
 }
 
-interface CustomRTCRtpSender extends RTCRtpSender {
+export interface CustomRTCRtpSender extends RTCRtpSender {
+    kJitsiE2EE: boolean;
     createEncodedStreams?: () => {
         readable: ReadableStream;
         writable: WritableStream;
@@ -20,10 +22,6 @@ interface CustomRTCRtpSender extends RTCRtpSender {
 }
 
 const logger = getLogger(__filename);
-
-// Flag to set on senders / receivers to avoid setting up the encryption transform
-// more than once.
-const kJitsiE2EE = Symbol("kJitsiE2EE");
 
 /**
  * Context encapsulating the cryptography bits required for E2EE.
@@ -110,10 +108,10 @@ export default class E2EEcontext {
      * @param {string} participantId - The participant id that this receiver belongs to.
      */
     handleReceiver(receiver: CustomRTCRtpReceiver, participantId: string) {
-        if (receiver[kJitsiE2EE]) {
+        if (receiver.kJitsiE2EE) {
             return;
         }
-        receiver[kJitsiE2EE] = true;
+        receiver.kJitsiE2EE = true;
 
         if (window.RTCRtpScriptTransform) {
             const options = {
@@ -126,17 +124,18 @@ export default class E2EEcontext {
                 options,
             );
         } else {
-            const receiverStreams = receiver.createEncodedStreams();
-
-            this._worker.postMessage(
-                {
-                    operation: "decode",
-                    readableStream: receiverStreams.readable,
-                    writableStream: receiverStreams.writable,
-                    participantId,
-                },
-                [receiverStreams.readable, receiverStreams.writable],
-            );
+            if (receiver.createEncodedStreams) {
+                const receiverStreams = receiver.createEncodedStreams();
+                this._worker.postMessage(
+                    {
+                        operation: "decode",
+                        readableStream: receiverStreams.readable,
+                        writableStream: receiverStreams.writable,
+                        participantId,
+                    },
+                    [receiverStreams.readable, receiverStreams.writable],
+                );
+            } else logger.error(`createEncodedStreams operation failed!`);
         }
     }
 
@@ -149,10 +148,10 @@ export default class E2EEcontext {
      * @param {string} participantId - The participant id that this sender belongs to.
      */
     handleSender(sender: CustomRTCRtpSender, participantId: string) {
-        if (sender[kJitsiE2EE]) {
+        if (sender.kJitsiE2EE) {
             return;
         }
-        sender[kJitsiE2EE] = true;
+        sender.kJitsiE2EE = true;
 
         if (window.RTCRtpScriptTransform) {
             const options = {
@@ -162,17 +161,18 @@ export default class E2EEcontext {
 
             sender.transform = new RTCRtpScriptTransform(this._worker, options);
         } else {
-            const senderStreams = sender.createEncodedStreams();
-
-            this._worker.postMessage(
-                {
-                    operation: "encode",
-                    readableStream: senderStreams.readable,
-                    writableStream: senderStreams.writable,
-                    participantId,
-                },
-                [senderStreams.readable, senderStreams.writable],
-            );
+            if (sender.createEncodedStreams) {
+                const senderStreams = sender.createEncodedStreams();
+                this._worker.postMessage(
+                    {
+                        operation: "encode",
+                        readableStream: senderStreams.readable,
+                        writableStream: senderStreams.writable,
+                        participantId,
+                    },
+                    [senderStreams.readable, senderStreams.writable],
+                );
+            } else logger.error(`createEncodedStreams operation failed!`);
         }
     }
 

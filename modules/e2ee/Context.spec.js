@@ -1,6 +1,6 @@
 /* eslint-disable no-bitwise */
 import { Context } from './Context';
-import { ratchetKey } from './crypto-utils';
+import { ratchetKey } from './crypto-workers';
 
 /*
 function hexdump(buffer) {

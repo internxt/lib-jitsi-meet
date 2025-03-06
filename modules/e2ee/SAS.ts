@@ -73,9 +73,9 @@ const emojiMapping = [
  * Borrowed from the Matrix JS SDK.
  *
  * @param {string} data - The string from which to generate SAS.
- * @returns Array<number>
+ * @returns {Promise<string[][]>} The SAS emojies.
  */
-export async function generateEmojiSas(data: string) {
+export async function generateEmojiSas(data: string): Promise<string[][]> {
     const hasher = await createBLAKE3(SAS_LEN);
     hasher.init();
     hasher.update(data);

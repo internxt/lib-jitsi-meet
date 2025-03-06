@@ -2,6 +2,10 @@
 
 import { getLogger } from "@jitsi/logger";
 import browser from "../browser";
+import JitsiLocalTrack from "../RTC/JitsiLocalTrack";
+import JingleSessionPC from "../xmpp/JingleSessionPC";
+import TraceablePeerConnection from "../RTC/TraceablePeerConnection";
+import { CustomRTCRtpReceiver, CustomRTCRtpSender } from "./E2EEContext";
 
 import * as JitsiConferenceEvents from "../../JitsiConferenceEvents";
 
@@ -27,7 +31,7 @@ export class ManagedKeyHandler extends Listenable {
     /**
      * Build a new AutomaticKeyHandler instance, which will be used in a given conference.
      */
-    constructor(conference) {
+    constructor(conference: JitsiConference) {
         super();
         this.conference = conference;
         this.e2eeCtx = new E2EEContext();
@@ -56,10 +60,13 @@ export class ManagedKeyHandler extends Listenable {
         );
         this.conference.on(
             JitsiConferenceEvents.TRACK_ADDED,
-            (track) => track.isLocal() && this._onLocalTrackAdded(track),
+            (track: JitsiLocalTrack) =>
+                track.isLocal() && this._onLocalTrackAdded(track),
         );
-        this.conference.rtc.on(RTCEvents.REMOTE_TRACK_ADDED, (track, tpc) =>
-            this._setupReceiverE2EEForTrack(tpc, track),
+        this.conference.rtc.on(
+            RTCEvents.REMOTE_TRACK_ADDED,
+            (track: JitsiLocalTrack, tpc: TraceablePeerConnection) =>
+                this._setupReceiverE2EEForTrack(tpc, track),
         );
         this.conference.on(
             JitsiConferenceEvents.TRACK_MUTE_CHANGED,
@@ -85,9 +92,6 @@ export class ManagedKeyHandler extends Listenable {
             OlmAdapter.events.PARTICIPANT_KEY_RATCHET,
             this._onParticipantKeyRatchet.bind(this),
         );
-
-
-        
     }
 
     /**
@@ -105,7 +109,7 @@ export class ManagedKeyHandler extends Listenable {
      * @param {boolean} enabled - whether E2EE should be enabled or not.
      * @returns {void}
      */
-    async setEnabled(enabled) {
+    async setEnabled(enabled: boolean) {
         if (enabled === this.enabled) {
             return;
         }
@@ -147,8 +151,8 @@ export class ManagedKeyHandler extends Listenable {
     async _onParticipantDataDecryption(
         participant: JitsiParticipant,
         name: string,
-        oldValue,
-        newValue,
+        oldValue: any,
+        newValue: any,
     ) {
         if (newValue !== oldValue && name == "e2ee.enabled") {
             if (newValue)
@@ -162,7 +166,7 @@ export class ManagedKeyHandler extends Listenable {
      * @param {JitsiLocalTrack} track - the new track that's being added to the conference.
      * @private
      */
-    _onLocalTrackAdded(track) {
+    _onLocalTrackAdded(track: JitsiLocalTrack) {
         for (const session of this.conference.getMediaSessions()) {
             this._setupSenderE2EEForTrack(session, track);
         }
@@ -173,7 +177,7 @@ export class ManagedKeyHandler extends Listenable {
      * @param {JingleSessionPC} session - the new media session.
      * @private
      */
-    _onMediaSessionStarted(session) {
+    _onMediaSessionStarted(session: JingleSessionPC) {
         const localTracks = this.conference.getLocalTracks();
 
         for (const track of localTracks) {
@@ -186,7 +190,10 @@ export class ManagedKeyHandler extends Listenable {
      *
      * @private
      */
-    _setupReceiverE2EEForTrack(tpc, track) {
+    _setupReceiverE2EEForTrack(
+        tpc: TraceablePeerConnection,
+        track: JitsiLocalTrack,
+    ) {
         if (!this.enabled) {
             return;
         }
@@ -194,7 +201,10 @@ export class ManagedKeyHandler extends Listenable {
         const receiver = tpc.findReceiverForTrack(track.track);
 
         if (receiver) {
-            this.e2eeCtx.handleReceiver(receiver, track.getParticipantId());
+            this.e2eeCtx.handleReceiver(
+                receiver as CustomRTCRtpReceiver,
+                track.getParticipantId(),
+            );
         } else {
             logger.warn(
                 `E2E: Could not handle E2EE for ${track}: receiver not found in: ${tpc}`,
@@ -209,7 +219,7 @@ export class ManagedKeyHandler extends Listenable {
      * @param {JitsiLocalTrack} track - the local track for which e2e encoder will be configured.
      * @private
      */
-    _setupSenderE2EEForTrack(session, track) {
+    _setupSenderE2EEForTrack(session: JingleSessionPC, track: JitsiLocalTrack) {
         if (!this.enabled) {
             return;
         }
@@ -218,7 +228,10 @@ export class ManagedKeyHandler extends Listenable {
         const sender = pc && pc.findSenderForTrack(track.track);
 
         if (sender) {
-            this.e2eeCtx.handleSender(sender, track.getParticipantId());
+            this.e2eeCtx.handleSender(
+                sender as CustomRTCRtpSender,
+                track.getParticipantId(),
+            );
         } else {
             logger.warn(
                 `E2E: Could not handle E2EE for ${track}: sender not found in ${pc}`,
@@ -231,7 +244,7 @@ export class ManagedKeyHandler extends Listenable {
      * @param {JitsiLocalTrack} track - the track for which muted status has changed.
      * @private
      */
-    _trackMuteChanged(track) {
+    _trackMuteChanged(track: JitsiLocalTrack) {
         if (
             browser.doesVideoMuteByStreamRemove() &&
             track.isLocal() &&
@@ -339,10 +352,7 @@ export class ManagedKeyHandler extends Listenable {
      * @param {Uint8Array} commitment - The commitment to participant's keys.
      * @private
      */
-    _onParticipantKeysCommitment(
-        id: string,
-        commitment: Uint8Array,
-    ) {
+    _onParticipantKeysCommitment(id: string, commitment: Uint8Array) {
         this.e2eeCtx.setKeyCommitment(id, commitment);
     }
 

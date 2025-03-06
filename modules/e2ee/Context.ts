@@ -21,10 +21,9 @@ const KEYRING_SIZE = 16;
 //
 // For audio (where frame.type is not set) we do not encrypt the opus TOC byte:
 //   https://tools.ietf.org/html/rfc6716#section-3.1
-const UNENCRYPTED_BYTES = {
+const VIDEO_UNENCRYPTED_BYTES = {
     key: 10,
     delta: 3,
-    undefined: 1, // frame.type is not set on audio
 };
 let printEncStart = true;
 
@@ -177,18 +176,27 @@ export class Context {
      * 8) Append a single byte for the key identifier.
      * 9) Enqueue the encrypted frame for sending.
      */
-    async _encryptFrame(encodedFrame, keyIndex: number) {
+    async _encryptFrame(
+        encodedFrame: RTCEncodedVideoFrame | RTCEncodedAudioFrame,
+        keyIndex: number,
+    ) {
         const key: CryptoKey = this._cryptoKeyRing[keyIndex].encryptionKey;
         try {
             const iv = this._makeIV(
-                encodedFrame.getMetadata().synchronizationSource,
+                encodedFrame.getMetadata().synchronizationSource ?? 0,
                 encodedFrame.timestamp,
             );
             // Thіs is not encrypted and contains the VP8 payload descriptor or the Opus TOC byte.
+            let unencrypted_bytes_number: number = 1; // for audio frame
+            if (encodedFrame instanceof RTCEncodedVideoFrame)
+                unencrypted_bytes_number =
+                    VIDEO_UNENCRYPTED_BYTES[
+                        encodedFrame.type as keyof typeof VIDEO_UNENCRYPTED_BYTES
+                    ];
             const frameHeader = new Uint8Array(
                 encodedFrame.data,
                 0,
-                UNENCRYPTED_BYTES[encodedFrame.type],
+                unencrypted_bytes_number,
             );
 
             // Frame trailer contains the R|IV_LENGTH and key index
@@ -204,10 +212,9 @@ export class Context {
             // ---------+-------------------------+-+---------+----
             // payload  |IV...(length = IV_LENGTH)|R|IV_LENGTH|KID |
             // ---------+-------------------------+-+---------+----
-
             const data: Uint8Array = new Uint8Array(
                 encodedFrame.data,
-                UNENCRYPTED_BYTES[encodedFrame.type],
+                unencrypted_bytes_number,
             );
             const additionalData = new Uint8Array(
                 encodedFrame.data,
@@ -283,7 +290,10 @@ export class Context {
      * @returns {Promise<RTCEncodedVideoFrame|RTCEncodedAudioFrame>} - The decrypted frame.
      * @private
      */
-    async _decryptFrame(encodedFrame, keyIndex: number) {
+    async _decryptFrame(
+        encodedFrame: RTCEncodedVideoFrame | RTCEncodedAudioFrame,
+        keyIndex: number,
+    ) {
         const { encryptionKey } = this._cryptoKeyRing[keyIndex];
 
         // Construct frame trailer. Similar to the frame header described in
@@ -295,11 +305,13 @@ export class Context {
         // ---------+-------------------------+-+---------+----
 
         try {
-            const frameHeader = new Uint8Array(
-                encodedFrame.data,
-                0,
-                UNENCRYPTED_BYTES[encodedFrame.type],
-            );
+            let ind = 1;
+            if (encodedFrame instanceof RTCEncodedVideoFrame)
+                ind =
+                    VIDEO_UNENCRYPTED_BYTES[
+                        encodedFrame.type as keyof typeof VIDEO_UNENCRYPTED_BYTES
+                    ];
+            const frameHeader = new Uint8Array(encodedFrame.data, 0, ind);
             const frameTrailer = new Uint8Array(
                 encodedFrame.data,
                 encodedFrame.data.byteLength - 2,
@@ -376,7 +388,7 @@ export class Context {
      *
      * See also https://developer.mozilla.org/en-US/docs/Web/API/AesGcmParams
      */
-    _makeIV(synchronizationSource: number, timestamp) {
+    _makeIV(synchronizationSource: number, timestamp: number) {
         const iv = new ArrayBuffer(IV_LENGTH);
         const ivView = new DataView(iv);
 
@@ -387,7 +399,7 @@ export class Context {
             this._sendCounts.set(synchronizationSource, randomOffset);
         }
 
-        const sendCount = this._sendCounts.get(synchronizationSource);
+        const sendCount = this._sendCounts.get(synchronizationSource) ?? 0;
 
         ivView.setUint32(0, synchronizationSource);
         ivView.setUint32(4, timestamp);

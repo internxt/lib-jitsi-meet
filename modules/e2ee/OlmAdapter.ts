@@ -99,15 +99,16 @@ export class OlmAdapter extends Listenable {
     /**
      * Creates an adapter instance for the given conference.
      */
-    constructor(conference) {
+    constructor(conference: JitsiConference) {
         super();
         this._conf = conference;
-        this._mediaKeyOlm = undefined;
-        this._mediaKeyPQ = undefined;
+        this._mediaKeyOlm = new Uint8Array();
+        this._mediaKeyPQ = new Uint8Array();
         this._mediaKeyIndex = -1;
         this._reqs = new Map();
-        this._publicKyberKeyBase64 = undefined;
-        this._privateKyberKey = undefined;
+        this._publicKyberKeyBase64 = "";
+        this._privateKyberKey = new Uint8Array();
+        this._publicCurve25519Key = "";
 
         if (OlmAdapter.isSupported()) {
             this._olmWasInitialized = this._bootstrapOlm();
@@ -203,7 +204,6 @@ export class OlmAdapter extends Listenable {
         const olmData = this._getParticipantOlmData(participant);
         if (olmData.status === PROTOCOL_STATUS.DONE) {
             try {
-                const uuid = uuidv4();
                 const pqCiphertextBase64 = await encryptKeyInfoPQ(
                     olmData.pqSessionKey,
                     this._mediaKeyPQ,
@@ -213,7 +213,6 @@ export class OlmAdapter extends Listenable {
                 );
                 logger.info(`E2E: Sending KEY_INFO to ${pId}`);
                 this._sendKeyInfoMessage(
-                    uuid,
                     olmCiphertext,
                     pqCiphertextBase64,
                     pId,
@@ -390,8 +389,7 @@ export class OlmAdapter extends Listenable {
             this._mediaKeyIndex++;
             await this.ratchetAllKeys();
         } catch (error) {
-            logger.error(`E2E: Failed to ratchet keys: ${error}`);
-            throw new Error(`Failed to ratchet keys: ${error}`);
+            throw new Error(`Key ratchet failed: ${error}`);
         }
     }
 
@@ -406,8 +404,7 @@ export class OlmAdapter extends Listenable {
             this.generateNewKeys();
             await this.sendKeyInfoToAll();
         } catch (error) {
-            logger.error(`E2E: Failed to rotate my keys: ${error}`);
-            throw new Error(`Failed to rotate my keys: ${error}`);
+            throw new Error(`Key rotation failed: ${error}`);
         }
     }
 
@@ -458,9 +455,6 @@ export class OlmAdapter extends Listenable {
             logger.error(
                 `E2E: Failed to clear session for participat ${participant.getId()}: ${error}`,
             );
-            throw new Error(
-                `Failed to clear session for participat ${participant.getId()}: ${error}`,
-            );
         }
     }
 
@@ -470,13 +464,8 @@ export class OlmAdapter extends Listenable {
      * @private
      */
     clearAllParticipantsSessions() {
-        try {
-            for (const participant of this._conf.getParticipants()) {
-                this.clearParticipantSession(participant);
-            }
-        } catch (error) {
-            logger.error(`E2E: Failed to clear all sessions: ${error}`);
-            throw new Error(`Failed to clear all sessions: ${error}`);
+        for (const participant of this._conf.getParticipants()) {
+            this.clearParticipantSession(participant);
         }
     }
 
@@ -696,7 +685,6 @@ export class OlmAdapter extends Listenable {
      * @private
      */
     async _sendKeyInfoMessage(
-        uuid: string,
         ciphertext: string,
         pqCiphertext: string,
         pId: string,
@@ -708,7 +696,6 @@ export class OlmAdapter extends Listenable {
                 data: {
                     ciphertext,
                     pqCiphertext,
-                    uuid,
                 },
             },
         };
@@ -784,7 +771,7 @@ export class OlmAdapter extends Listenable {
                             olmData.session_for_sending,
                         );
 
-                        const myOtKey = this._getOneTimeKey(this._olmAccount);
+                        const myOtKey = this._getOneTimeKey();
 
                         this._sendPQSessionInitMessage(
                             uuid,
@@ -1022,9 +1009,15 @@ export class OlmAdapter extends Listenable {
      *
      * @private
      */
-    _onParticipantLeft(id, participant: JitsiParticipant) {
-        logger.info(`E2E: Participant ${id} left`);
-        this.clearParticipantSession(participant);
+    _onParticipantLeft(id: string, participant: JitsiParticipant) {
+        try {
+            logger.info(`E2E: Participant ${id} left`);
+            this.clearParticipantSession(participant);
+        } catch (error)
+        {
+            logger.error(`E2E: Failed to clear participant ${id} session`);
+        }
+        
     }
 
     /**
@@ -1034,7 +1027,7 @@ export class OlmAdapter extends Listenable {
      * @param {string} error - The error message.
      * @returns {void}
      */
-    _sendError(pId: string, error) {
+    _sendError(pId: string, error: string) {
         logger.error(`E2E: ${error}`);
         const err = {
             [JITSI_MEET_MUC_TYPE]: OLM_MESSAGE_TYPE,
@@ -1057,15 +1050,15 @@ export class OlmAdapter extends Listenable {
      * @param {object} data - The data that will be sent to the target participant.
      * @param {string} participantId - ID of the target participant.
      */
-    _sendMessage(data, participantId) {
+    _sendMessage(data, participantId: string) {
         this._conf.sendMessage(data, participantId);
     }
 
-    _getOneTimeKey(olmAccount): string {
+    _getOneTimeKey(): string {
         // Generate a One Time Key.
-        olmAccount.generate_one_time_keys(1);
+        this._olmAccount.generate_one_time_keys(1);
 
-        const otKeys = safeJsonParse(olmAccount.one_time_keys());
+        const otKeys = safeJsonParse(this._olmAccount.one_time_keys());
         const values = Object.values(otKeys.curve25519);
 
         if (!values.length || typeof values[0] !== "string") {
@@ -1075,7 +1068,7 @@ export class OlmAdapter extends Listenable {
         const otKey: string = values[0];
 
         // Mark the OT keys (one really) as published so they are not reused.
-        olmAccount.mark_keys_as_published();
+        this._olmAccount.mark_keys_as_published();
 
         return otKey;
     }
@@ -1096,7 +1089,7 @@ export class OlmAdapter extends Listenable {
             if (olmData.status === PROTOCOL_STATUS.NOT_STARTED) {
                 logger.info(`E2E: Sending session init to participant ${pId} `);
 
-                const otKey = this._getOneTimeKey(this._olmAccount);
+                const otKey = this._getOneTimeKey();
 
                 const uuid = uuidv4();
 
