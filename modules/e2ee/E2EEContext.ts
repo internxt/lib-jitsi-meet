@@ -241,10 +241,10 @@ export default class E2EEcontext {
     /**
      * Update SAS string.
      */
-    private updateSAS(event: MessageEvent) {
+    private async updateSAS(event: MessageEvent) {
         if (event.data.operation === "updateSAS") {
-            const sasBytes = event.data.sas;
-            const sas = generateEmojiSas(sasBytes);
+            const sasStr = event.data.sas;
+            const sas = await generateEmojiSas(sasStr);
             logger.info(`E2E: worker response: ${sas}`);
         }
     }

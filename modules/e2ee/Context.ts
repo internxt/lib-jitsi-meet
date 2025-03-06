@@ -3,6 +3,7 @@ import {
     ratchetKey,
     encryptData,
     decryptData,
+    computeHash,
 } from "./crypto-workers";
 
 // We use a ringbuffer of keys so we can change them and still decode packets that were
@@ -103,24 +104,20 @@ export class Context {
      * @param {number} index The keys index.
      */
     async setKey(olmKey: Uint8Array, pqKey: Uint8Array, index: number) {
-        const { encryptionKey, hash } = await deriveEncryptionKey(
-            olmKey,
-            pqKey,
-        );
+        const encryptionKey = await deriveEncryptionKey(olmKey, pqKey);
         const newKey: KeyMaterial = {
             materialOlm: olmKey,
             materialPQ: pqKey,
             encryptionKey,
         };
         this._currentKeyIndex = index % this._cryptoKeyRing.length;
-        this._hash =
-            "hash=" +
-            hash +
-            "commitment=" +
-            this._keyCommtiment +
-            "index=" +
-            this._currentKeyIndex;
         this._cryptoKeyRing[this._currentKeyIndex] = newKey;
+        this._hash = await computeHash(
+            olmKey,
+            pqKey,
+            this._keyCommtiment,
+            this._currentKeyIndex,
+        );
         console.info(`E2E: Set keys for ${this._participantId}`);
     }
 

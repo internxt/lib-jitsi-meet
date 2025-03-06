@@ -8,7 +8,7 @@ import {
 
 const IV_LENGTH = 16;
 const MEDIA_KEY_LEN = 32;
-const AUX = new Uint8Array([80,81,32,75,101,121,32,73,110,102,111]); // "PQ Key Info"
+const AUX = Uint8Array.from([80, 81, 32, 75, 101, 121, 32, 73, 110, 102, 111]); // "PQ Key Info"
 
 /**
  * Generates Kyber key pair.
@@ -208,11 +208,8 @@ export async function decapsulateAndDeriveOneKey(
         );
 
         if (extraSecretGoesFirst)
-            return (await deriveEncryptionKey(extraSecret, decapsulatedSecret))
-                .encryptionKey;
-        else
-            return (await deriveEncryptionKey(decapsulatedSecret, extraSecret))
-                .encryptionKey;
+            return deriveEncryptionKey(extraSecret, decapsulatedSecret);
+        else return deriveEncryptionKey(decapsulatedSecret, extraSecret);
     } catch (error) {
         return Promise.reject(
             new Error(`Decapsulate and derive secret failed: ${error}`),

@@ -1,3 +1,6 @@
+import { createBLAKE3 } from "hash-wasm";
+const SAS_LEN = 48;
+
 const emojiMapping = [
     ["🐶", "dog"],
     ["🐱", "cat"],
@@ -66,13 +69,17 @@ const emojiMapping = [
 ];
 
 /**
- * Generates a SAS composed of defimal numbers.
+ * Generates a SAS composed of emojies.
  * Borrowed from the Matrix JS SDK.
  *
- * @param {Uint8Array} sasBytes - The bytes from sas.generate_bytes.
+ * @param {string} data - The string from which to generate SAS.
  * @returns Array<number>
  */
-export function generateEmojiSas(sasBytes: Uint8Array) {
+export async function generateEmojiSas(data: string) {
+    const hasher = await createBLAKE3(SAS_LEN);
+    hasher.init();
+    hasher.update(data);
+    const sasBytes = hasher.digest("binary");
     // Just like base64.
     const emojis = [
         sasBytes[0] >> 2,

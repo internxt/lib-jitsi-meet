@@ -1,58 +1,57 @@
-import { createBLAKE3 } from "hash-wasm";
-
-const SAS_LEN = 48;
-const KDF = "HKDF";
+import { createKeccak, createHMAC } from "hash-wasm";
 const AES = "AES-GCM";
-const HASH = "SHA-256";
 const AES_KEY_LEN = 256;
-const COMMITMENT_LEN = 256;
-const KDF_SALT_DERIVE_KEY = new Uint8Array([
-    68, 101, 114, 105, 118, 101, 95, 65, 69, 83, 95, 69, 110, 99, 114, 121, 112,
-    116, 105, 111, 110, 95, 75, 101, 121,
-]); // "Derive_AES_Encryption_Key"
-const KDF_INFO_DERIVE_KEY = new Uint8Array([
-    65, 69, 83, 95, 69, 110, 99, 114, 121, 112, 116, 105, 111, 110, 95, 75, 101,
-    121, 95, 73, 110, 102, 111,
-]); // "AES_Encryption_Key_Info"
-const DERIVE_BITS_SALT = new Uint8Array([
-    74, 70, 114, 97, 109, 101, 82, 97, 116, 99, 104, 101, 116, 75, 101, 121,
-]); // "JFrameRatchetKey"
-const DERIVE_BITS_INFO = new Uint8Array([
-    74, 70, 114, 97, 109, 101, 73, 110, 102, 111,
-]); // "JFrameInfo"
+const HASH_LEN = 256;
 
 /**
- * Computes commitment to the keys.
+ * Computes commitment to two strings.
  *
- * @param {string} publicKyberKey - The public keyber key.
- * @param {string} curve25519Key - The public curve25519 key.
+ * @param {string} value1 - The first string.
+ * @param {string} value2 - The second string.
  * @returns {Promise<string>} Computed commitment.
  */
-export async function computeKeyCommitment(
-    publicKyberKey: string,
-    curve25519Key: string,
+export async function computeCommitment(
+    value1: string,
+    value2: string,
 ): Promise<string> {
-        const hasher = await createBLAKE3(COMMITMENT_LEN);
+    try {
+        const hasher = await createKeccak(HASH_LEN);
         hasher.init();
-        hasher.update(publicKyberKey);
-        hasher.update(curve25519Key);
+        hasher.update(value1);
+        hasher.update(value2);
         return hasher.digest();
+    } catch (error) {
+        return Promise.reject(
+            new Error(`Commitment computation failed: ${error}`),
+        );
+    }
 }
 
 /**
- * Converts a raw key into a WebCrypto key object suitable for key derivation.
+ * Computes hash.
  *
- * @param {ArrayBuffer} keyBytes - The raw key bytes.
- * @returns {Promise<CryptoKey>} WebCrypto key.
+ * @param {Uint8Array} value1 - The first value.
+ * @param {Uint8Array} value2 - The second value.
+ * @param {string} value3 - The thirs value.
+ * @param {number} value4 - The forth value.
+ * @returns {Promise<string>} Computed hash.
  */
-async function importKey(keyBytes: Uint8Array): Promise<CryptoKey> {
+export async function computeHash(
+    value1: Uint8Array,
+    value2: Uint8Array,
+    value3: string,
+    value4: number,
+): Promise<string> {
     try {
-        return crypto.subtle.importKey("raw", keyBytes, KDF, false, [
-            "deriveBits",
-            "deriveKey",
-        ]);
+        const hasher = await createKeccak(HASH_LEN);
+        hasher.init();
+        hasher.update(value1);
+        hasher.update(value2);
+        hasher.update(value3);
+        hasher.update("index=" + value4);
+        return hasher.digest();
     } catch (error) {
-        return Promise.reject(new Error(`Key import failed: ${error}`));
+        return Promise.reject(new Error(`Hash computation failed: ${error}`));
     }
 }
 
@@ -66,58 +65,46 @@ async function importKey(keyBytes: Uint8Array): Promise<CryptoKey> {
 export async function deriveEncryptionKey(
     key1: Uint8Array,
     key2: Uint8Array,
-): Promise<{ encryptionKey: CryptoKey; hash: Uint8Array }> {
+): Promise<CryptoKey> {
     try {
-        const hasher = await createBLAKE3(AES_KEY_LEN);
-        hasher.init();
-        hasher.update(key1);
-        hasher.update(key2);
-        const hash = hasher.digest("binary");
-        const material = await importKey(hash);
+        const key = new Uint8Array(key1.length + key2.length);
+        key.set(key1, 0);
+        key.set(key2, key1.length);
 
-        const encryptionKey = await crypto.subtle.deriveKey(
+        const hasher = createKeccak(HASH_LEN);
+        const hmac = await createHMAC(hasher, key);
+        hmac.update("Derive_AES_Encryption_Key");
+        const keyBytes = hmac.digest("binary");
+
+        const encryptionKey = await crypto.subtle.importKey(
+            "raw",
+            keyBytes,
             {
-                name: KDF,
-                salt: KDF_SALT_DERIVE_KEY,
-                hash: HASH,
-                info: KDF_INFO_DERIVE_KEY,
-            },
-            material,
-            {
-                name: AES,
-                length: AES_KEY_LEN,
+                name: "AES-GCM",
+                length: 256,
             },
             false,
             ["encrypt", "decrypt"],
         );
 
-        return { encryptionKey, hash };
+        return encryptionKey;
     } catch (error) {
-        return Promise.reject(new Error(`AES key derivation failed: ${error}`));
+        return Promise.reject(new Error(`Key derivation failed: ${error}`));
     }
 }
 
 /**
  * Ratchets a key.
- * See https://tools.ietf.org/html/draft-omara-sframe-00#section-4.3.5.1
  *
  * @param {Uint8Array} keyBytes - The input key.
  * @returns {Promise<Uint8Array>} Ratched key.
  */
 export async function ratchetKey(keyBytes: Uint8Array): Promise<Uint8Array> {
     try {
-        const material = await importKey(keyBytes);
-        const key = await crypto.subtle.deriveBits(
-            {
-                name: KDF,
-                salt: DERIVE_BITS_SALT,
-                hash: HASH,
-                info: DERIVE_BITS_INFO,
-            },
-            material,
-            AES_KEY_LEN,
-        );
-        return new Uint8Array(key);
+        const hasher = createKeccak(AES_KEY_LEN);
+        const hmac = await createHMAC(hasher, keyBytes);
+        hmac.update("JFrameInfo");
+        return hmac.digest("binary");
     } catch (error) {
         return Promise.reject(new Error(`Ratchet failed: ${error}`));
     }
@@ -173,17 +160,4 @@ export function decryptData(
         key,
         data,
     );
-}
-
-/**
- * Derives SAS bytes.
- *
- * @param {string} data - The input data.
- * @returns {Promise<Uint8Array>} Computed SAS bytes.
- */
-export async function deriveSASBytes(data: string): Promise<Uint8Array> {
-    const hasher = await createBLAKE3(SAS_LEN);
-    hasher.init();
-    hasher.update(data);
-    return hasher.digest("binary");
 }

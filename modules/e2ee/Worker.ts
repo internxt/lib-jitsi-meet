@@ -2,7 +2,6 @@
 
 // Worker for E2EE/Insertable streams.
 import { Context } from "./Context";
-import { deriveSASBytes } from "./crypto-workers";
 
 const contexts = new Map<string, Context>(); // Map participant id => context
 
@@ -25,7 +24,7 @@ function getParticipantContext(participantId) {
  *
  * @returns {Uint8Array} The sas bytes.
  */
-async function getCurrentSASBytes() {
+async function getCurrentSASMaterial() {
     let array = [];
     for (const [pId, context] of contexts) {
         const pHash = context.getHash();
@@ -33,8 +32,7 @@ async function getCurrentSASBytes() {
         array.push(pId + pHash);
     }
     array.sort();
-    const str = array.join("");
-    return deriveSASBytes(str);
+    return array.join("");
 }
 
 /**
@@ -73,7 +71,7 @@ onmessage = async (event) => {
         const { participantId, olmKey, pqKey, index } = event.data;
         const context = getParticipantContext(participantId);
         await context.setKey(olmKey, pqKey, index);
-        const sas = await getCurrentSASBytes();
+        const sas = await getCurrentSASMaterial();
         self.postMessage({ operation: "updateSAS", sas });
     } else if (operation === "setKeyCommitment") {
         const { participantId, commitment } = event.data;
