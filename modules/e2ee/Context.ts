@@ -127,6 +127,14 @@ export class Context {
     async setKeyCommitment(commitment: string) {
         console.info(`E2E: Set keys commitment for ${this._participantId}.`);
         this._keyCommtiment = commitment;
+        const currentIndex = this._currentKeyIndex;
+        const { materialOlm, materialPQ } = this._cryptoKeyRing[currentIndex];
+        this._hash = await computeHash(
+            materialOlm,
+            materialPQ,
+            this._keyCommtiment,
+            this._currentKeyIndex,
+        );
     }
 
     /**

@@ -1,10 +1,6 @@
 import kemBuilder from "@dashlane/pqc-kem-kyber512-browser";
 import * as base64js from "base64-js";
-import {
-    encryptData,
-    decryptData,
-    deriveEncryptionKey,
-} from "./crypto-workers";
+import { encryptData, decryptData } from "./crypto-workers";
 
 const IV_LENGTH = 16;
 const MEDIA_KEY_LEN = 32;
@@ -184,35 +180,4 @@ export async function encryptKeyInfoPQ(
  */
 export function generateKey(): Uint8Array {
     return crypto.getRandomValues(new Uint8Array(MEDIA_KEY_LEN));
-}
-
-/**
- * Decapsulates key and derives one key from the decapsulated one and the extra key given as input.
- *
- * @param {string} ciphertextBase64 - The Kyber ciphertext.
- * @param {Uint8Array} privateKey - The Kyber private key.
- * @param {Uint8Array} extraSecret - The additional secret.
- * @param {boolean} extraSecretGoesFirst - The flag to indicate if the extra key should go first.
- * @returns {CryptoKey} Derived key.
- */
-export async function decapsulateAndDeriveOneKey(
-    ciphertextBase64: string,
-    privateKey: Uint8Array,
-    extraSecret: Uint8Array,
-    extraSecretGoesFirst: boolean,
-): Promise<CryptoKey> {
-    try {
-        const decapsulatedSecret = await decapsulateSecret(
-            ciphertextBase64,
-            privateKey,
-        );
-
-        if (extraSecretGoesFirst)
-            return deriveEncryptionKey(extraSecret, decapsulatedSecret);
-        else return deriveEncryptionKey(decapsulatedSecret, extraSecret);
-    } catch (error) {
-        return Promise.reject(
-            new Error(`Decapsulate and derive secret failed: ${error}`),
-        );
-    }
 }

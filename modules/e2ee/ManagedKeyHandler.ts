@@ -118,14 +118,7 @@ export class ManagedKeyHandler extends Listenable {
             logger.info("E2E: Enabling e2ee");
 
             this.enabled = true;
-            this._olmAdapter.generateNewKeys();
-            const { olmKey, pqKey, index } = this._olmAdapter.getCurrentKeys();
-            this.e2eeCtx.setKey(
-                this.conference.myUserId(),
-                olmKey,
-                pqKey,
-                index,
-            );
+            this._olmAdapter.setMyKeys();
             await this._olmAdapter.initSessions();
         }
 
@@ -266,7 +259,8 @@ export class ManagedKeyHandler extends Listenable {
     async _onParticipantJoined(id: string) {
         logger.info(`E2E: A new participant ${id} joined the conference`);
         if (this._conferenceJoined && this.enabled) {
-            await this._ratchetKeyImpl();
+            logger.info("E2E: Ratchetting my keys.");
+            await this._olmAdapter._ratchetKeyImpl();
         }
     }
 
@@ -279,24 +273,8 @@ export class ManagedKeyHandler extends Listenable {
         this.e2eeCtx.cleanup(id);
 
         if (this.enabled) {
-            this._rotateKeyImpl();
-        }
-    }
-
-    /**
-     * Rotates the local key. Rotating the key implies creating a new one, then distributing it
-     * to all participants and once they all received it, start using it.
-     *
-     * @private
-     */
-    async _rotateKeyImpl() {
-        try {
             logger.info("E2E: Rotating my keys");
-            await this._olmAdapter._rotateKeyImpl();
-            const { olmKey, pqKey, index } = this._olmAdapter.getCurrentKeys();
-            this.setKey(olmKey, pqKey, index);
-        } catch (error) {
-            logger.error(`E2E: Key rotation failed: ${error}`);
+            this._olmAdapter._rotateKeyImpl();
         }
     }
 
@@ -309,22 +287,6 @@ export class ManagedKeyHandler extends Listenable {
      */
     setKey(olmKey: Uint8Array, pqKey: Uint8Array, index: number) {
         this.e2eeCtx.setKey(this.conference.myUserId(), olmKey, pqKey, index);
-    }
-
-    /**
-     * Advances the current key by using ratcheting.
-     *
-     * @private
-     */
-    async _ratchetKeyImpl() {
-        try {
-            logger.info("E2E: Ratchetting my keys.");
-            await this._olmAdapter._ratchetKeyImpl();
-            const { olmKey, pqKey, index } = this._olmAdapter.getCurrentKeys();
-            this.setKey(olmKey, pqKey, index);
-        } catch (error) {
-            logger.error(`E2E: Key ratcheting failed: ${error}`);
-        }
     }
 
     /**
