@@ -5,8 +5,9 @@ import {
     decryptKeyInfoPQ,
     encryptKeyInfoPQ,
     generateKey,
-    decapsulateAndDeriveOneKey,
 } from "./crypto-utils";
+
+import { deriveEncryptionKey } from "./crypto-workers";
 
 describe("Test Kyber KEM", () => {
     it("key encapsulation and decapsulation should work", async () => {
@@ -62,20 +63,19 @@ describe("Test Kyber KEM", () => {
         const { encapsulatedBase64: ciphertext2, sharedSecret: secret2 } =
             await encapsulateSecret(publicKey1);
 
-        const key2 = await decapsulateAndDeriveOneKey(
+        const decapsulatedSecret2 = await decapsulateSecret(
             ciphertext1,
             privateKey2,
-            secret2,
-            true,
         );
 
+        const key2 = await deriveEncryptionKey(secret2, decapsulatedSecret2);
+
         // pq_session_ack user 1 derives key1
-        const key1 = await decapsulateAndDeriveOneKey(
+        const decapsulatedSecret1 = await decapsulateSecret(
             ciphertext2,
             privateKey1,
-            secret1,
-            false,
         );
+        const key1 = await deriveEncryptionKey(decapsulatedSecret1, secret1);
 
         expect(key1).toEqual(key2);
     });
