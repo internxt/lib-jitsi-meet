@@ -14,7 +14,6 @@ import { OlmAdapter } from "./OlmAdapter";
 import JitsiConference from "../../JitsiConference";
 import E2EEContext from "./E2EEContext";
 import RTCEvents from "../../service/RTC/RTCEvents";
-import JitsiParticipant from "../../JitsiParticipant";
 
 const logger = getLogger(__filename);
 
@@ -79,8 +78,8 @@ export class ManagedKeyHandler extends Listenable {
         );
 
         this._olmAdapter.on(
-            OlmAdapter.events.PARTICIPANT_KEYS_CREATED,
-            this._onParticipantKeysCreated.bind(this),
+            OlmAdapter.events.PARTICIPANT_KEYS_COMMITMENT,
+            this._onParticipantKeysCommitted.bind(this),
         );
 
         this._olmAdapter.on(
@@ -285,19 +284,10 @@ export class ManagedKeyHandler extends Listenable {
      *
      * @param {string} id - The participant ID.
      * @param {Uint8Array} commitment - The commitment to participant's identity keys.
-     * @param {Uint8Array} olmKey - The new olm key of the participant.
-     * @param {Uint8Array} pqKey - The new pq key of the participant.
-     * @param {number} index - The new key's index.
      * @private
      */
-    _onParticipantKeysCreated(
-        id: string, 
-        commitment: Uint8Array,
-        olmKey: Uint8Array,
-        pqKey: Uint8Array,
-        index: number,
-    ) {
-        this.e2eeCtx.createKeys(id, commitment, olmKey, pqKey, index);
+    _onParticipantKeysCommitted(id: string, commitment: Uint8Array) {
+        this.e2eeCtx.setKeysCommitment(id, commitment);
     }
 
     /**
@@ -308,20 +298,5 @@ export class ManagedKeyHandler extends Listenable {
      */
     _onParticipantKeyRatchet(id: string) {
         this.e2eeCtx.ratchetKeys(id);
-    }
-
-    /**
-     * Handles the SAS ready event.
-     *
-     * @param {string} pId - The participant ID.
-     * @param {Uint8Array} sas - The bytes from sas.generate_bytes..
-     * @private
-     */
-    _onParticipantSasReady(pId: string, sas: Uint8Array) {
-        this.conference.eventEmitter.emit(
-            JitsiConferenceEvents.E2EE_VERIFICATION_READY,
-            pId,
-            sas,
-        );
     }
 }

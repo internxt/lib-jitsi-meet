@@ -1,6 +1,6 @@
 /* eslint-disable no-bitwise */
-import { Context } from './Context';
-import { ratchetKey } from './crypto-workers';
+import { Context } from "./Context";
+import { ratchetKey } from "./crypto-workers";
 
 /*
 function hexdump(buffer) {
@@ -25,8 +25,10 @@ function hexdump(buffer) {
  * - ratcheting in decodeFunction
  * etc
  */
-const audioBytes = [ 0xde, 0xad, 0xbe, 0xef ];
-const videoBytes = [ 0xde, 0xad, 0xbe, 0xef, 0xde, 0xad, 0xbe, 0xef, 0xde, 0xad, 0xbe, 0xef ];
+const audioBytes = [0xde, 0xad, 0xbe, 0xef];
+const videoBytes = [
+    0xde, 0xad, 0xbe, 0xef, 0xde, 0xad, 0xbe, 0xef, 0xde, 0xad, 0xbe, 0xef,
+];
 
 /**
  * generates a dummy audio frame
@@ -37,7 +39,7 @@ function makeAudioFrame() {
         type: undefined, // type is undefined for audio frames.
         getMetadata: () => {
             return { synchronizationSource: 123 };
-        }
+        },
     };
 }
 
@@ -47,43 +49,42 @@ function makeAudioFrame() {
 function makeVideoFrame() {
     return {
         data: new Uint8Array(videoBytes).buffer,
-        type: 'key',
+        type: "key",
         getMetadata: () => {
             return { synchronizationSource: 321 };
-        }
+        },
     };
 }
 
-
-describe('E2EE Context', () => {
+describe("E2EE Context", () => {
     let sender;
     let sendController;
     let receiver;
     let receiveController;
     const key = new Uint8Array([
-        1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+        1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0,
     ]);
 
     const pqKey = new Uint8Array([
-        2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+        2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0,
     ]);
 
     beforeEach(() => {
-        sender = new Context('sender', 'commitment_to_idKeys_sender');
-        receiver = new Context('receiver', 'commitment_to_idKeys_reciver');
+        sender = new Context("sender", "commitment_to_idKeys_sender");
+        receiver = new Context("receiver", "commitment_to_idKeys_reciver");
     });
 
-    describe('encode function', () => {
+    describe("encode function", () => {
         beforeEach(async () => {
             await sender.setKey(key, pqKey, 0);
             await receiver.setKey(key, pqKey, 0);
         });
 
-        it('with an audio frame', done => {
+        it("with an audio frame", (done) => {
             sendController = {
-                enqueue: encodedFrame => {
+                enqueue: (encodedFrame) => {
                     const data = new Uint8Array(encodedFrame.data);
 
                     // An audio frame will have an overhead of 30 bytes and key size:
@@ -92,15 +93,15 @@ describe('E2EE Context', () => {
 
                     // TODO: provide test vector.
                     done();
-                }
+                },
             };
 
             sender.encodeFunction(makeAudioFrame(), sendController);
         });
 
-        it('with a video frame', done => {
+        it("with a video frame", (done) => {
             sendController = {
-                enqueue: encodedFrame => {
+                enqueue: (encodedFrame) => {
                     const data = new Uint8Array(encodedFrame.data);
 
                     // A video frame will have an overhead of 30 bytes and key size:
@@ -109,61 +110,63 @@ describe('E2EE Context', () => {
 
                     // TODO: provide test vector.
                     done();
-                }
+                },
             };
 
             sender.encodeFunction(makeVideoFrame(), sendController);
         });
     });
 
-    describe('end-to-end test', () => {
+    describe("end-to-end test", () => {
         beforeEach(async () => {
             await sender.setKey(key, pqKey, 0);
             await receiver.setKey(key, pqKey, 0);
             sendController = {
-                enqueue: async encodedFrame => {
-                    await receiver.decodeFunction(encodedFrame, receiveController);
-
-                }
+                enqueue: async (encodedFrame) => {
+                    await receiver.decodeFunction(
+                        encodedFrame,
+                        receiveController,
+                    );
+                },
             };
         });
 
-        it('with an audio frame', done => {
+        it("with an audio frame", (done) => {
             receiveController = {
-                enqueue: encodedFrame => {
+                enqueue: (encodedFrame) => {
                     const data = new Uint8Array(encodedFrame.data);
 
                     expect(data.byteLength).toEqual(audioBytes.length);
                     expect(Array.from(data)).toEqual(audioBytes);
                     done();
-                }
+                },
             };
             sender.encodeFunction(makeAudioFrame(), sendController);
         });
 
-        it('with a video frame', done => {
+        it("with a video frame", (done) => {
             receiveController = {
-                enqueue: encodedFrame => {
+                enqueue: (encodedFrame) => {
                     const data = new Uint8Array(encodedFrame.data);
 
                     expect(data.byteLength).toEqual(videoBytes.length);
                     expect(Array.from(data)).toEqual(videoBytes);
                     done();
-                }
+                },
             };
 
             sender.encodeFunction(makeVideoFrame(), sendController);
         });
 
-        it('the receiver ratchets forward', done => {
+        it("the receiver ratchets forward", (done) => {
             receiveController = {
-                enqueue: encodedFrame => {
+                enqueue: (encodedFrame) => {
                     const data = new Uint8Array(encodedFrame.data);
 
                     expect(data.byteLength).toEqual(audioBytes.length);
                     expect(Array.from(data)).toEqual(audioBytes);
                     done();
-                }
+                },
             };
 
             const encodeFunction = async () => {

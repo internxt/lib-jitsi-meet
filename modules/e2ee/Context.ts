@@ -51,11 +51,11 @@ export class Context {
     /**
      * @param {string} id
      */
-    constructor(id: string, comitment: string,) {
+    constructor(id: string) {
         this._cryptoKeyRing = new Array(KEYRING_SIZE);
         this._sendCounts = new Map();
         this._participantId = id;
-        this._keyCommtiment = comitment;
+        this._keyCommtiment = "";
         this._hash = "";
         this._currentKeyIndex = -1;
     }
@@ -66,11 +66,41 @@ export class Context {
      */
     async ratchetKeys() {
         const currentIndex = this._currentKeyIndex;
-        const { materialOlm, materialPQ } = this._cryptoKeyRing[currentIndex];
-        const newMaterialOlm = await ratchetKey(materialOlm);
-        const newMaterialPQ = await ratchetKey(materialPQ);
-        console.info(`E2E: Ratchet keys of participant ${this._participantId}`);
-        this.setKey(newMaterialOlm, newMaterialPQ, currentIndex + 1);
+        console.info(
+            `E2E: Attempt to ratchet keys of participant ${this._participantId}, index is ${currentIndex}`,
+        );
+        if (currentIndex >= 0) {
+            const { materialOlm, materialPQ } =
+                this._cryptoKeyRing[currentIndex];
+            const newMaterialOlm = await ratchetKey(materialOlm);
+            const newMaterialPQ = await ratchetKey(materialPQ);
+            console.info(
+                `E2E: Ratchet keys of participant ${this._participantId}`,
+            );
+            this.setKey(newMaterialOlm, newMaterialPQ, currentIndex + 1);
+        }
+    }
+
+    /**
+     * Sets key commitment
+     * @private
+     */
+    async setKeyCommitment(commitment: string) {
+        this._keyCommtiment = commitment;
+        console.info(
+            `E2E: Set commitment to idenity keys of a participant ${this._participantId}`,
+        );
+        const currentIndex = this._currentKeyIndex;
+        if (currentIndex >= 0 && !this._hash) {
+            const { materialOlm, materialPQ } =
+                this._cryptoKeyRing[currentIndex];
+            this._hash = await computeHash(
+                materialOlm,
+                materialPQ,
+                this._keyCommtiment,
+                this._currentKeyIndex,
+            );
+        }
     }
 
     /**
@@ -95,12 +125,13 @@ export class Context {
         };
         this._currentKeyIndex = index % KEYRING_SIZE;
         this._cryptoKeyRing[this._currentKeyIndex] = newKey;
-        this._hash = await computeHash(
-            olmKey,
-            pqKey,
-            this._keyCommtiment,
-            this._currentKeyIndex,
-        );
+        if (this._keyCommtiment)
+            this._hash = await computeHash(
+                olmKey,
+                pqKey,
+                this._keyCommtiment,
+                this._currentKeyIndex,
+            );
         console.info(`E2E: Set keys for ${this._participantId}`);
     }
 

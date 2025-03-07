@@ -37,6 +37,7 @@ const logger = getLogger(__filename);
  */
 export default class E2EEcontext {
     private _worker: Worker;
+    private _sas: string[][];
     /**
      * Build a new E2EE context instance, which will be used in a given conference.
      */
@@ -74,6 +75,8 @@ export default class E2EEcontext {
         this._worker.onerror = (e) => logger.error(e);
 
         this._worker.onmessage = this.updateSAS.bind(this);
+
+        this._sas = [];
     }
 
     /**
@@ -200,27 +203,15 @@ export default class E2EEcontext {
     }
 
     /**
-     * SCreates keys for the specified participant.
+     * Sets keys commitment for the specified participant.
      *
      * @param {string} participantId - The ID of the participant who's key we are setting.
      * @param {Uint8Array} commitment - The commitment to the participant's identity keys.
-     * @param {Uint8Array} olmKey - The olm key for the given participant.
-     * @param {Uint8Array} pqKey - The pq key for the given participant.
-     * @param {number} keyIndex - The key index.
      */
-    createKeys(
-        participantId: string, 
-        commitment: Uint8Array,
-        olmKey: Uint8Array,
-        pqKey: Uint8Array,
-        index: number,
-    ) {
+    setKeysCommitment(participantId: string, commitment: Uint8Array) {
         this._worker.postMessage({
-            operation: "createKeys",
+            operation: "setKeysCommitment",
             commitment,
-            olmKey, 
-            pqKey, 
-            index,
             participantId,
         });
     }
@@ -243,8 +234,8 @@ export default class E2EEcontext {
     private async updateSAS(event: MessageEvent) {
         if (event.data.operation === "updateSAS") {
             const sasStr = event.data.sas;
-            const sas = await generateEmojiSas(sasStr);
-            logger.info(`E2E: worker response: ${sas}`);
+            this._sas = await generateEmojiSas(sasStr);
+            logger.info(`E2E: worker response: ${this._sas}`);
         }
     }
 }
