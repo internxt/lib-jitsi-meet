@@ -200,15 +200,27 @@ export default class E2EEcontext {
     }
 
     /**
-     * Set the commitment to keys for the specified participant.
+     * SCreates keys for the specified participant.
      *
      * @param {string} participantId - The ID of the participant who's key we are setting.
-     * @param {Uint8Array} commitment - The commitment to the participant's keys.
+     * @param {Uint8Array} commitment - The commitment to the participant's identity keys.
+     * @param {Uint8Array} olmKey - The olm key for the given participant.
+     * @param {Uint8Array} pqKey - The pq key for the given participant.
+     * @param {number} keyIndex - The key index.
      */
-    setKeyCommitment(participantId: string, commitment: Uint8Array) {
+    createKeys(
+        participantId: string, 
+        commitment: Uint8Array,
+        olmKey: Uint8Array,
+        pqKey: Uint8Array,
+        index: number,
+    ) {
         this._worker.postMessage({
-            operation: "setKeyCommitment",
+            operation: "createKeys",
             commitment,
+            olmKey, 
+            pqKey, 
+            index,
             participantId,
         });
     }
@@ -222,19 +234,6 @@ export default class E2EEcontext {
         this._worker.postMessage({
             operation: "ratchetKeys",
             participantId,
-        });
-    }
-
-    /**
-     * Request to ratchet keys for the specified participant.
-     *
-     * @param {string} participantId - The ID of the participant
-     */
-    setDecryptionFlag(participantId: string, decryptionFlag: boolean) {
-        this._worker.postMessage({
-            operation: "setDecryptionFlag",
-            participantId,
-            decryptionFlag,
         });
     }
 

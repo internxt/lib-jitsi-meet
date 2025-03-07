@@ -71,8 +71,8 @@ describe('E2EE Context', () => {
     ]);
 
     beforeEach(() => {
-        sender = new Context('sender');
-        receiver = new Context('receiver');
+        sender = new Context('sender', 'commitment_to_idKeys_sender');
+        receiver = new Context('receiver', 'commitment_to_idKeys_reciver');
     });
 
     describe('encode function', () => {
@@ -120,8 +120,6 @@ describe('E2EE Context', () => {
         beforeEach(async () => {
             await sender.setKey(key, pqKey, 0);
             await receiver.setKey(key, pqKey, 0);
-            receiver.setDecryptionFlag(true);
-            sender.setDecryptionFlag(true);
             sendController = {
                 enqueue: async encodedFrame => {
                     await receiver.decodeFunction(encodedFrame, receiveController);

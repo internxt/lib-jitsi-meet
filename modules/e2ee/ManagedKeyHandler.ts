@@ -39,11 +39,6 @@ export class ManagedKeyHandler extends Listenable {
         this.enabled = false;
 
         this.conference.on(
-            JitsiConferenceEvents.PARTICIPANT_PROPERTY_CHANGED,
-            this._onParticipantDataDecryption.bind(this),
-        );
-
-        this.conference.on(
             JitsiConferenceEvents.USER_JOINED,
             this._onParticipantJoined.bind(this),
         );
@@ -84,8 +79,8 @@ export class ManagedKeyHandler extends Listenable {
         );
 
         this._olmAdapter.on(
-            OlmAdapter.events.PARTICIPANT_KEYS_COMMITMENT,
-            this._onParticipantKeysCommitment.bind(this),
+            OlmAdapter.events.PARTICIPANT_KEYS_CREATED,
+            this._onParticipantKeysCreated.bind(this),
         );
 
         this._olmAdapter.on(
@@ -118,7 +113,6 @@ export class ManagedKeyHandler extends Listenable {
             logger.info("E2E: Enabling e2ee");
 
             this.enabled = true;
-            this._olmAdapter.setMyKeys();
             await this._olmAdapter.initSessions();
         }
 
@@ -131,27 +125,6 @@ export class ManagedKeyHandler extends Listenable {
 
         this.conference.setLocalParticipantProperty("e2ee.enabled", enabled);
         this.conference._restartMediaSessions();
-    }
-
-    /**
-     * Set the flag indicating if participant frames have to be decrypted.
-     * @param {JitsiParticipant} participant - The participant.
-     * @param {string} name - The name of the property that changed.
-     * @param {*} oldValue - The property's previous value.
-     * @param {*} newValue - The property's new value.
-     * @private
-     */
-    async _onParticipantDataDecryption(
-        participant: JitsiParticipant,
-        name: string,
-        oldValue: any,
-        newValue: any,
-    ) {
-        if (newValue !== oldValue && name == "e2ee.enabled") {
-            if (newValue)
-                this.e2eeCtx.setDecryptionFlag(participant.getId(), true);
-            else this.e2eeCtx.setDecryptionFlag(participant.getId(), false);
-        }
     }
 
     /**
@@ -311,11 +284,20 @@ export class ManagedKeyHandler extends Listenable {
      * Updates a participant's key.
      *
      * @param {string} id - The participant ID.
-     * @param {Uint8Array} commitment - The commitment to participant's keys.
+     * @param {Uint8Array} commitment - The commitment to participant's identity keys.
+     * @param {Uint8Array} olmKey - The new olm key of the participant.
+     * @param {Uint8Array} pqKey - The new pq key of the participant.
+     * @param {number} index - The new key's index.
      * @private
      */
-    _onParticipantKeysCommitment(id: string, commitment: Uint8Array) {
-        this.e2eeCtx.setKeyCommitment(id, commitment);
+    _onParticipantKeysCreated(
+        id: string, 
+        commitment: Uint8Array,
+        olmKey: Uint8Array,
+        pqKey: Uint8Array,
+        index: number,
+    ) {
+        this.e2eeCtx.createKeys(id, commitment, olmKey, pqKey, index);
     }
 
     /**

@@ -11,10 +11,7 @@ const contexts = new Map<string, Context>(); // Map participant id => context
  * @param {string} participantId - The participant whose context we need.
  * @returns {Context} The context.
  */
-function getParticipantContext(participantId: string): Context {
-    if (!contexts.has(participantId)) {
-        contexts.set(participantId, new Context(participantId));
-    }
+function getParticipantContext(participantId: string): Context | undefined {
     return contexts.get(participantId);
 }
 
@@ -69,26 +66,29 @@ onmessage = async (event) => {
     if (operation === "encode" || operation === "decode") {
         const { readableStream, writableStream, participantId } = event.data;
         const context = getParticipantContext(participantId);
-
-        handleTransform(context, operation, readableStream, writableStream);
+        if (context) handleTransform(context, operation, readableStream, writableStream);
+        else console.error(`E2E: Attempted ${operation} but no context found for participantId: ${participantId}`);
     } else if (operation === "setKey") {
         const { participantId, olmKey, pqKey, index } = event.data;
         const context = getParticipantContext(participantId);
+        if (context) {
+            await context.setKey(olmKey, pqKey, index);
+            const sas = getCurrentSASMaterial();
+            self.postMessage({ operation: "updateSAS", sas });
+        } else console.error(`E2E: Attempted ${operation} but no context found for participantId: ${participantId}`);
+    } else if (operation === "createKeys") {
+        const { participantId, commitment, olmKey, pqKey, index} = event.data;
+        const context = new Context(participantId, commitment);
+        contexts.set(participantId, context);
+        console.info(`E2E: Created keys for ${participantId}!`);
         await context.setKey(olmKey, pqKey, index);
         const sas = getCurrentSASMaterial();
         self.postMessage({ operation: "updateSAS", sas });
-    } else if (operation === "setKeyCommitment") {
-        const { participantId, commitment } = event.data;
-        const context = getParticipantContext(participantId);
-        await context.setKeyCommitment(commitment);
     } else if (operation === "ratchetKeys") {
         const { participantId } = event.data;
         const context = getParticipantContext(participantId);
-        await context.ratchetKeys();
-    } else if (operation === "setDecryptionFlag") {
-        const { participantId, decryptionFlag } = event.data;
-        const context = getParticipantContext(participantId);
-        context.setDecryptionFlag(decryptionFlag);
+        if (context) await context.ratchetKeys();
+        else console.error(`E2E: Attempted ${operation} but no context found for participantId: ${participantId}`);
     } else if (operation === "cleanup") {
         const { participantId } = event.data;
         contexts.delete(participantId);
@@ -107,7 +107,7 @@ if (self.RTCTransformEvent) {
         const { operation, participantId } = transformer.options;
         const context = getParticipantContext(participantId);
 
-        handleTransform(
+        if (context) handleTransform(
             context,
             operation,
             transformer.readable,

@@ -43,7 +43,6 @@ type KeyMaterial = {
  */
 export class Context {
     private _participantId: string;
-    private _framesEncrypted: boolean;
     private _cryptoKeyRing: KeyMaterial[];
     private _currentKeyIndex: number;
     private _sendCounts: Map<number, number>;
@@ -52,28 +51,13 @@ export class Context {
     /**
      * @param {string} id
      */
-    constructor(id: string) {
-        // An array (ring) of keys that we use for sending and receiving.
+    constructor(id: string, comitment: string,) {
         this._cryptoKeyRing = new Array(KEYRING_SIZE);
-        // A pointer to the currently used key.
-        this._currentKeyIndex = -1;
         this._sendCounts = new Map();
         this._participantId = id;
-        this._framesEncrypted = false;
+        this._keyCommtiment = comitment;
         this._hash = "";
-        this._keyCommtiment = "";
-    }
-
-    /**
-     * Set decryption flag.
-     * @private
-     */
-    setDecryptionFlag(decryptionFlag: boolean) {
-        console.info(
-            `E2E: Decryption flag is ${decryptionFlag} for participant ${this._participantId}`,
-        );
-        this._framesEncrypted = decryptionFlag;
-        if (!decryptionFlag && !printEncStart) printEncStart = true;
+        this._currentKeyIndex = -1;
     }
 
     /**
@@ -109,7 +93,7 @@ export class Context {
             materialPQ: pqKey,
             encryptionKey,
         };
-        this._currentKeyIndex = index % this._cryptoKeyRing.length;
+        this._currentKeyIndex = index % KEYRING_SIZE;
         this._cryptoKeyRing[this._currentKeyIndex] = newKey;
         this._hash = await computeHash(
             olmKey,
@@ -118,23 +102,6 @@ export class Context {
             this._currentKeyIndex,
         );
         console.info(`E2E: Set keys for ${this._participantId}`);
-    }
-
-    /**
-     * Sets commitment to the participant's keys.
-     * @param {string} commitment The commitment to participant's keys.
-     */
-    async setKeyCommitment(commitment: string) {
-        console.info(`E2E: Set keys commitment for ${this._participantId}.`);
-        this._keyCommtiment = commitment;
-        const currentIndex = this._currentKeyIndex;
-        const { materialOlm, materialPQ } = this._cryptoKeyRing[currentIndex];
-        this._hash = await computeHash(
-            materialOlm,
-            materialPQ,
-            this._keyCommtiment,
-            this._currentKeyIndex,
-        );
     }
 
     /**
@@ -278,7 +245,7 @@ export class Context {
     ) {
         const data = new Uint8Array(encodedFrame.data);
         const keyIndex = data[encodedFrame.data.byteLength - 1];
-        if (this._cryptoKeyRing[keyIndex] && this._framesEncrypted) {
+        if (this._cryptoKeyRing[keyIndex]) {
             const decodedFrame = await this._decryptFrame(
                 encodedFrame,
                 keyIndex,
