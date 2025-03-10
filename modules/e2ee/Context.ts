@@ -66,9 +66,6 @@ export class Context {
      */
     async ratchetKeys() {
         const currentIndex = this._currentKeyIndex;
-        console.info(
-            `E2E: Attempt to ratchet keys of participant ${this._participantId}, index is ${currentIndex}`,
-        );
         if (currentIndex >= 0) {
             const { materialOlm, materialPQ } =
                 this._cryptoKeyRing[currentIndex];
@@ -132,7 +129,9 @@ export class Context {
                 this._keyCommtiment,
                 this._currentKeyIndex,
             );
-        console.info(`E2E: Set keys for ${this._participantId}`);
+        console.info(
+            `E2E: Set keys for ${this._participantId}, index is ${this._currentKeyIndex} and hash is ${this._hash}`,
+        );
     }
 
     /**

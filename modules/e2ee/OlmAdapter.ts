@@ -229,7 +229,7 @@ export class OlmAdapter extends Listenable {
     async sendKeyInfoToParticipant(participant: JitsiParticipant) {
         const pId = participant.getId();
         const olmData = this._getParticipantOlmData(participant);
-        if (olmData.status === PROTOCOL_STATUS.DONE) {
+        if (olmData.session_for_sending && olmData.pqSessionKey) {
             try {
                 const pqCiphertextBase64 = await encryptKeyInfoPQ(
                     olmData.pqSessionKey,
@@ -249,12 +249,6 @@ export class OlmAdapter extends Listenable {
                     `Sending KEY_INFO failed for participant ${pId}: ${error}`,
                 );
             }
-        } else {
-            this._sendStatusError(
-                pId,
-                olmData.status,
-                OLM_MESSAGE_TYPES.KEY_INFO,
-            );
         }
     }
 
@@ -310,9 +304,6 @@ export class OlmAdapter extends Listenable {
             this.initMyKeys();
             const localParticipantId = this.myId;
             const participants = this._conf.getParticipants();
-            logger.info(
-                `E2E: List of all participants:  ${participants.map((p) => p.getId())}`,
-            );
             const list = participants.filter(
                 (participant) =>
                     participant.hasFeature(FEATURE_E2EE) &&
@@ -380,8 +371,15 @@ export class OlmAdapter extends Listenable {
                 this._mediaKeyIndex,
             );
             for (const participant of this._conf.getParticipants()) {
-                const pId = participant.getId();
-                this.emit(OlmAdapterEvents.PARTICIPANT_KEY_RATCHET, pId);
+                const olmData = this._getParticipantOlmData(participant);
+
+                if (olmData.status == PROTOCOL_STATUS.DONE) {
+                    const pId = participant.getId();
+                    this.emit(OlmAdapterEvents.PARTICIPANT_KEY_RATCHET, pId);
+                }
+
+                if (olmData.status != PROTOCOL_STATUS.DONE)
+                    await this.sendKeyInfoToParticipant(participant);
             }
         } catch (error) {
             throw new Error(`Key ratchet failed: ${error}`);
@@ -695,7 +693,7 @@ export class OlmAdapter extends Listenable {
                 },
             },
         };
-        logger.info(`E2E: Sending KEY_INFO to ${pId}`);
+        logger.info(`E2E: Sending KEY_INFO to the participant ${pId}`);
         this._sendMessage(info, pId);
     }
 
@@ -954,7 +952,7 @@ export class OlmAdapter extends Listenable {
                     break;
                 }
                 case OLM_MESSAGE_TYPES.KEY_INFO: {
-                    if (olmData.status === PROTOCOL_STATUS.DONE) {
+                    if (olmData.session_for_reciving && olmData.pqSessionKey) {
                         const { ciphertext, pqCiphertext } = msg.data;
                         const { key, index } = this._decryptKeyInfo(
                             olmData.session_for_reciving,
@@ -965,7 +963,11 @@ export class OlmAdapter extends Listenable {
                             olmData.pqSessionKey,
                         );
                         this._onKeysUpdated(pId, key, pqKey, index);
-                    } else this._sendStatusError(pId, msg.type, olmData.status);
+                    } else
+                        this._sendError(
+                            pId,
+                            `Processing ${msg.type} failed for ${pId}: Session keys are not established yet`,
+                        );
                     break;
                 }
             }
