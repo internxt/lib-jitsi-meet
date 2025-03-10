@@ -1,10 +1,10 @@
-/* global BigInt */
 import {
     deriveEncryptionKey,
     ratchetKey,
     encryptData,
     decryptData,
-} from "./crypto-utils";
+    computeHash,
+} from "./crypto-workers";
 
 // We use a ringbuffer of keys so we can change them and still decode packets that were
 // encrypted with an old key. We use a size of 16 which corresponds to the four bits
@@ -21,10 +21,9 @@ const KEYRING_SIZE = 16;
 //
 // For audio (where frame.type is not set) we do not encrypt the opus TOC byte:
 //   https://tools.ietf.org/html/rfc6716#section-3.1
-const UNENCRYPTED_BYTES = {
+const VIDEO_UNENCRYPTED_BYTES = {
     key: 10,
     delta: 3,
-    undefined: 1, // frame.type is not set on audio
 };
 let printEncStart = true;
 
@@ -44,33 +43,21 @@ type KeyMaterial = {
  */
 export class Context {
     private _participantId: string;
-    private _framesEncrypted: boolean;
     private _cryptoKeyRing: KeyMaterial[];
     private _currentKeyIndex: number;
     private _sendCounts: Map<number, number>;
+    private _hash: string;
+    private _keyCommtiment: string;
     /**
      * @param {string} id
      */
     constructor(id: string) {
-        // An array (ring) of keys that we use for sending and receiving.
         this._cryptoKeyRing = new Array(KEYRING_SIZE);
-        // A pointer to the currently used key.
-        this._currentKeyIndex = -1;
         this._sendCounts = new Map();
         this._participantId = id;
-        this._framesEncrypted = false;
-    }
-
-    /**
-     * Set decryption flag.
-     * @private
-     */
-    setDecryptionFlag(decryptionFlag: boolean) {
-        console.info(
-            `E2E: Decryption flag is ${decryptionFlag} for participant ${this._participantId}`,
-        );
-        this._framesEncrypted = decryptionFlag;
-        if (!decryptionFlag && !printEncStart) printEncStart = true;
+        this._keyCommtiment = "";
+        this._hash = "";
+        this._currentKeyIndex = -1;
     }
 
     /**
@@ -79,11 +66,45 @@ export class Context {
      */
     async ratchetKeys() {
         const currentIndex = this._currentKeyIndex;
-        const { materialOlm, materialPQ } = this._cryptoKeyRing[currentIndex];
-        const newMaterialOlm = await ratchetKey(materialOlm);
-        const newMaterialPQ = await ratchetKey(materialPQ);
-        console.info(`E2E: Ratchet keys of ${this._participantId}`);
-        this.setKey(newMaterialOlm, newMaterialPQ, currentIndex + 1);
+        if (currentIndex >= 0) {
+            const { materialOlm, materialPQ } =
+                this._cryptoKeyRing[currentIndex];
+            const newMaterialOlm = await ratchetKey(materialOlm);
+            const newMaterialPQ = await ratchetKey(materialPQ);
+            console.info(
+                `E2E: Ratchet keys of participant ${this._participantId}`,
+            );
+            this.setKey(newMaterialOlm, newMaterialPQ, currentIndex + 1);
+        }
+    }
+
+    /**
+     * Sets key commitment
+     * @private
+     */
+    async setKeyCommitment(commitment: string) {
+        this._keyCommtiment = commitment;
+        console.info(
+            `E2E: Set commitment to idenity keys of a participant ${this._participantId}`,
+        );
+        const currentIndex = this._currentKeyIndex;
+        if (currentIndex >= 0 && !this._hash) {
+            const { materialOlm, materialPQ } =
+                this._cryptoKeyRing[currentIndex];
+            this._hash = await computeHash(
+                materialOlm,
+                materialPQ,
+                this._keyCommtiment,
+                this._currentKeyIndex,
+            );
+        }
+    }
+
+    /**
+     * Returns the key hash.
+     */
+    getHash() {
+        return this._hash;
     }
 
     /**
@@ -93,15 +114,24 @@ export class Context {
      * @param {number} index The keys index.
      */
     async setKey(olmKey: Uint8Array, pqKey: Uint8Array, index: number) {
-        const newEncryptionKey = await deriveEncryptionKey(olmKey, pqKey);
+        const encryptionKey = await deriveEncryptionKey(olmKey, pqKey);
         const newKey: KeyMaterial = {
             materialOlm: olmKey,
             materialPQ: pqKey,
-            encryptionKey: newEncryptionKey,
+            encryptionKey,
         };
-        this._currentKeyIndex = index % this._cryptoKeyRing.length;
+        this._currentKeyIndex = index % KEYRING_SIZE;
         this._cryptoKeyRing[this._currentKeyIndex] = newKey;
-        console.info(`E2E: Set keys for ${this._participantId}`);
+        if (this._keyCommtiment)
+            this._hash = await computeHash(
+                olmKey,
+                pqKey,
+                this._keyCommtiment,
+                this._currentKeyIndex,
+            );
+        console.info(
+            `E2E: Set keys for ${this._participantId}, index is ${this._currentKeyIndex} and hash is ${this._hash}`,
+        );
     }
 
     /**
@@ -112,7 +142,7 @@ export class Context {
      *
      */
     async encodeFunction(
-        encodedFrame: RTCEncodedVideoFrame|RTCEncodedAudioFrame,
+        encodedFrame: RTCEncodedVideoFrame | RTCEncodedAudioFrame,
         controller: TransformStreamDefaultController,
     ) {
         const keyIndex = this._currentKeyIndex;
@@ -151,18 +181,27 @@ export class Context {
      * 8) Append a single byte for the key identifier.
      * 9) Enqueue the encrypted frame for sending.
      */
-    async _encryptFrame(encodedFrame, keyIndex: number) {
+    async _encryptFrame(
+        encodedFrame: RTCEncodedVideoFrame | RTCEncodedAudioFrame,
+        keyIndex: number,
+    ) {
         const key: CryptoKey = this._cryptoKeyRing[keyIndex].encryptionKey;
         try {
             const iv = this._makeIV(
-                encodedFrame.getMetadata().synchronizationSource,
+                encodedFrame.getMetadata().synchronizationSource ?? 0,
                 encodedFrame.timestamp,
             );
             // Thіs is not encrypted and contains the VP8 payload descriptor or the Opus TOC byte.
+            let unencrypted_bytes_number: number = 1; // for audio frame
+            if (encodedFrame instanceof RTCEncodedVideoFrame)
+                unencrypted_bytes_number =
+                    VIDEO_UNENCRYPTED_BYTES[
+                        encodedFrame.type as keyof typeof VIDEO_UNENCRYPTED_BYTES
+                    ];
             const frameHeader = new Uint8Array(
                 encodedFrame.data,
                 0,
-                UNENCRYPTED_BYTES[encodedFrame.type],
+                unencrypted_bytes_number,
             );
 
             // Frame trailer contains the R|IV_LENGTH and key index
@@ -178,10 +217,9 @@ export class Context {
             // ---------+-------------------------+-+---------+----
             // payload  |IV...(length = IV_LENGTH)|R|IV_LENGTH|KID |
             // ---------+-------------------------+-+---------+----
-
             const data: Uint8Array = new Uint8Array(
                 encodedFrame.data,
-                UNENCRYPTED_BYTES[encodedFrame.type],
+                unencrypted_bytes_number,
             );
             const additionalData = new Uint8Array(
                 encodedFrame.data,
@@ -231,10 +269,13 @@ export class Context {
      * @param {RTCEncodedVideoFrame|RTCEncodedAudioFrame} encodedFrame - Encoded video frame.
      * @param {TransformStreamDefaultController} controller - TransportStreamController.
      */
-    async decodeFunction(encodedFrame: RTCEncodedVideoFrame|RTCEncodedAudioFrame, controller: TransformStreamDefaultController) {
+    async decodeFunction(
+        encodedFrame: RTCEncodedVideoFrame | RTCEncodedAudioFrame,
+        controller: TransformStreamDefaultController,
+    ) {
         const data = new Uint8Array(encodedFrame.data);
         const keyIndex = data[encodedFrame.data.byteLength - 1];
-        if (this._cryptoKeyRing[keyIndex] && this._framesEncrypted) {
+        if (this._cryptoKeyRing[keyIndex]) {
             const decodedFrame = await this._decryptFrame(
                 encodedFrame,
                 keyIndex,
@@ -254,7 +295,10 @@ export class Context {
      * @returns {Promise<RTCEncodedVideoFrame|RTCEncodedAudioFrame>} - The decrypted frame.
      * @private
      */
-    async _decryptFrame(encodedFrame, keyIndex: number) {
+    async _decryptFrame(
+        encodedFrame: RTCEncodedVideoFrame | RTCEncodedAudioFrame,
+        keyIndex: number,
+    ) {
         const { encryptionKey } = this._cryptoKeyRing[keyIndex];
 
         // Construct frame trailer. Similar to the frame header described in
@@ -266,11 +310,13 @@ export class Context {
         // ---------+-------------------------+-+---------+----
 
         try {
-            const frameHeader = new Uint8Array(
-                encodedFrame.data,
-                0,
-                UNENCRYPTED_BYTES[encodedFrame.type],
-            );
+            let ind = 1;
+            if (encodedFrame instanceof RTCEncodedVideoFrame)
+                ind =
+                    VIDEO_UNENCRYPTED_BYTES[
+                        encodedFrame.type as keyof typeof VIDEO_UNENCRYPTED_BYTES
+                    ];
+            const frameHeader = new Uint8Array(encodedFrame.data, 0, ind);
             const frameTrailer = new Uint8Array(
                 encodedFrame.data,
                 encodedFrame.data.byteLength - 2,
@@ -347,7 +393,7 @@ export class Context {
      *
      * See also https://developer.mozilla.org/en-US/docs/Web/API/AesGcmParams
      */
-    _makeIV(synchronizationSource: number, timestamp) {
+    _makeIV(synchronizationSource: number, timestamp: number) {
         const iv = new ArrayBuffer(IV_LENGTH);
         const ivView = new DataView(iv);
 
@@ -358,7 +404,7 @@ export class Context {
             this._sendCounts.set(synchronizationSource, randomOffset);
         }
 
-        const sendCount = this._sendCounts.get(synchronizationSource);
+        const sendCount = this._sendCounts.get(synchronizationSource) ?? 0;
 
         ivView.setUint32(0, synchronizationSource);
         ivView.setUint32(4, timestamp);
