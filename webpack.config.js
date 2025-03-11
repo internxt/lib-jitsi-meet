@@ -52,7 +52,7 @@ module.exports = (_env, argv) => {
                 path: path.join(process.cwd(), 'dist', 'umd')
             },
             optimization: {
-                minimize: false
+                minimize: mode === 'production'
             },
             resolve: {
                 extensions: [ '.ts' ]

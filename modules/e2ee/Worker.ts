@@ -3,31 +3,50 @@
 // Worker for E2EE/Insertable streams.
 import { Context } from "./Context";
 
-const contexts = new Map(); // Map participant id => context
+const contexts = new Map<string, Context>(); // Map participant id => context
 
 /**
  * Retrieves the participant {@code Context}, creating it if necessary.
  *
  * @param {string} participantId - The participant whose context we need.
- * @returns {Object} The context.
+ * @returns {Context} The context.
  */
 function getParticipantContext(participantId) {
     if (!contexts.has(participantId)) {
         contexts.set(participantId, new Context(participantId));
     }
-
     return contexts.get(participantId);
+}
+
+/**
+ * Computes SAS material based on current keys in contexts.
+ *
+ * @returns {string} The sas material.
+ */
+function getCurrentSASMaterial(): string {
+    let array: string[] = [];
+    for (const [pId, context] of contexts) {
+        const pHash = context.getHash();
+        array.push(pId + pHash);
+    }
+    array.sort();
+    return array.join("");
 }
 
 /**
  * Sets an encode / decode transform.
  *
- * @param {Object} context - The participant context where the transform will be applied.
+ * @param {Context} context - The participant context where the transform will be applied.
  * @param {string} operation - Encode / decode.
- * @param {Object} readableStream - Readable stream part.
- * @param {Object} writableStream - Writable stream part.
+ * @param {ReadableStream} readableStream - Readable stream part.
+ * @param {WritableStream} writableStream - Writable stream part.
  */
-function handleTransform(context, operation, readableStream, writableStream) {
+function handleTransform(
+    context: Context,
+    operation: string,
+    readableStream: ReadableStream,
+    writableStream: WritableStream,
+) {
     if (operation === "encode" || operation === "decode") {
         const transformFn =
             operation === "encode"
@@ -49,20 +68,23 @@ onmessage = async (event) => {
     if (operation === "encode" || operation === "decode") {
         const { readableStream, writableStream, participantId } = event.data;
         const context = getParticipantContext(participantId);
-
         handleTransform(context, operation, readableStream, writableStream);
     } else if (operation === "setKey") {
         const { participantId, olmKey, pqKey, index } = event.data;
         const context = getParticipantContext(participantId);
-        context.setKey(olmKey, pqKey, index);
+        await context.setKey(olmKey, pqKey, index);
+        const sas = getCurrentSASMaterial();
+        self.postMessage({ operation: "updateSAS", sas });
+    } else if (operation === "setKeysCommitment") {
+        const { participantId, commitment } = event.data;
+        const context = getParticipantContext(participantId);
+        await context.setKeyCommitment(commitment);
+        const sas = getCurrentSASMaterial();
+        self.postMessage({ operation: "updateSAS", sas });
     } else if (operation === "ratchetKeys") {
         const { participantId } = event.data;
         const context = getParticipantContext(participantId);
-        context.ratchetKeys();
-    } else if (operation === "setDecryptionFlag") {
-        const { participantId, decryptionFlag } = event.data;
-        const context = getParticipantContext(participantId);
-        context.setDecryptionFlag(decryptionFlag);
+        await context.ratchetKeys();
     } else if (operation === "cleanup") {
         const { participantId } = event.data;
         contexts.delete(participantId);
@@ -80,7 +102,6 @@ if (self.RTCTransformEvent) {
         const transformer = event.transformer;
         const { operation, participantId } = transformer.options;
         const context = getParticipantContext(participantId);
-
         handleTransform(
             context,
             operation,
