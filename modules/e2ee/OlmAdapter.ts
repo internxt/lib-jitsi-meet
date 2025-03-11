@@ -948,7 +948,7 @@ export class OlmAdapter extends Listenable {
                     break;
                 }
                 case OLM_MESSAGE_TYPES.ERROR: {
-                    this._sendError(pId, msg.data.error);
+                    logger.error(msg.data.error);
                     break;
                 }
                 case OLM_MESSAGE_TYPES.KEY_INFO: {
