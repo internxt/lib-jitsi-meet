@@ -87,17 +87,6 @@ export class Context {
         console.info(
             `E2E: Set commitment to idenity keys of a participant ${this._participantId}`,
         );
-        const currentIndex = this._currentKeyIndex;
-        if (currentIndex >= 0 && !this._hash) {
-            const { materialOlm, materialPQ } =
-                this._cryptoKeyRing[currentIndex];
-            this._hash = await computeHash(
-                materialOlm,
-                materialPQ,
-                this._keyCommtiment,
-                this._currentKeyIndex,
-            );
-        }
     }
 
     /**
@@ -122,13 +111,12 @@ export class Context {
         };
         this._currentKeyIndex = index % KEYRING_SIZE;
         this._cryptoKeyRing[this._currentKeyIndex] = newKey;
-        if (this._keyCommtiment)
-            this._hash = await computeHash(
-                olmKey,
-                pqKey,
-                this._keyCommtiment,
-                this._currentKeyIndex,
-            );
+        this._hash = await computeHash(
+            olmKey,
+            pqKey,
+            this._keyCommtiment,
+            this._currentKeyIndex,
+        );
         console.info(
             `E2E: Set keys for ${this._participantId}, index is ${this._currentKeyIndex} and hash is ${this._hash}`,
         );

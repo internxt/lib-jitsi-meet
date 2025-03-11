@@ -1,6 +1,6 @@
 /* global RTCRtpScriptTransform */
 import { getLogger } from "@jitsi/logger";
-import { generateEmojiSas } from "./SAS";
+import Listenable from "../util/Listenable";
 
 // Extend the RTCRtpReceiver interface due to lack of support of streams
 export interface CustomRTCRtpReceiver extends RTCRtpReceiver {
@@ -35,13 +35,13 @@ const logger = getLogger(__filename);
  * - allow the SFU to rewrite SSRCs, timestamp, pictureId.
  * - allow for the key to be rotated frequently.
  */
-export default class E2EEcontext {
+export default class E2EEcontext extends Listenable {
     private _worker: Worker;
-    private _sas: string[][];
     /**
      * Build a new E2EE context instance, which will be used in a given conference.
      */
     constructor() {
+        super();
         // Determine the URL for the worker script. Relative URLs are relative to
         // the entry point, not the script that launches the worker.
         let baseUrl = "";
@@ -75,8 +75,6 @@ export default class E2EEcontext {
         this._worker.onerror = (e) => logger.error(e);
 
         this._worker.onmessage = this.updateSAS.bind(this);
-
-        this._sas = [];
     }
 
     /**
@@ -217,6 +215,32 @@ export default class E2EEcontext {
     }
 
     /**
+     * Set the E2EE key for the specified participant.
+     *
+     * @param {string} participantId - The ID of the participant who's key we are setting.
+     * @param {Uint8Array} commitment - The commitment to the participant's identity keys.
+     * @param {Uint8Array} olmKey - The olm key for the given participant.
+     * @param {Uint8Array} pqKey - The pq key for the given participant.
+     * @param {number} keyIndex - The key index.
+     */
+    initKey(
+        participantId: string,
+        commitment: Uint8Array,
+        olmKey: Uint8Array,
+        pqKey: Uint8Array,
+        index: number,
+    ) {
+        this._worker.postMessage({
+            operation: "initKeys",
+            commitment,
+            olmKey,
+            pqKey,
+            index,
+            participantId,
+        });
+    }
+
+    /**
      * Request to ratchet keys for the specified participant.
      *
      * @param {string} participantId - The ID of the participant
@@ -233,9 +257,7 @@ export default class E2EEcontext {
      */
     private async updateSAS(event: MessageEvent) {
         if (event.data.operation === "updateSAS") {
-            const sasStr = event.data.sas;
-            this._sas = await generateEmojiSas(sasStr);
-            logger.info(`E2E: worker response: ${this._sas}`);
+            this.emit("sasUpdated", event.data.sas);
         }
     }
 }
