@@ -14,6 +14,7 @@ import { OlmAdapter } from "./OlmAdapter";
 import JitsiConference from "../../JitsiConference";
 import E2EEContext from "./E2EEContext";
 import RTCEvents from "../../service/RTC/RTCEvents";
+import { generateEmojiSas } from "./SAS";
 
 const logger = getLogger(__filename);
 
@@ -78,6 +79,11 @@ export class ManagedKeyHandler extends Listenable {
         );
 
         this._olmAdapter.on(
+            OlmAdapter.events.PARTICIPANT_INIT_KEYS,
+            this._onInitKeys.bind(this),
+        );
+
+        this._olmAdapter.on(
             OlmAdapter.events.PARTICIPANT_KEYS_COMMITMENT,
             this._onParticipantKeysCommitted.bind(this),
         );
@@ -86,6 +92,17 @@ export class ManagedKeyHandler extends Listenable {
             OlmAdapter.events.PARTICIPANT_KEY_RATCHET,
             this._onParticipantKeyRatchet.bind(this),
         );
+
+        this.e2eeCtx.on("sasUpdated", (sasStr: string) => {
+            (async () => {
+                const sas = await generateEmojiSas(sasStr);
+                console.log(`E2E: Generated SAS: ${sas}`);
+                this.conference.eventEmitter.emit(
+                    JitsiConferenceEvents.E2EE_SAS_AVAILABLE,
+                    sas,
+                );
+            })();
+        });
     }
 
     /**
@@ -286,6 +303,26 @@ export class ManagedKeyHandler extends Listenable {
      */
     _onParticipantKeysCommitted(id: string, commitment: Uint8Array) {
         this.e2eeCtx.setKeysCommitment(id, commitment);
+    }
+
+    /**
+     * Inits participant's key.
+     *
+     * @param {string} id - The participant ID.
+     * @param {Uint8Array} commitment - The commitment to participant's identity keys.
+     * @param {Uint8Array} olmKey - The olm key of the participant.
+     * @param {Uint8Array} pqKey - The pq key of the participant.
+     * @param {number} index - The key's index.
+     * @private
+     */
+    _onInitKeys(
+        id: string,
+        commitment: Uint8Array,
+        olmKey: Uint8Array,
+        pqKey: Uint8Array,
+        index: number,
+    ) {
+        this.e2eeCtx.initKey(id, commitment, olmKey, pqKey, index);
     }
 
     /**

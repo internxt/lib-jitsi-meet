@@ -54,6 +54,7 @@ const OlmAdapterEvents = {
     PARTICIPANT_KEY_RATCHET: "olm.partitipant_key_ratchet",
     PARTICIPANT_KEY_UPDATED: "olm.partitipant_key_updated",
     PARTICIPANT_KEYS_COMMITMENT: "olm.participant_keys_committed",
+    PARTICIPANT_INIT_KEYS: "olm.participant_init_keys",
 };
 
 class OlmData {
@@ -112,6 +113,7 @@ export class OlmAdapter extends Listenable {
         PARTICIPANT_KEY_RATCHET: string;
         PARTICIPANT_KEY_UPDATED: string;
         PARTICIPANT_KEYS_COMMITMENT: string;
+        PARTICIPANT_INIT_KEYS: string;
     };
 
     emit(event: string, ...args: any[]) {
@@ -334,12 +336,6 @@ export class OlmAdapter extends Listenable {
                     );
                 }
             });
-            this._onKeysUpdated(
-                this.myId,
-                this._mediaKeyOlm,
-                this._mediaKeyPQ,
-                this._mediaKeyIndex,
-            );
         } catch (error) {
             throw new Error(`E2E: Failed to initialize sessions: ${error}`);
         }
@@ -495,10 +491,17 @@ export class OlmAdapter extends Listenable {
         this._mediaKeyOlm = generateKey();
         this._mediaKeyPQ = generateKey();
         this._mediaKeyIndex = 0;
-        this._onKeysRegistered(
-            this.myId,
+        const commitment = await computeCommitment(
             this._publicKyberKeyBase64,
             this._publicCurve25519Key,
+        );
+        this.emit(
+            OlmAdapterEvents.PARTICIPANT_INIT_KEYS,
+            this.myId,
+            commitment,
+            this._mediaKeyOlm,
+            this._mediaKeyPQ,
+            this._mediaKeyIndex,
         );
     }
 
