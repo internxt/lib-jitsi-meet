@@ -1,17 +1,121 @@
 import * as JitsiTrackEvents from '../../JitsiTrackEvents';
 import { VideoType } from '../../service/RTC/VideoType';
+import { MediaType } from '../../service/RTC/MediaType';
+
 import { createTtfmEvent } from '../../service/statistics/AnalyticsEvents';
 import TrackStreamingStatusImpl, { TrackStreamingStatus } from '../connectivity/TrackStreamingStatus';
 import Statistics from '../statistics/statistics';
+import RTCUtils from './RTCUtils';
+    
+import JitsiTrack from './JitsiTrack';  
+import channels from './channels.js';
+import { decode } from 'punycode';
 
-import JitsiTrack from './JitsiTrack';
+let wasmChannels= null;
+export async function getWasmModule() {
+    if (!wasmChannels) {
+        wasmChannels = channels({
+            locateFile: (path) => {
+                if (path.endsWith('.wasm')) {
+                    return '/libs/channels.wasm';
+                }
+                return path;
+            }
+        });
+    }
+    return wasmChannels;
+}
+
+const ort = require('onnxruntime-web');
+ort.env.wasm.wasmPaths = '/libs/dist/';
 
 const logger = require('@jitsi/logger').getLogger(__filename);
-
+let timer = false;
 const RTCEvents = require('../../service/RTC/RTCEvents');
 
 let ttfmTrackerAudioAttached = false;
 let ttfmTrackerVideoAttached = false;
+
+export let decodingSession = null;
+/**
+ * Loads the decoder model
+ */
+async function loadDecoder(){
+    try{
+        decodingSession = await ort.InferenceSession.create('/libs/models/Decoder.onnx', {freeDimensionOverrides: {
+            batch: 1,
+          }});
+    }
+    catch (error){
+        console.error("Decoder model could not be loaded!: ", error);
+    }
+}
+loadDecoder()
+
+/**
+ * Uses wasm binaries that transform HWC channel-order used by Javascript to CHW channel order used by python 
+ * @param {data} data Javascript data container
+ * @param {number} width image width
+ * @param {number} height image height
+ * @returns FloatA32Array
+ */
+export async function js2py(data,width,height){
+    if(timer==true){
+        console.time("TIMER loading wasm js2py decoder");
+    }
+    const Module = await getWasmModule();
+    if(timer==true){
+        console.timeEnd("TIMER loading wasm js2py decoder");
+    }
+    const ptr = Module._malloc(data.length);
+    Module.HEAPU8.set(data, ptr);
+    // Call the C++ reorder function
+    if(timer==true){
+        console.time("TIMER Applying js2py decoder");
+    }
+    Module._vjs2py(ptr, width, height);
+    if(timer==true){
+        console.timeEnd("TIMER Applying js2py decoder");
+    }
+    // Read back the result
+    const result = Module.HEAPU8.subarray(ptr, ptr + data.length);
+    Module._free(ptr);
+    return Float32Array.from(result);
+}
+
+/**
+ * Uses wasm binaries that transform CHW channel-order used by python to HWC channel order used by javascript 
+ * @param {data} data Javascript data container
+ * @param {data} tensorData Tensor data from ort module
+ * @param {number} width image width
+ * @param {number} height image height
+ * @returns data
+ */
+export async function py2js(data,tensorData,width,height){
+    if(timer==true){
+        console.time("TIMER loading wasm py2js decoder")
+    }
+    const Module = await getWasmModule();
+    if(timer==true){
+        console.timeEnd("TIMER loading wasm py2js decoder")
+    }
+    const int8Tensor = Uint8ClampedArray.from(tensorData)
+    const ptr = Module._malloc(int8Tensor.length);
+    Module.HEAPU8.set(int8Tensor, ptr);
+    // Call the C++ reorder function
+    if(timer==true){
+        console.time("TIMER applying py2js decoder");
+    }
+    Module._vpy2js(ptr, width, height);
+    if(timer==true){
+        console.timeEnd("TIMER applying py2js decoder");
+    }
+    // Read back the result
+    const result = Module.HEAPU8.subarray(ptr, ptr + int8Tensor.length);
+    data.set(result);
+    Module._free(ptr);
+    return data;
+}
 
 /**
  * List of container events that we are going to process. _onContainerEventHandler will be added as listener to the
@@ -66,7 +170,6 @@ export default class JitsiRemoteTrack extends JitsiTrack {
             mediaType,
             videoType);
         this.rtc = rtc;
-
         // Prevent from mixing up type of SSRC which should be a number
         if (typeof ssrc !== 'number') {
             throw new TypeError(`SSRC ${ssrc} is not a number`);
@@ -105,6 +208,185 @@ export default class JitsiRemoteTrack extends JitsiTrack {
         containerEvents.forEach(event => {
             this._containerHandlers[event] = this._containerEventHandler.bind(this, event);
         });
+
+        // Decoding streams the incoming videtrack
+        this._decodedStream = null;
+        this._decodedTrack = null;
+    }
+
+    /**
+     * Returns decoded stream from camera stream
+     * @returns MediaStream object
+     */
+    getDecodedStream()
+    {
+        return this._decodedStream;
+    }
+
+    /**
+     * Returns decoded stream from camera stream
+     * @returns Track object
+     */
+    getDecodedTrack()
+    {
+        return this._decodedTrack;
+    }
+
+    /**
+     * Starts to decode the incoming images from the JVB
+     */
+    decodingRoutine(){
+        try{
+            // Creating canvas stream that will be attached to GUI
+            const canvasDecoded =  document.createElement('canvas');
+            this._decodedStream = canvasDecoded.captureStream();
+            // Extracting track from canvas-sender
+            this._decodedTrack = this._decodedStream.getVideoTracks()[0];
+            const videoTrack = this.stream.getVideoTracks()[0];
+            // Applying onnx model to incoming stream and saving the output in the canvas-sender
+            this.applyONNXDecoder(videoTrack,canvasDecoded,this.muted);
+        }
+        catch(error){
+            logger.error("Error on decoder phase: ", error);
+        }
+    }
+
+    /**
+     * Does the decoding phase of the incoming streams 
+     * @param {*} videoTrack 
+     * @param {*} canvasDecoded 
+     */
+    applyONNXDecoder(videoTrack,canvasDecoded,muted){
+        // Frame-grabber to catch frames from the incoming stream  
+        let imageCapture = new ImageCapture(videoTrack);
+        // Setting up the aux canvas to paint the caught frames
+        const canvasEncoded =  document.createElement('canvas');
+        const ctxEncoded = canvasEncoded.getContext("2d",{willReadFrequently :true});
+        const ctxDecoded = canvasDecoded.getContext('2d',{willReadFrequently :true});
+        /*
+         *  Decoded each frame from the incoming stream with decoded images, this function is repeated in loop
+         */
+        async function processFrame(){
+            try{
+                if(timer==true){
+                    console.time("TIMER decoder");
+                }
+                // Getting the current size of the incoming stream
+                const width = videoTrack.getSettings().width;
+                const height = videoTrack.getSettings().height;
+                // Adjusting the size of the aux canvas
+                canvasEncoded.width = width;
+                canvasEncoded.height = height;
+                // Capturing a frame and painting it into the aux canvas
+                const frame = await imageCapture.grabFrame();
+                ctxEncoded.drawImage(frame, 0, 0, width, height);
+                //Generating tensor from painted frame to be passed to the onnx model
+                if(timer==true){
+                    console.time("TIMER imageEncode get decoder");
+                }
+                const imageEncode = ctxEncoded.getImageData(0, 0, width, height);
+                if(timer==true){
+                    console.timeEnd("TIMER imageEncode get decoder");
+                }
+                const imageData = imageEncode.data;
+                const channels = 4;
+                // Channels are reordered as required by the onnx model 
+                if(timer==true){
+                    console.time("TIMER full js2py decoder");
+                }
+                let floatArray = await js2py(imageData,width,height);
+                if(timer==true){
+                    console.timeEnd("TIMER full js2py decoder");
+                }
+                // Applying the onnx model
+                const tensor = new ort.Tensor("float32",floatArray,[1,channels,height,width]);
+                const input = {
+                    input: tensor
+                };
+                if(timer==true){
+                    console.time("TIMER onnx decoder");
+                }
+                const results = await decodingSession.run(input);
+                if(timer==true){
+                    console.timeEnd("TIMER onnx decoder");
+                }
+                // Extracting output data from the onnx model
+                const tensorData = results.output.data;
+                // Resizing canvas that will be exported to GUI
+                canvasDecoded.width = width*2;
+                canvasDecoded.height = height*2;
+                if(timer==true){
+                    console.time("TIMER imageDataRestore create decoder");
+                }
+                const imageDataRestore = ctxDecoded.createImageData(canvasDecoded.width, canvasDecoded.height);
+                if(timer==true){
+                    console.timeEnd("TIMER imageDataRestore create decoder");
+                }
+                let dataRestore =  imageDataRestore.data;
+                // Channels are reordered as required by javascript
+                if(timer==true){
+                    console.time("TIMER full py2js decoder");
+                }
+                dataRestore = await py2js(dataRestore,tensorData,canvasDecoded.width,canvasDecoded.height);
+                if(timer==true){
+                    console.timeEnd("TIMER full py2js decoder");
+                }
+                // Setting decoded image in the canvas-sender
+                ctxDecoded.putImageData(imageDataRestore, 0, 0);
+                if(timer==true){
+                    console.timeEnd("TIMER decoder");
+                }
+            }
+            catch(error){
+                logger.info("Decoder failed! because: ",error);
+            }
+            if (muted == false){
+                requestAnimationFrame(processFrame);
+            }
+        }
+        processFrame();
+    }
+
+    /**
+     * Attaches the MediaStream of this track to an HTML container.
+     * Adds the container to the list of containers that are displaying the
+     * track.
+     *
+     * @param container the HTML container which can be 'video' or 'audio'
+     * element.
+     * @param decode boolean to determine if the decoding session is used or not. 
+     *
+     * @returns {void}
+     */
+    attach(container, decode) {
+        let result = Promise.resolve();
+        if (this.type === MediaType.VIDEO) {
+            if (this.videoType === VideoType.CAMERA){
+                if (decode){
+                    this.decodingRoutine();
+                }
+                if (this._decodedStream) {
+                    this._onTrackAttach(container);
+                    result = RTCUtils.attachMediaStream(container, this._decodedStream);
+                }
+                else if (this.stream) {
+                    this._onTrackAttach(container);
+                    result = RTCUtils.attachMediaStream(container, this.stream);
+                }
+                this.containers.push(container);
+                this._attachTTFMTracker(container);
+            }
+        }
+        else{
+            if (this.stream) {
+                this._onTrackAttach(container);
+                result = RTCUtils.attachMediaStream(container, this.stream);
+            }
+            this.containers.push(container);
+            this._attachTTFMTracker(container);
+        }
+
+        return result;
     }
 
     /* eslint-enable max-params */
