@@ -126,7 +126,7 @@ export class ManagedKeyHandler extends Listenable {
 
             this.enabled = true;
             this.init = this._olmAdapter.initSessions();
-            await this.init; 
+            await this.init;
         }
 
         if (!enabled) {
@@ -245,7 +245,7 @@ export class ManagedKeyHandler extends Listenable {
     async _onParticipantJoined(id: string) {
         logger.info(`E2E: A new participant ${id} joined the conference`);
         if (this._conferenceJoined && this.enabled) {
-            await this.init; 
+            await this.init;
             await this._olmAdapter._ratchetKeyImpl();
         }
     }
@@ -254,12 +254,12 @@ export class ManagedKeyHandler extends Listenable {
      * Rotates the current key when a participant leaves the conference.
      * @private
      */
-   async _onParticipantLeft(id: string) {
+    async _onParticipantLeft(id: string) {
         logger.info(`E2E: Participant ${id} left the conference.`);
         this.e2eeCtx.cleanup(id);
 
         if (this.enabled) {
-            await this.init; 
+            await this.init;
             this._olmAdapter._rotateKeyImpl();
         }
     }

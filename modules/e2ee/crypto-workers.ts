@@ -12,7 +12,7 @@ const HASH_LEN = 256;
  */
 export async function computeCommitment(
     value1: string,
-    value2: string|Uint8Array,
+    value2: string | Uint8Array,
 ): Promise<string> {
     try {
         const hasher = await createKeccak(HASH_LEN);
