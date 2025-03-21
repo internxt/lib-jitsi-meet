@@ -25,6 +25,7 @@ export class ManagedKeyHandler extends Listenable {
     conference: JitsiConference;
     e2eeCtx: E2EEContext;
     enabled: boolean;
+    init: any;
     _olmAdapter: OlmAdapter;
     private _conferenceJoined: boolean;
 
@@ -79,11 +80,6 @@ export class ManagedKeyHandler extends Listenable {
         );
 
         this._olmAdapter.on(
-            OlmAdapter.events.PARTICIPANT_INIT_KEYS,
-            this._onInitKeys.bind(this),
-        );
-
-        this._olmAdapter.on(
             OlmAdapter.events.PARTICIPANT_KEYS_COMMITMENT,
             this._onParticipantKeysCommitted.bind(this),
         );
@@ -129,7 +125,8 @@ export class ManagedKeyHandler extends Listenable {
             logger.info("E2E: Enabling e2ee");
 
             this.enabled = true;
-            await this._olmAdapter.initSessions();
+            this.init = this._olmAdapter.initSessions();
+            await this.init; 
         }
 
         if (!enabled) {
@@ -248,6 +245,7 @@ export class ManagedKeyHandler extends Listenable {
     async _onParticipantJoined(id: string) {
         logger.info(`E2E: A new participant ${id} joined the conference`);
         if (this._conferenceJoined && this.enabled) {
+            await this.init; 
             await this._olmAdapter._ratchetKeyImpl();
         }
     }
@@ -256,11 +254,12 @@ export class ManagedKeyHandler extends Listenable {
      * Rotates the current key when a participant leaves the conference.
      * @private
      */
-    _onParticipantLeft(id: string) {
+   async _onParticipantLeft(id: string) {
         logger.info(`E2E: Participant ${id} left the conference.`);
         this.e2eeCtx.cleanup(id);
 
         if (this.enabled) {
+            await this.init; 
             this._olmAdapter._rotateKeyImpl();
         }
     }
@@ -303,26 +302,6 @@ export class ManagedKeyHandler extends Listenable {
      */
     _onParticipantKeysCommitted(id: string, commitment: Uint8Array) {
         this.e2eeCtx.setKeysCommitment(id, commitment);
-    }
-
-    /**
-     * Inits participant's key.
-     *
-     * @param {string} id - The participant ID.
-     * @param {Uint8Array} commitment - The commitment to participant's identity keys.
-     * @param {Uint8Array} olmKey - The olm key of the participant.
-     * @param {Uint8Array} pqKey - The pq key of the participant.
-     * @param {number} index - The key's index.
-     * @private
-     */
-    _onInitKeys(
-        id: string,
-        commitment: Uint8Array,
-        olmKey: Uint8Array,
-        pqKey: Uint8Array,
-        index: number,
-    ) {
-        this.e2eeCtx.initKey(id, commitment, olmKey, pqKey, index);
     }
 
     /**

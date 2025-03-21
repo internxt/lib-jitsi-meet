@@ -6,13 +6,13 @@ const HASH_LEN = 256;
 /**
  * Computes commitment to two strings.
  *
- * @param {string} value1 - The first string.
- * @param {string} value2 - The second string.
+ * @param {string} value1 - The first value.
+ * @param {string|Uint8Array} value2 - The second value.
  * @returns {Promise<string>} Computed commitment.
  */
 export async function computeCommitment(
     value1: string,
-    value2: string,
+    value2: string|Uint8Array,
 ): Promise<string> {
     try {
         const hasher = await createKeccak(HASH_LEN);

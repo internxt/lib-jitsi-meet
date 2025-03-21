@@ -215,32 +215,6 @@ export default class E2EEcontext extends Listenable {
     }
 
     /**
-     * Set the E2EE key for the specified participant.
-     *
-     * @param {string} participantId - The ID of the participant who's key we are setting.
-     * @param {Uint8Array} commitment - The commitment to the participant's identity keys.
-     * @param {Uint8Array} olmKey - The olm key for the given participant.
-     * @param {Uint8Array} pqKey - The pq key for the given participant.
-     * @param {number} keyIndex - The key index.
-     */
-    initKey(
-        participantId: string,
-        commitment: Uint8Array,
-        olmKey: Uint8Array,
-        pqKey: Uint8Array,
-        index: number,
-    ) {
-        this._worker.postMessage({
-            operation: "initKeys",
-            commitment,
-            olmKey,
-            pqKey,
-            index,
-            participantId,
-        });
-    }
-
-    /**
      * Request to ratchet keys for the specified participant.
      *
      * @param {string} participantId - The ID of the participant

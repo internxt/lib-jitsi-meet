@@ -79,11 +79,6 @@ onmessage = async (event) => {
         const { participantId, commitment } = event.data;
         const context = getParticipantContext(participantId);
         await context.setKeyCommitment(commitment);
-    } else if (operation === "initKeys") {
-        const { participantId, commitment, olmKey, pqKey, index } = event.data;
-        const context = getParticipantContext(participantId);
-        await context.setKeyCommitment(commitment);
-        await context.setKey(olmKey, pqKey, index);
     } else if (operation === "ratchetKeys") {
         const { participantId } = event.data;
         const context = getParticipantContext(participantId);
