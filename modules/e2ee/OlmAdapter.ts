@@ -21,7 +21,12 @@ import {
 } from "./crypto-workers";
 import JitsiConference from "../../JitsiConference";
 import JitsiParticipant from "../../JitsiParticipant";
-import { OLM_MESSAGE_TYPE, OLM_MESSAGE_TYPES, PROTOCOL_STATUS, REQ_TIMEOUT } from "./Constants";
+import {
+    OLM_MESSAGE_TYPE,
+    OLM_MESSAGE_TYPES,
+    PROTOCOL_STATUS,
+    REQ_TIMEOUT,
+} from "./Constants";
 
 type ProtocolStatus = (typeof PROTOCOL_STATUS)[keyof typeof PROTOCOL_STATUS];
 type OlmSession = Window["Olm"]["Session"];
@@ -37,25 +42,82 @@ const OlmAdapterEvents = {
 class OlmData {
     status: ProtocolStatus;
     commitment: string;
-    keyToSendOlm: Uint8Array;
-    keyToSendPQ: Uint8Array;
-    indexToSend: number;
+    private keyToSendOlm: Uint8Array;
+    private keyToSendPQ: Uint8Array;
+    private indexToSend: number;
     ratchetCount: number;
     session_for_sending: OlmSession;
     session_for_reciving: OlmSession;
     pqSessionKey: CryptoKey;
     kemSecret: Uint8Array;
+    reSendKeyInfo: boolean;
     constructor() {
         this.status = PROTOCOL_STATUS.NOT_STARTED;
-        this.commitment = "";
         this.session_for_sending = null as any;
         this.session_for_reciving = null as any;
         this.pqSessionKey = null as any;
+        this.cleanKeyInfo();
+    }
+    cleanKeyInfo() {
+        this.commitment = "";
+        this.ratchetCount = 0;
+        this.reSendKeyInfo = false;
         this.kemSecret = new Uint8Array();
         this.keyToSendOlm = new Uint8Array();
         this.keyToSendPQ = new Uint8Array();
-        this.ratchetCount = 0;
         this.indexToSend = -1;
+    }
+    async setKeyInfo(
+        id: string,
+        olmKey: Uint8Array,
+        pqKey: Uint8Array,
+        index: number,
+    ) {
+        this.keyToSendOlm = olmKey;
+        this.keyToSendPQ = pqKey;
+        this.indexToSend = index;
+        return commitToSecret(
+            id,
+            this.keyToSendOlm,
+            this.keyToSendPQ,
+            this.indexToSend,
+        );
+    }
+
+    async setPQSessionKey(key1, key2) {
+        this.pqSessionKey = await deriveEncryptionKey(key1, key2);
+    }
+
+    async encryptPQKeyInfo() {
+        return this.encryptGivenPQKeyInfo(this.keyToSendPQ);
+    }
+
+    async decryptPQKeyInfo(ciphertext: string) {
+        return decryptKeyInfoPQ(ciphertext, this.pqSessionKey);
+    }
+
+    async encryptGivenPQKeyInfo(key: Uint8Array) {
+        return encryptKeyInfoPQ(this.pqSessionKey, key);
+    }
+
+    encryptKeyInfo() {
+        return this.encryptGivenKeyInfo(this.keyToSendOlm, this.indexToSend);
+    }
+    encryptGivenKeyInfo(key: Uint8Array, index: number) {
+        const encryptionKey = base64js.fromByteArray(key);
+        return this.session_for_sending.encrypt(
+            JSON.stringify({ encryptionKey, index }),
+        );
+    }
+
+    decryptKeyInfo(ciphertext) {
+        const data = this.session_for_reciving.decrypt(
+            ciphertext.type,
+            ciphertext.body,
+        );
+        const json = safeJsonParse(data);
+        const key = base64js.toByteArray(json.encryptionKey);
+        return { key: key, index: json.index };
     }
 }
 /**
@@ -80,11 +142,11 @@ class OlmData {
  */
 export class OlmAdapter extends Listenable {
     private readonly _conf: JitsiConference;
-    private _olmWasInitialized: Promise<boolean>;
+    private readonly _olmWasInitialized: Promise<boolean>;
     private _mediaKeyOlm: Uint8Array;
     private _mediaKeyPQ: Uint8Array;
     private _mediaKeyIndex: number;
-    private _reqs: Map<
+    private readonly _reqs: Map<
         string,
         { resolve: (args?: unknown) => void; reject?: (args?: unknown) => void }
     >;
@@ -194,21 +256,14 @@ export class OlmAdapter extends Listenable {
         const olmData = this._getParticipantOlmData(participant);
         if (olmData.status === PROTOCOL_STATUS.DONE) {
             try {
-                const pqCiphertextBase64 = await encryptKeyInfoPQ(
-                    olmData.pqSessionKey,
+                const pqCiphertext = await olmData.encryptGivenPQKeyInfo(
                     this._mediaKeyPQ,
                 );
-                const olmCiphertext = this._encryptKeyInfo(
-                    olmData.session_for_sending,
+                const olmCiphertext = olmData.encryptGivenKeyInfo(
                     this._mediaKeyOlm,
                     this._mediaKeyIndex,
                 );
-
-                this._sendKeyInfoMessage(
-                    olmCiphertext,
-                    pqCiphertextBase64,
-                    pId,
-                );
+                this._sendKeyInfoMessage(olmCiphertext, pqCiphertext, pId);
             } catch (error) {
                 this._sendError(
                     pId,
@@ -450,25 +505,6 @@ export class OlmAdapter extends Listenable {
     }
 
     /**
-     * Internal helper for encrypting the current key information for a given participant.
-     *
-     * @param {Olm.Session} session - Participant's session.
-     * @returns {string} - The encrypted text with the key information.
-     * @private
-     */
-    _encryptKeyInfo(session: OlmSession, key: Uint8Array, index: number) {
-        const encryptionKey = base64js.fromByteArray(key);
-        return session.encrypt(JSON.stringify({ encryptionKey, index }));
-    }
-
-    _decryptKeyInfo(session: OlmSession, ciphertext) {
-        const data = session.decrypt(ciphertext.type, ciphertext.body);
-        const json = safeJsonParse(data);
-        const key = base64js.toByteArray(json.encryptionKey);
-        return { key: key, index: json.index };
-    }
-
-    /**
      * Internal helper for getting the olm related data associated with a participant.
      *
      * @param {JitsiParticipant} participant - Participant whose data wants to be extracted.
@@ -520,12 +556,12 @@ export class OlmAdapter extends Listenable {
      * @private
      */
     async _sendSessionInitMessage(
-        otKey: string,
-        publicKey: string,
-        publicKyberKey: string,
         commitment: string,
         pId: string,
     ): Promise<void> {
+        const otKey = this._getOneTimeKey();
+        const publicKey = this._publicCurve25519Key;
+        const publicKyberKey = this._publicKyberKeyBase64;
         const init = {
             [JITSI_MEET_MUC_TYPE]: OLM_MESSAGE_TYPE,
             olm: {
@@ -548,12 +584,12 @@ export class OlmAdapter extends Listenable {
      */
     async _sendPQSessionInitMessage(
         encapsKyber: string,
-        otKey: string,
-        publicKey: string,
-        publicKyberKey: string,
         commitment: string,
         pId: string,
     ): Promise<void> {
+        const otKey = this._getOneTimeKey();
+        const publicKey = this._publicCurve25519Key;
+        const publicKyberKey = this._publicKyberKeyBase64;
         const ack = {
             [JITSI_MEET_MUC_TYPE]: OLM_MESSAGE_TYPE,
             olm: {
@@ -651,26 +687,18 @@ export class OlmAdapter extends Listenable {
      * @private
      */
     async _onEndpointMessageReceived(participant: JitsiParticipant, payload) {
-        if (payload[JITSI_MEET_MUC_TYPE] !== OLM_MESSAGE_TYPE) {
+        if (payload[JITSI_MEET_MUC_TYPE] !== OLM_MESSAGE_TYPE || !payload.olm) {
+            console.warn("E2E: Invalid or missing olm payload");
             return;
         }
-
-        if (!payload.olm) {
-            console.warn(
-                "E2E: _onEndpointMessageReceived: Incorrectly formatted message",
-            );
-
-            return;
-        }
-
-        if (!(await this._olmWasInitialized)) {
-            throw new Error("Olm not initialized");
-        }
-
         const msg = payload.olm;
         const pId = participant.getId();
 
         try {
+            if (!(await this._olmWasInitialized)) {
+                throw new Error("Olm not initialized");
+            }
+
             const olmData = this._getParticipantOlmData(participant);
 
             switch (msg.type) {
@@ -697,24 +725,16 @@ export class OlmAdapter extends Listenable {
                             await encapsulateSecret(publicKyberKey);
                         olmData.kemSecret = sharedSecret;
 
-                        const myOtKey = this._getOneTimeKey();
-
-                        olmData.keyToSendPQ = this._mediaKeyPQ;
-                        olmData.keyToSendOlm = this._mediaKeyOlm;
-                        olmData.indexToSend = this._mediaKeyIndex;
-                        const commitmentToMediaKeys = await commitToSecret(
+                        const commitmentToKeys = await olmData.setKeyInfo(
                             this.myId,
-                            olmData.keyToSendOlm,
-                            olmData.keyToSendPQ,
-                            olmData.indexToSend,
+                            this._mediaKeyOlm,
+                            this._mediaKeyPQ,
+                            this._mediaKeyIndex,
                         );
 
                         this._sendPQSessionInitMessage(
                             encapsulatedBase64,
-                            myOtKey,
-                            this._publicCurve25519Key,
-                            this._publicKyberKeyBase64,
-                            commitmentToMediaKeys,
+                            commitmentToKeys,
                             pId,
                         );
 
@@ -759,24 +779,14 @@ export class OlmAdapter extends Listenable {
                         const { encapsulatedBase64, sharedSecret } =
                             await encapsulateSecret(publicKyberKey);
 
-                        olmData.pqSessionKey = await deriveEncryptionKey(
+                        await olmData.setPQSessionKey(
                             decapsulatedSecret,
                             sharedSecret,
                         );
 
-                        const pqCiphertextBase64 = await encryptKeyInfoPQ(
-                            olmData.pqSessionKey,
-                            olmData.keyToSendPQ,
-                        );
-
-                        const olmCiphertext = this._encryptKeyInfo(
-                            olmData.session_for_sending,
-                            olmData.keyToSendOlm,
-                            olmData.indexToSend,
-                        );
-                        olmData.keyToSendOlm = new Uint8Array();
-                        olmData.keyToSendPQ = new Uint8Array();
-                        olmData.indexToSend = -1;
+                        const pqCiphertextBase64 =
+                            await olmData.encryptPQKeyInfo();
+                        const olmCiphertext = olmData.encryptKeyInfo();
 
                         this._sendPQSessionAckMessage(
                             encapsulatedBase64,
@@ -809,20 +819,16 @@ export class OlmAdapter extends Listenable {
                             this._privateKyberKey,
                         );
 
-                        olmData.pqSessionKey = await deriveEncryptionKey(
+                        await olmData.setPQSessionKey(
                             olmData.kemSecret,
                             decapsulatedSecret,
                         );
 
-                        const { key, index } = this._decryptKeyInfo(
-                            olmData.session_for_reciving,
-                            ciphertext,
-                        );
+                        const { key, index } =
+                            olmData.decryptKeyInfo(ciphertext);
 
-                        const pqKey = await decryptKeyInfoPQ(
-                            pqCiphertext,
-                            olmData.pqSessionKey,
-                        );
+                        const pqKey =
+                            await olmData.decryptPQKeyInfo(pqCiphertext);
 
                         const commitment = await commitToSecret(
                             pId,
@@ -837,7 +843,6 @@ export class OlmAdapter extends Listenable {
                                 `Keys do not match the commitment.`,
                             );
                         else {
-                            console.info(`E2E: Recived new keys from ${pId}, index = ${index}`);
                             await this._setParticipantKeys(
                                 pId,
                                 key,
@@ -845,21 +850,11 @@ export class OlmAdapter extends Listenable {
                                 index,
                                 olmData.ratchetCount,
                             );
-                            olmData.ratchetCount = 0;
 
-                            const olmCiphertext = this._encryptKeyInfo(
-                                olmData.session_for_sending,
-                                olmData.keyToSendOlm,
-                                olmData.indexToSend,
-                            );
+                            const olmCiphertext = olmData.encryptKeyInfo();
+                            const pqCiphertextBase64 =
+                                await olmData.encryptPQKeyInfo();
 
-                            const pqCiphertextBase64 = await encryptKeyInfoPQ(
-                                olmData.pqSessionKey,
-                                olmData.keyToSendPQ,
-                            );
-                            olmData.keyToSendPQ = new Uint8Array();
-                            olmData.keyToSendOlm = new Uint8Array();
-                            olmData.indexToSend = -1;
                             console.info(
                                 `E2E: Sent my keys to ${pId}, index = ${this._mediaKeyIndex}.`,
                             );
@@ -870,6 +865,7 @@ export class OlmAdapter extends Listenable {
                             );
 
                             olmData.status = PROTOCOL_STATUS.DONE;
+                            olmData.cleanKeyInfo();
                             console.info(
                                 `E2E: Participant ${pId} established E2E channel with us.`,
                             );
@@ -891,15 +887,12 @@ export class OlmAdapter extends Listenable {
                         this._olmAccount.remove_one_time_keys(session_inbound);
                         olmData.session_for_reciving = session_inbound;
 
-                        const { key, index } = this._decryptKeyInfo(
-                            olmData.session_for_reciving,
-                            ciphertext,
-                        );
+                        const { key, index } =
+                            olmData.decryptKeyInfo(ciphertext);
 
-                        const pqKey = await decryptKeyInfoPQ(
-                            pqCiphertext,
-                            olmData.pqSessionKey,
-                        );
+                        const pqKey =
+                            await olmData.decryptPQKeyInfo(pqCiphertext);
+
                         const commitment = await commitToSecret(
                             pId,
                             key,
@@ -915,7 +908,6 @@ export class OlmAdapter extends Listenable {
                             console.warn(`E2E: Rotating my keys.`);
                             await this._rotateKeyImpl();
                         } else {
-                            console.info(`E2E: Recived new keys from ${pId}, index = ${index}`);
                             await this._setParticipantKeys(
                                 pId,
                                 key,
@@ -923,8 +915,8 @@ export class OlmAdapter extends Listenable {
                                 index,
                                 olmData.ratchetCount,
                             );
-                            olmData.ratchetCount = 0;
                             olmData.status = PROTOCOL_STATUS.DONE;
+                            olmData.cleanKeyInfo();
 
                             const requestPromise = this._reqs.get(pId);
                             if (requestPromise) {
@@ -945,14 +937,10 @@ export class OlmAdapter extends Listenable {
                 case OLM_MESSAGE_TYPES.KEY_INFO: {
                     if (olmData.status === PROTOCOL_STATUS.DONE) {
                         const { ciphertext, pqCiphertext } = msg.data;
-                        const { key, index } = this._decryptKeyInfo(
-                            olmData.session_for_reciving,
-                            ciphertext,
-                        );
-                        const pqKey = await decryptKeyInfoPQ(
-                            pqCiphertext,
-                            olmData.pqSessionKey,
-                        );
+                        const { key, index } =
+                            olmData.decryptKeyInfo(ciphertext);
+                        const pqKey =
+                            await olmData.decryptPQKeyInfo(pqCiphertext);
                         this._onKeysUpdated(pId, key, pqKey, index);
                     } else {
                         console.warn(
@@ -992,6 +980,7 @@ export class OlmAdapter extends Listenable {
         index: number,
         ratchetCount: number,
     ) {
+        console.info(`E2E: Recived new keys from ${pId}, index = ${index}`);
         this._onKeysUpdated(pId, key, pqKey, index);
         if (ratchetCount != 0) {
             let currentKey = key;
@@ -1087,24 +1076,14 @@ export class OlmAdapter extends Listenable {
             const pId = participant.getId();
             console.info(`E2E: Sending session-init to participant ${pId} `);
 
-            const otKey = this._getOneTimeKey();
-            olmData.keyToSendPQ = this._mediaKeyPQ;
-            olmData.keyToSendOlm = this._mediaKeyOlm;
-            olmData.indexToSend = this._mediaKeyIndex;
-            const secretCommitment = await commitToSecret(
+            const commitmentToKeys = await olmData.setKeyInfo(
                 this.myId,
-                olmData.keyToSendOlm,
-                olmData.keyToSendPQ,
-                olmData.indexToSend,
+                this._mediaKeyOlm,
+                this._mediaKeyPQ,
+                this._mediaKeyIndex,
             );
 
-            this._sendSessionInitMessage(
-                otKey,
-                this._publicCurve25519Key,
-                this._publicKyberKeyBase64,
-                secretCommitment,
-                pId,
-            );
+            this._sendSessionInitMessage(commitmentToKeys, pId);
 
             olmData.status = PROTOCOL_STATUS.WAITING_PQ_SESSION_INIT;
         } catch (e) {
