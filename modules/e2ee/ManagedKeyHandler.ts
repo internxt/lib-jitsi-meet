@@ -4,14 +4,13 @@ import browser from "../browser";
 import JitsiLocalTrack from "../RTC/JitsiLocalTrack";
 import JingleSessionPC from "../xmpp/JingleSessionPC";
 import TraceablePeerConnection from "../RTC/TraceablePeerConnection";
-import { CustomRTCRtpReceiver, CustomRTCRtpSender } from "./E2EEContext";
+import E2EEContext, { CustomRTCRtpReceiver, CustomRTCRtpSender } from "./E2EEContext";
 
 import * as JitsiConferenceEvents from "../../JitsiConferenceEvents";
 
 import Listenable from "../util/Listenable";
 import { OlmAdapter } from "./OlmAdapter";
 import JitsiConference from "../../JitsiConference";
-import E2EEContext from "./E2EEContext";
 import RTCEvents from "../../service/RTC/RTCEvents";
 import { generateEmojiSas } from "./SAS";
 

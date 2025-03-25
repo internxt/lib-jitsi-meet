@@ -188,7 +188,6 @@ export default class E2EEcontext extends Listenable {
         pqKey: Uint8Array,
         index: number,
     ) {
-        console.log(`E2E: Set keys for ${participantId}, index = ${index}, olmKey = ${olmKey}, pqKey = ${pqKey}`);
         this._worker.postMessage({
             operation: "setKey",
             olmKey,
@@ -218,7 +217,6 @@ export default class E2EEcontext extends Listenable {
      * @param {string} participantId - The ID of the participant
      */
     ratchetKeys(participantId: string) {
-        console.log(`E2E: Ratchet keys for ${participantId}`);
         this._worker.postMessage({
             operation: "ratchetKeys",
             participantId,

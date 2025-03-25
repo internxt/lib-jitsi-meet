@@ -1,10 +1,7 @@
 import kemBuilder from "@dashlane/pqc-kem-kyber512-browser";
 import * as base64js from "base64-js";
 import { encryptData, decryptData } from "./crypto-workers";
-
-const IV_LENGTH = 16;
-const MEDIA_KEY_LEN = 32;
-const AUX = Uint8Array.from([80, 81, 32, 75, 101, 121, 32, 73, 110, 102, 111]); // "PQ Key Info"
+import { IV_LENGTH, MEDIA_KEY_LEN, AUX } from "./Constants";
 
 /**
  * Generates Kyber key pair.

@@ -1,7 +1,5 @@
 import { createKeccak, createHMAC } from "hash-wasm";
-const AES = "AES-GCM";
-const AES_KEY_LEN = 256;
-const HASH_LEN = 256;
+import { AES, AES_KEY_LEN, HASH_LEN } from "./Constants";
 
 /**
  * Computes commitment to two strings.

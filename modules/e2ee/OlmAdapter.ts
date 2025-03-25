@@ -21,27 +21,8 @@ import {
 } from "./crypto-workers";
 import JitsiConference from "../../JitsiConference";
 import JitsiParticipant from "../../JitsiParticipant";
+import { OLM_MESSAGE_TYPE, OLM_MESSAGE_TYPES, PROTOCOL_STATUS, REQ_TIMEOUT } from "./Constants";
 
-const REQ_TIMEOUT = 20 * 1000;
-const OLM_MESSAGE_TYPE = "olm";
-const OLM_MESSAGE_TYPES = {
-    ERROR: "error",
-    KEY_INFO: "key-info",
-    SESSION_ACK: "session-ack",
-    PQ_SESSION_ACK: "pq-session-ack",
-    RATCHET_INFO: "ratchet-info",
-    SESSION_INIT: "session-init",
-    PQ_SESSION_INIT: "pq-session-init",
-};
-
-const PROTOCOL_STATUS = {
-    ERROR: "error",
-    NOT_STARTED: "ready-to-start",
-    WAITING_SESSION_ACK: "waiting-for-session-ack",
-    WAITING_PQ_SESSION_ACK: "waiting-for-pq-session-ack",
-    WAITING_PQ_SESSION_INIT: "waiting-for-pq-session-init",
-    DONE: "sucessfully established",
-};
 type ProtocolStatus = (typeof PROTOCOL_STATUS)[keyof typeof PROTOCOL_STATUS];
 type OlmSession = Window["Olm"]["Session"];
 type OlmAccount = Window["Olm"]["Account"];
@@ -151,10 +132,6 @@ export class OlmAdapter extends Listenable {
                 JitsiConferenceEvents.USER_LEFT,
                 this._onParticipantLeft.bind(this),
             );
-            this._conf.on(
-                JitsiConferenceEvents.PARTICIPANT_PROPERTY_CHANGED,
-                this._onParticipantPropertyChanged.bind(this),
-            );
         } else {
             this._olmWasInitialized = Promise.reject(false);
         }
@@ -242,38 +219,6 @@ export class OlmAdapter extends Listenable {
     }
 
     /**
-     * Handles an update in a participant's presence property.
-     *
-     * @param {JitsiParticipant} participant - The participant.
-     * @param {string} name - The name of the property that changed.
-     * @param {*} oldValue - The property's previous value.
-     * @param {*} newValue - The property's new value.
-     * @private
-     */
-    async _onParticipantPropertyChanged(
-        participant: JitsiParticipant,
-        name: string,
-        oldValue,
-        newValue,
-    ) {
-        if (newValue !== oldValue) {
-            switch (name) {
-                case "e2ee.enabled":
-                    if (newValue) {
-                        console.info(
-                            `E2E: Participant ${participant.getId()} STARTED encrypting data.`,
-                        );
-                    } else {
-                        console.info(
-                            `E2E: Participant ${participant.getId()} STOPPED encrypting data.`,
-                        );
-                    }
-                    break;
-            }
-        }
-    }
-
-    /**
      * Sends RATCHET_INFO message to the participant.
      *
      * @param {string} pId
@@ -329,7 +274,7 @@ export class OlmAdapter extends Listenable {
                     localParticipantId > participant.getId(),
             );
             console.info(
-                `E2E: My ID is ${localParticipantId}, should send session-init to everyone with smaller IDs: [ ${list.map((p) => p.getId())}]`,
+                `E2E: My ID is ${localParticipantId}, should send session-init to smaller IDs: [ ${list.map((p) => p.getId())}]`,
             );
             const promises = list.map((participant) => {
                 this._sendSessionInit(participant);
@@ -385,10 +330,8 @@ export class OlmAdapter extends Listenable {
      */
     async _ratchetKeyImpl() {
         try {
-            console.log(`E2E: BEFORE self-ratchet: ${this._mediaKeyOlm}`);
             this._mediaKeyOlm = await ratchetKey(this._mediaKeyOlm);
             this._mediaKeyPQ = await ratchetKey(this._mediaKeyPQ);
-            console.log(`E2E: AFTER self-ratchet: ${this._mediaKeyOlm}`);
             this._mediaKeyIndex++;
             this._onKeysUpdated(
                 this.myId,
@@ -1055,7 +998,7 @@ export class OlmAdapter extends Listenable {
             let currentPqKey = pqKey;
             let currentIndex = index;
             while (ratchetCount > 0) {
-                console.log(
+                console.info(
                     `E2E: Ratchet keys of ${pId}, because they were updated duing session establishement`,
                 );
                 const newKey = await ratchetKey(currentKey);

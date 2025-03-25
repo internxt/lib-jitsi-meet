@@ -5,26 +5,8 @@ import {
     decryptData,
     computeHash,
 } from "./crypto-workers";
+import { KEYRING_SIZE, VIDEO_UNENCRYPTED_BYTES } from "./Constants";
 
-// We use a ringbuffer of keys so we can change them and still decode packets that were
-// encrypted with an old key. We use a size of 16 which corresponds to the four bits
-// in the frame trailer.
-const KEYRING_SIZE = 16;
-
-// We copy the first bytes of the VP8 payload unencrypted.
-// For keyframes this is 10 bytes, for non-keyframes (delta) 3. See
-//   https://tools.ietf.org/html/rfc6386#section-9.1
-// This allows the bridge to continue detecting keyframes (only one byte needed in the JVB)
-// and is also a bit easier for the VP8 decoder (i.e. it generates funny garbage pictures
-// instead of being unable to decode).
-// This is a bit for show and we might want to reduce to 1 unconditionally in the final version.
-//
-// For audio (where frame.type is not set) we do not encrypt the opus TOC byte:
-//   https://tools.ietf.org/html/rfc6716#section-3.1
-const VIDEO_UNENCRYPTED_BYTES = {
-    key: 10,
-    delta: 3,
-};
 let printEncStart = true;
 
 /* We use a 96 bit IV for AES GCM. This is signalled in plain together with the
@@ -84,9 +66,6 @@ export class Context {
      */
     async setKeyCommitment(commitment: string) {
         this._keyCommtiment = commitment;
-        console.info(
-            `E2E: Set commitment to idenity keys of a participant ${this._participantId}`,
-        );
     }
 
     /**
