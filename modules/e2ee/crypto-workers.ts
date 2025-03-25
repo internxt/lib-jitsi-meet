@@ -161,3 +161,14 @@ export function decryptData(
         data,
     );
 }
+
+export async function commitToSecret(
+    id: string,
+    keyOlm: Uint8Array,
+    keyPQ: Uint8Array,
+    index: number,
+): Promise<string> {
+    const com1 = await computeCommitment(id + index, keyOlm);
+    const com2 = await computeCommitment(id + index, keyPQ);
+    return com1 + com2;
+}

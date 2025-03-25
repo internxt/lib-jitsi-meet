@@ -15,7 +15,7 @@ function getParticipantContext(participantId) {
     if (!contexts.has(participantId)) {
         contexts.set(participantId, new Context(participantId));
     }
-    return contexts.get(participantId);
+    return contexts.get(participantId)!;
 }
 
 /**
@@ -62,7 +62,7 @@ function handleTransform(
     }
 }
 
-onmessage = async (event) => {
+onmessage = async (event: MessageEvent) => {
     const { operation } = event.data;
 
     if (operation === "encode" || operation === "decode") {

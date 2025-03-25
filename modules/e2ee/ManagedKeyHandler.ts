@@ -1,6 +1,5 @@
 /// <reference types="node" />
 
-import { getLogger } from "@jitsi/logger";
 import browser from "../browser";
 import JitsiLocalTrack from "../RTC/JitsiLocalTrack";
 import JingleSessionPC from "../xmpp/JingleSessionPC";
@@ -15,8 +14,6 @@ import JitsiConference from "../../JitsiConference";
 import E2EEContext from "./E2EEContext";
 import RTCEvents from "../../service/RTC/RTCEvents";
 import { generateEmojiSas } from "./SAS";
-
-const logger = getLogger(__filename);
 
 /**
  * This module integrates {@link E2EEContext} with {@link OlmAdapter} in order to distribute the keys for encryption.
@@ -122,7 +119,7 @@ export class ManagedKeyHandler extends Listenable {
         }
 
         if (enabled) {
-            logger.info("E2E: Enabling e2ee");
+            console.info("E2E: Enabling e2ee");
 
             this.enabled = true;
             this.init = this._olmAdapter.initSessions();
@@ -130,7 +127,7 @@ export class ManagedKeyHandler extends Listenable {
         }
 
         if (!enabled) {
-            logger.info("E2E: Disabling e2ee");
+            console.info("E2E: Disabling e2ee");
             this.enabled = false;
             this.e2eeCtx.cleanupAll();
             this._olmAdapter.clearAllParticipantsSessions();
@@ -185,7 +182,7 @@ export class ManagedKeyHandler extends Listenable {
                 track.getParticipantId(),
             );
         } else {
-            logger.warn(
+            console.warn(
                 `E2E: Could not handle E2EE for ${track}: receiver not found in: ${tpc}`,
             );
         }
@@ -212,7 +209,7 @@ export class ManagedKeyHandler extends Listenable {
                 track.getParticipantId(),
             );
         } else {
-            logger.warn(
+            console.warn(
                 `E2E: Could not handle E2EE for ${track}: sender not found in ${pc}`,
             );
         }
@@ -243,7 +240,7 @@ export class ManagedKeyHandler extends Listenable {
      * @private
      */
     async _onParticipantJoined(id: string) {
-        logger.info(`E2E: A new participant ${id} joined the conference`);
+        console.info(`E2E: A new participant ${id} joined the conference`);
         if (this._conferenceJoined && this.enabled) {
             await this.init;
             await this._olmAdapter._ratchetKeyImpl();
@@ -255,7 +252,7 @@ export class ManagedKeyHandler extends Listenable {
      * @private
      */
     async _onParticipantLeft(id: string) {
-        logger.info(`E2E: Participant ${id} left the conference.`);
+        console.info(`E2E: Participant ${id} left the conference.`);
         this.e2eeCtx.cleanup(id);
 
         if (this.enabled) {

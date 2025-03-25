@@ -1,5 +1,4 @@
 /* global RTCRtpScriptTransform */
-import { getLogger } from "@jitsi/logger";
 import Listenable from "../util/Listenable";
 
 // Extend the RTCRtpReceiver interface due to lack of support of streams
@@ -20,8 +19,6 @@ export interface CustomRTCRtpSender extends RTCRtpSender {
     };
     transform: RTCRtpScriptTransform;
 }
-
-const logger = getLogger(__filename);
 
 /**
  * Context encapsulating the cryptography bits required for E2EE.
@@ -72,7 +69,7 @@ export default class E2EEcontext extends Listenable {
 
         this._worker = new Worker(workerUrl, { name: "E2EE Worker" });
 
-        this._worker.onerror = (e) => logger.error(e);
+        this._worker.onerror = (e) => console.error(e);
 
         this._worker.onmessage = this.updateSAS.bind(this);
     }
@@ -136,7 +133,7 @@ export default class E2EEcontext extends Listenable {
                     },
                     [receiverStreams.readable, receiverStreams.writable],
                 );
-            } else logger.error(`createEncodedStreams operation failed!`);
+            } else console.error(`createEncodedStreams operation failed!`);
         }
     }
 
@@ -173,7 +170,7 @@ export default class E2EEcontext extends Listenable {
                     },
                     [senderStreams.readable, senderStreams.writable],
                 );
-            } else logger.error(`createEncodedStreams operation failed!`);
+            } else console.error(`createEncodedStreams operation failed!`);
         }
     }
 
@@ -191,6 +188,7 @@ export default class E2EEcontext extends Listenable {
         pqKey: Uint8Array,
         index: number,
     ) {
+        console.log(`E2E: Set keys for ${participantId}, index = ${index}, olmKey = ${olmKey}, pqKey = ${pqKey}`);
         this._worker.postMessage({
             operation: "setKey",
             olmKey,
@@ -220,6 +218,7 @@ export default class E2EEcontext extends Listenable {
      * @param {string} participantId - The ID of the participant
      */
     ratchetKeys(participantId: string) {
+        console.log(`E2E: Ratchet keys for ${participantId}`);
         this._worker.postMessage({
             operation: "ratchetKeys",
             participantId,

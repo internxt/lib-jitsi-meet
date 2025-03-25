@@ -1,5 +1,4 @@
 import { safeJsonParse } from "@jitsi/js-utils/json";
-import { getLogger } from "@jitsi/logger";
 import * as base64js from "base64-js";
 
 import * as JitsiConferenceEvents from "../../JitsiConferenceEvents";
@@ -18,11 +17,10 @@ import {
     ratchetKey,
     computeCommitment,
     deriveEncryptionKey,
+    commitToSecret,
 } from "./crypto-workers";
 import JitsiConference from "../../JitsiConference";
 import JitsiParticipant from "../../JitsiParticipant";
-
-const logger = getLogger(__filename);
 
 const REQ_TIMEOUT = 20 * 1000;
 const OLM_MESSAGE_TYPE = "olm";
@@ -192,7 +190,7 @@ export class OlmAdapter extends Listenable {
             );
             return true;
         } catch (error) {
-            logger.error("E2E: Failed to initialize Olm", error);
+            console.error("E2E: Failed to initialize Olm", error);
             return false;
         }
     }
@@ -207,17 +205,6 @@ export class OlmAdapter extends Listenable {
         return this._conf.myUserId();
     }
 
-    async _commitToSecret(
-        id: string,
-        keyOlm: Uint8Array,
-        keyPQ: Uint8Array,
-        index: number,
-    ) {
-        const com1 = await computeCommitment(id + index, keyOlm);
-        const com2 = await computeCommitment(id + index, keyPQ);
-        return com1 + com2;
-    }
-
     /**
      * Sends KEY_INFO message to the participant.
      *
@@ -228,7 +215,7 @@ export class OlmAdapter extends Listenable {
     async sendKeyInfoToParticipant(participant: JitsiParticipant) {
         const pId = participant.getId();
         const olmData = this._getParticipantOlmData(participant);
-        if (olmData.session_for_sending && olmData.pqSessionKey) {
+        if (olmData.status === PROTOCOL_STATUS.DONE) {
             try {
                 const pqCiphertextBase64 = await encryptKeyInfoPQ(
                     olmData.pqSessionKey,
@@ -273,11 +260,11 @@ export class OlmAdapter extends Listenable {
             switch (name) {
                 case "e2ee.enabled":
                     if (newValue) {
-                        logger.info(
+                        console.info(
                             `E2E: Participant ${participant.getId()} STARTED encrypting data.`,
                         );
                     } else {
-                        logger.info(
+                        console.info(
                             `E2E: Participant ${participant.getId()} STOPPED encrypting data.`,
                         );
                     }
@@ -303,7 +290,7 @@ export class OlmAdapter extends Listenable {
                 },
             },
         };
-        logger.info(`E2E: Sending RATCHET_INFO to the participant ${pId}`);
+        console.info(`E2E: Sending RATCHET_INFO to the participant ${pId}`);
         this._sendMessage(info, pId);
     }
 
@@ -341,7 +328,7 @@ export class OlmAdapter extends Listenable {
                     participant.hasFeature(FEATURE_E2EE) &&
                     localParticipantId > participant.getId(),
             );
-            logger.info(
+            console.info(
                 `E2E: My ID is ${localParticipantId}, should send session-init to everyone with smaller IDs: [ ${list.map((p) => p.getId())}]`,
             );
             const promises = list.map((participant) => {
@@ -363,14 +350,14 @@ export class OlmAdapter extends Listenable {
                 // Simulates timeout with deferred object but using promises
                 return Promise.race([sessionPromise, timeoutPromise])
                     .then((result) => {
-                        logger.info(
+                        console.info(
                             `E2E: Session with ${pId} initialized successfully.`,
                         );
                         return result;
                     })
                     .catch((error) => {
                         this._reqs.delete(pId);
-                        logger.error(
+                        console.error(
                             `E2E: Failed to initialize session with ${pId}: ${error}`,
                         );
                     });
@@ -398,8 +385,10 @@ export class OlmAdapter extends Listenable {
      */
     async _ratchetKeyImpl() {
         try {
+            console.log(`E2E: BEFORE self-ratchet: ${this._mediaKeyOlm}`);
             this._mediaKeyOlm = await ratchetKey(this._mediaKeyOlm);
             this._mediaKeyPQ = await ratchetKey(this._mediaKeyPQ);
+            console.log(`E2E: AFTER self-ratchet: ${this._mediaKeyOlm}`);
             this._mediaKeyIndex++;
             this._onKeysUpdated(
                 this.myId,
@@ -420,9 +409,6 @@ export class OlmAdapter extends Listenable {
                     status != PROTOCOL_STATUS.DONE &&
                     status != PROTOCOL_STATUS.NOT_STARTED
                 ) {
-                    logger.info(
-                        `E2E: Sending RATCHET_INFO to ${pId}, status= ${olmData.status}, sendIndex = ${olmData.indexToSend}`,
-                    );
                     await this.sendRatchetInfoToParticipant(pId);
                 }
             }
@@ -438,7 +424,7 @@ export class OlmAdapter extends Listenable {
      */
     async _rotateKeyImpl() {
         try {
-            logger.info("E2E: Rotating my keys");
+            console.info("E2E: Rotating my keys");
             this._mediaKeyOlm = generateKey();
             this._mediaKeyPQ = generateKey();
             this._mediaKeyIndex++;
@@ -476,7 +462,7 @@ export class OlmAdapter extends Listenable {
             }
             olmData.status = PROTOCOL_STATUS.NOT_STARTED;
         } catch (error) {
-            logger.error(
+            console.error(
                 `E2E: Failed to clear session for participat ${participant.getId()}: ${error}`,
             );
         }
@@ -711,7 +697,7 @@ export class OlmAdapter extends Listenable {
                 },
             },
         };
-        logger.info(`E2E: Sending KEY_INFO to the participant ${pId}`);
+        console.info(`E2E: Sending KEY_INFO to the participant ${pId}`);
         this._sendMessage(info, pId);
     }
 
@@ -727,8 +713,8 @@ export class OlmAdapter extends Listenable {
         }
 
         if (!payload.olm) {
-            logger.warn(
-                "E2E: _onEndpointMessageReceived: Incorrectly formatted message: ",
+            console.warn(
+                "E2E: _onEndpointMessageReceived: Incorrectly formatted message",
             );
 
             return;
@@ -773,13 +759,12 @@ export class OlmAdapter extends Listenable {
                         olmData.keyToSendPQ = this._mediaKeyPQ;
                         olmData.keyToSendOlm = this._mediaKeyOlm;
                         olmData.indexToSend = this._mediaKeyIndex;
-                        const commitmentToMediaKeys =
-                            await this._commitToSecret(
-                                this.myId,
-                                olmData.keyToSendOlm,
-                                olmData.keyToSendPQ,
-                                olmData.indexToSend,
-                            );
+                        const commitmentToMediaKeys = await commitToSecret(
+                            this.myId,
+                            olmData.keyToSendOlm,
+                            olmData.keyToSendPQ,
+                            olmData.indexToSend,
+                        );
 
                         this._sendPQSessionInitMessage(
                             encapsulatedBase64,
@@ -896,7 +881,7 @@ export class OlmAdapter extends Listenable {
                             olmData.pqSessionKey,
                         );
 
-                        const commitment = await this._commitToSecret(
+                        const commitment = await commitToSecret(
                             pId,
                             key,
                             pqKey,
@@ -909,7 +894,7 @@ export class OlmAdapter extends Listenable {
                                 `Keys do not match the commitment.`,
                             );
                         else {
-                            logger.info(`E2E: Recived new keys from ${pId}`);
+                            console.info(`E2E: Recived new keys from ${pId}, index = ${index}`);
                             await this._setParticipantKeys(
                                 pId,
                                 key,
@@ -932,7 +917,7 @@ export class OlmAdapter extends Listenable {
                             olmData.keyToSendPQ = new Uint8Array();
                             olmData.keyToSendOlm = new Uint8Array();
                             olmData.indexToSend = -1;
-                            logger.info(
+                            console.info(
                                 `E2E: Sent my keys to ${pId}, index = ${this._mediaKeyIndex}.`,
                             );
                             this._sendSessionAckMessage(
@@ -942,7 +927,7 @@ export class OlmAdapter extends Listenable {
                             );
 
                             olmData.status = PROTOCOL_STATUS.DONE;
-                            logger.info(
+                            console.info(
                                 `E2E: Participant ${pId} established E2E channel with us.`,
                             );
                         }
@@ -972,7 +957,7 @@ export class OlmAdapter extends Listenable {
                             pqCiphertext,
                             olmData.pqSessionKey,
                         );
-                        const commitment = await this._commitToSecret(
+                        const commitment = await commitToSecret(
                             pId,
                             key,
                             pqKey,
@@ -984,10 +969,10 @@ export class OlmAdapter extends Listenable {
                                 pId,
                                 `Keys do not match the commitment.`,
                             );
-                            logger.warn(`E2E: Rotating my keys.`);
+                            console.warn(`E2E: Rotating my keys.`);
                             await this._rotateKeyImpl();
                         } else {
-                            logger.info(`E2E: Recived new keys from ${pId}`);
+                            console.info(`E2E: Recived new keys from ${pId}, index = ${index}`);
                             await this._setParticipantKeys(
                                 pId,
                                 key,
@@ -1003,7 +988,7 @@ export class OlmAdapter extends Listenable {
                                 requestPromise.resolve();
                                 this._reqs.delete(pId);
                             } else
-                                logger.warn(
+                                console.warn(
                                     `E2E: Session with ${pId} was established after reaching time out.`,
                                 );
                         }
@@ -1011,7 +996,7 @@ export class OlmAdapter extends Listenable {
                     break;
                 }
                 case OLM_MESSAGE_TYPES.ERROR: {
-                    logger.error(msg.data.error);
+                    console.error(msg.data.error);
                     break;
                 }
                 case OLM_MESSAGE_TYPES.KEY_INFO: {
@@ -1041,7 +1026,7 @@ export class OlmAdapter extends Listenable {
                             pId,
                         );
                     } else {
-                        logger.info(
+                        console.info(
                             `E2E: RATCHET_INFO from ${pId} arrived before session is established`,
                         );
                         olmData.ratchetCount += 1;
@@ -1101,7 +1086,7 @@ export class OlmAdapter extends Listenable {
      * @returns {void}
      */
     _sendError(pId: string, error: string) {
-        logger.error(`E2E: ${error}`);
+        console.error(`E2E: ${error}`);
         const err = {
             [JITSI_MEET_MUC_TYPE]: OLM_MESSAGE_TYPE,
             olm: {
@@ -1157,13 +1142,13 @@ export class OlmAdapter extends Listenable {
         try {
             const olmData = this._getParticipantOlmData(participant);
             const pId = participant.getId();
-            logger.info(`E2E: Sending session-init to participant ${pId} `);
+            console.info(`E2E: Sending session-init to participant ${pId} `);
 
             const otKey = this._getOneTimeKey();
             olmData.keyToSendPQ = this._mediaKeyPQ;
             olmData.keyToSendOlm = this._mediaKeyOlm;
             olmData.indexToSend = this._mediaKeyIndex;
-            const secretCommitment = await this._commitToSecret(
+            const secretCommitment = await commitToSecret(
                 this.myId,
                 olmData.keyToSendOlm,
                 olmData.keyToSendPQ,
@@ -1180,10 +1165,7 @@ export class OlmAdapter extends Listenable {
 
             olmData.status = PROTOCOL_STATUS.WAITING_PQ_SESSION_INIT;
         } catch (e) {
-            this._sendError(
-                participant.getId(),
-                `sendSessionInit failed for ${participant.getId()}: ${e}`,
-            );
+            console.error(`E2E: sendSessionInit failed: ${e}`);
         }
     }
 }
