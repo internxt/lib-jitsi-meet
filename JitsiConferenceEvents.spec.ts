@@ -24,9 +24,7 @@ describe( "/JitsiConferenceEvents members", () => {
         DOMINANT_SPEAKER_CHANGED,
         CONFERENCE_CREATED_TIMESTAMP,
         DTMF_SUPPORT_CHANGED,
-        E2EE_VERIFICATION_AVAILABLE,
-        E2EE_VERIFICATION_READY,
-        E2EE_VERIFICATION_COMPLETED,
+        E2EE_SAS_AVAILABLE,
         ENCODE_TIME_STATS_RECEIVED,
         ENDPOINT_MESSAGE_RECEIVED,
         ENDPOINT_STATS_RECEIVED,
@@ -249,10 +247,8 @@ describe( "/JitsiConferenceEvents members", () => {
         expect( JitsiConferenceEvents.BREAKOUT_ROOMS_UPDATED ).toBe( 'conference.breakout-rooms.updated' );
         expect( JitsiConferenceEvents.METADATA_UPDATED ).toBe( 'conference.metadata.updated' );
         expect( JitsiConferenceEvents.SILENT_STATUS_CHANGED ).toBe( 'conference.silentStatusChanged' );
-        expect( JitsiConferenceEvents.E2EE_VERIFICATION_READY ).toBe( 'conference.e2ee.verification.ready' );
-        expect( JitsiConferenceEvents.E2EE_VERIFICATION_COMPLETED ).toBe( 'conference.e2ee.verification.completed' );
-        expect( JitsiConferenceEvents.E2EE_VERIFICATION_AVAILABLE ).toBe( 'conference.e2ee.verification.available' );
         expect( JitsiConferenceEvents.REACTION_RECEIVED ).toBe( 'conference.reactionReceived' );
+        expect( JitsiConferenceEvents.E2EE_SAS_AVAILABLE ).toBe( 'conference.e2ee.sas.available' );
     } );
 
 it( "unknown members", () => {
