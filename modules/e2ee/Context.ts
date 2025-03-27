@@ -13,19 +13,15 @@ let printEncStart = true;
  packet. See https://developer.mozilla.org/en-US/docs/Web/API/AesGcmParams */
 const IV_LENGTH = 12;
 
-type KeyMaterial = {
-    encryptionKey: CryptoKey;
-    materialOlm: Uint8Array;
-    materialPQ: Uint8Array;
-};
-
 /**
  * Per-participant context holding the cryptographic keys and
  * encode/decode functions
  */
 export class Context {
-    private _participantId: string;
-    private _cryptoKeyRing: KeyMaterial[];
+    private readonly _participantId: string;
+    private encryptionKey: CryptoKey;
+    private materialOlm: Uint8Array;
+    private materialPQ: Uint8Array;
     private _currentKeyIndex: number;
     private _sendCounts: Map<number, number>;
     private _hash: string;
@@ -34,8 +30,10 @@ export class Context {
      * @param {string} id
      */
     constructor(id: string) {
-        this._cryptoKeyRing = new Array(KEYRING_SIZE);
         this._sendCounts = new Map();
+        this.encryptionKey = null as any;
+        this.materialOlm = new Uint8Array();
+        this.materialPQ = new Uint8Array();
         this._participantId = id;
         this._keyCommtiment = "";
         this._hash = "";
@@ -49,10 +47,8 @@ export class Context {
     async ratchetKeys() {
         const currentIndex = this._currentKeyIndex;
         if (currentIndex >= 0) {
-            const { materialOlm, materialPQ } =
-                this._cryptoKeyRing[currentIndex];
-            const newMaterialOlm = await ratchetKey(materialOlm);
-            const newMaterialPQ = await ratchetKey(materialPQ);
+            const newMaterialOlm = await ratchetKey(this.materialOlm);
+            const newMaterialPQ = await ratchetKey(this.materialPQ);
             console.info(
                 `E2E: Ratchet keys of participant ${this._participantId}`,
             );
@@ -82,17 +78,13 @@ export class Context {
      * @param {number} index The keys index.
      */
     async setKey(olmKey: Uint8Array, pqKey: Uint8Array, index: number) {
-        const encryptionKey = await deriveEncryptionKey(olmKey, pqKey);
-        const newKey: KeyMaterial = {
-            materialOlm: olmKey,
-            materialPQ: pqKey,
-            encryptionKey,
-        };
+        this.materialOlm = olmKey;
+        this.materialPQ = pqKey;
+        this.encryptionKey = await deriveEncryptionKey(this.materialOlm, pqKey);
         this._currentKeyIndex = index % KEYRING_SIZE;
-        this._cryptoKeyRing[this._currentKeyIndex] = newKey;
         this._hash = await computeHash(
-            olmKey,
-            pqKey,
+            this.materialOlm,
+            this.materialPQ,
             this._keyCommtiment,
             this._currentKeyIndex,
         );
@@ -113,7 +105,7 @@ export class Context {
         controller: TransformStreamDefaultController,
     ) {
         const keyIndex = this._currentKeyIndex;
-        if (this._cryptoKeyRing[keyIndex]) {
+        if (this._currentKeyIndex >= 0) {
             const encryptedFrame = await this._encryptFrame(
                 encodedFrame,
                 keyIndex,
@@ -152,7 +144,7 @@ export class Context {
         encodedFrame: RTCEncodedVideoFrame | RTCEncodedAudioFrame,
         keyIndex: number,
     ) {
-        const key: CryptoKey = this._cryptoKeyRing[keyIndex].encryptionKey;
+        const key: CryptoKey = this.encryptionKey;
         try {
             const iv = this._makeIV(
                 encodedFrame.getMetadata().synchronizationSource ?? 0,
@@ -242,7 +234,7 @@ export class Context {
     ) {
         const data = new Uint8Array(encodedFrame.data);
         const keyIndex = data[encodedFrame.data.byteLength - 1];
-        if (this._cryptoKeyRing[keyIndex]) {
+        if (keyIndex === this._currentKeyIndex) {
             const decodedFrame = await this._decryptFrame(
                 encodedFrame,
                 keyIndex,
@@ -266,7 +258,7 @@ export class Context {
         encodedFrame: RTCEncodedVideoFrame | RTCEncodedAudioFrame,
         keyIndex: number,
     ) {
-        const { encryptionKey } = this._cryptoKeyRing[keyIndex];
+        const encryptionKey = this.encryptionKey;
 
         // Construct frame trailer. Similar to the frame header described in
         // https://tools.ietf.org/html/draft-omara-sframe-00#section-4.2

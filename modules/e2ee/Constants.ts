@@ -5,9 +5,9 @@ export const OLM_MESSAGE_TYPES = {
     KEY_INFO: "key-info",
     SESSION_ACK: "session-ack",
     PQ_SESSION_ACK: "pq-session-ack",
-    RATCHET_INFO: "ratchet-info",
     SESSION_INIT: "session-init",
     PQ_SESSION_INIT: "pq-session-init",
+    SESSION_DONE: "session-done",
 };
 
 export const PROTOCOL_STATUS = {
@@ -16,12 +16,15 @@ export const PROTOCOL_STATUS = {
     WAITING_SESSION_ACK: "waiting-for-session-ack",
     WAITING_PQ_SESSION_ACK: "waiting-for-pq-session-ack",
     WAITING_PQ_SESSION_INIT: "waiting-for-pq-session-init",
-    DONE: "sucessfully established",
+    WAITING_DONE: "waiting-for-done",
+    DONE: "protocol-established",
 };
 
 export const IV_LENGTH = 16;
 export const MEDIA_KEY_LEN = 32;
-export const AUX = Uint8Array.from([80, 81, 32, 75, 101, 121, 32, 73, 110, 102, 111]); // "PQ Key Info"
+export const AUX = Uint8Array.from([
+    80, 81, 32, 75, 101, 121, 32, 73, 110, 102, 111,
+]); // "PQ Key Info"
 export const AES = "AES-GCM";
 export const AES_KEY_LEN = 256;
 export const HASH_LEN = 256;
