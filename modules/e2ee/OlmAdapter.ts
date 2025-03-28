@@ -1,7 +1,6 @@
 import { safeJsonParse } from "@jitsi/js-utils/json";
 import * as base64js from "base64-js";
 
-import * as JitsiConferenceEvents from "../../JitsiConferenceEvents";
 import Listenable from "../util/Listenable";
 import { FEATURE_E2EE, JITSI_MEET_MUC_TYPE } from "../xmpp/xmpp";
 
@@ -51,7 +50,7 @@ class OlmData {
     kemSecret: Uint8Array;
     reSendKeyInfo: boolean;
     constructor() {
-        this.status = PROTOCOL_STATUS.NOT_STARTED;
+        this.status = PROTOCOL_STATUS.READY_TO_START;
         this.session_for_sending = null as any;
         this.session_for_reciving = null as any;
         this.pqSessionKey = null as any;
@@ -178,23 +177,7 @@ export class OlmAdapter extends Listenable {
         this._publicCurve25519Key = "";
         this._indenityKeyCommitment = "";
 
-        if (OlmAdapter.isSupported()) {
-            this._olmWasInitialized = this._bootstrapOlm();
-            this._conf.on(
-                JitsiConferenceEvents.ENDPOINT_MESSAGE_RECEIVED,
-                this._onEndpointMessageReceived.bind(this),
-            );
-            this._conf.on(
-                JitsiConferenceEvents.CONFERENCE_LEFT,
-                this._onConferenceLeft.bind(this),
-            );
-            this._conf.on(
-                JitsiConferenceEvents.USER_LEFT,
-                this._onParticipantLeft.bind(this),
-            );
-        } else {
-            this._olmWasInitialized = Promise.reject(false);
-        }
+        this._olmWasInitialized = this._bootstrapOlm();
     }
 
     /**
@@ -272,7 +255,7 @@ export class OlmAdapter extends Listenable {
      *
      * @private
      */
-    async initSessions() {
+    async initSessions(): Promise<Promise<unknown>[]> {
         if (!(await this._olmWasInitialized)) {
             throw new Error(
                 "E2E: Cannot init sessions because olm was not initialized",
@@ -374,7 +357,7 @@ export class OlmAdapter extends Listenable {
 
                 if (
                     status != PROTOCOL_STATUS.DONE &&
-                    status != PROTOCOL_STATUS.NOT_STARTED
+                    status != PROTOCOL_STATUS.READY_TO_START
                 ) {
                     olmData.reSendKeyInfo = true;
                 }
@@ -415,7 +398,7 @@ export class OlmAdapter extends Listenable {
 
                 if (
                     status != PROTOCOL_STATUS.DONE &&
-                    status != PROTOCOL_STATUS.NOT_STARTED
+                    status != PROTOCOL_STATUS.READY_TO_START
                 ) {
                     olmData.reSendKeyInfo = true;
                 }
@@ -450,7 +433,7 @@ export class OlmAdapter extends Listenable {
                 olmData.session_for_reciving.free();
                 olmData.session_for_reciving = undefined;
             }
-            olmData.status = PROTOCOL_STATUS.NOT_STARTED;
+            olmData.status = PROTOCOL_STATUS.TERMINATED;
         } catch (error) {
             console.error(
                 `E2E: Failed to clear session for participat ${participant.getId()}: ${error}`,
@@ -517,7 +500,7 @@ export class OlmAdapter extends Listenable {
     async _onConferenceLeft() {
         if (await this._olmWasInitialized) {
             for (const participant of this._conf.getParticipants()) {
-                this._onParticipantLeft(participant.getId(), participant);
+                this.clearParticipantSession(participant);
             }
 
             if (this._olmAccount) {
@@ -706,7 +689,7 @@ export class OlmAdapter extends Listenable {
 
             switch (msg.type) {
                 case OLM_MESSAGE_TYPES.SESSION_INIT: {
-                    if (olmData.status === PROTOCOL_STATUS.NOT_STARTED) {
+                    if (olmData.status === PROTOCOL_STATUS.READY_TO_START) {
                         const { otKey, publicKey, publicKyberKey, commitment } =
                             msg.data;
                         olmData.commitment = commitment;
@@ -840,12 +823,12 @@ export class OlmAdapter extends Listenable {
                             index,
                         );
 
-                        if (olmData.commitment != commitment)
+                        if (olmData.commitment != commitment) {
                             this._sendError(
                                 pId,
                                 `Keys do not match the commitment.`,
                             );
-                        else {
+                        } else {
                             console.info(
                                 `E2E: Recived new keys from ${pId}, index = ${index}`,
                             );
@@ -976,15 +959,6 @@ export class OlmAdapter extends Listenable {
                 `Processing ${msg.type} failed for ${pId}: ${error}`,
             );
         }
-    }
-
-    /**
-     * Handles a participant leaving. When a participant leaves their olm session is destroyed.
-     *
-     * @private
-     */
-    _onParticipantLeft(id: string, participant: JitsiParticipant) {
-        this.clearParticipantSession(participant);
     }
 
     /**

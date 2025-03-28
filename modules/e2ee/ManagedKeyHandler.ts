@@ -4,9 +4,13 @@ import browser from "../browser";
 import JitsiLocalTrack from "../RTC/JitsiLocalTrack";
 import JingleSessionPC from "../xmpp/JingleSessionPC";
 import TraceablePeerConnection from "../RTC/TraceablePeerConnection";
-import E2EEContext, { CustomRTCRtpReceiver, CustomRTCRtpSender } from "./E2EEContext";
+import E2EEContext, {
+    CustomRTCRtpReceiver,
+    CustomRTCRtpSender,
+} from "./E2EEContext";
 
 import * as JitsiConferenceEvents from "../../JitsiConferenceEvents";
+import JitsiParticipant from "../../JitsiParticipant";
 
 import Listenable from "../util/Listenable";
 import { OlmAdapter } from "./OlmAdapter";
@@ -21,7 +25,7 @@ export class ManagedKeyHandler extends Listenable {
     conference: JitsiConference;
     e2eeCtx: E2EEContext;
     enabled: boolean;
-    init: any;
+    init: Promise<Promise<unknown>[]>;
     _olmAdapter: OlmAdapter;
     private _conferenceJoined: boolean;
 
@@ -42,6 +46,14 @@ export class ManagedKeyHandler extends Listenable {
         this.conference.on(
             JitsiConferenceEvents.USER_LEFT,
             this._onParticipantLeft.bind(this),
+        );
+        this.conference.on(
+            JitsiConferenceEvents.ENDPOINT_MESSAGE_RECEIVED,
+            this._onEndpointMessageReceived.bind(this),
+        );
+        this.conference.on(
+            JitsiConferenceEvents.CONFERENCE_LEFT,
+            this._onConferenceLeft.bind(this),
         );
         this.conference.on(JitsiConferenceEvents.CONFERENCE_JOINED, () => {
             this._conferenceJoined = true;
@@ -250,14 +262,22 @@ export class ManagedKeyHandler extends Listenable {
      * Rotates the current key when a participant leaves the conference.
      * @private
      */
-    async _onParticipantLeft(id: string) {
+    async _onParticipantLeft(id: string, participant: JitsiParticipant) {
         console.info(`E2E: Participant ${id} left the conference.`);
-        this.e2eeCtx.cleanup(id);
-
         if (this.enabled) {
             await this.init;
+            this._olmAdapter.clearParticipantSession(participant);
+            this.e2eeCtx.cleanup(id);
             this._olmAdapter._rotateKeyImpl();
         }
+    }
+
+    async _onConferenceLeft() {
+        this._olmAdapter._onConferenceLeft();
+    }
+
+    async _onEndpointMessageReceived(participant: JitsiParticipant, payload) {
+        this._olmAdapter._onEndpointMessageReceived(participant, payload);
     }
 
     /**

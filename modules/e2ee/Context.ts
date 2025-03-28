@@ -235,10 +235,7 @@ export class Context {
         const data = new Uint8Array(encodedFrame.data);
         const keyIndex = data[encodedFrame.data.byteLength - 1];
         if (keyIndex === this._currentKeyIndex) {
-            const decodedFrame = await this._decryptFrame(
-                encodedFrame,
-                keyIndex,
-            );
+            const decodedFrame = await this._decryptFrame(encodedFrame);
 
             if (decodedFrame) {
                 controller.enqueue(decodedFrame);
@@ -256,7 +253,6 @@ export class Context {
      */
     async _decryptFrame(
         encodedFrame: RTCEncodedVideoFrame | RTCEncodedAudioFrame,
-        keyIndex: number,
     ) {
         const encryptionKey = this.encryptionKey;
 

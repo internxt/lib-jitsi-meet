@@ -11,8 +11,8 @@ export const OLM_MESSAGE_TYPES = {
 };
 
 export const PROTOCOL_STATUS = {
-    ERROR: "error",
-    NOT_STARTED: "ready-to-start",
+    TERMINATED: "protocol-terminated",
+    READY_TO_START: "ready-to-start",
     WAITING_SESSION_ACK: "waiting-for-session-ack",
     WAITING_PQ_SESSION_ACK: "waiting-for-pq-session-ack",
     WAITING_PQ_SESSION_INIT: "waiting-for-pq-session-init",

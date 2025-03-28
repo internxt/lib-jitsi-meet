@@ -15,7 +15,7 @@ function getParticipantContext(participantId) {
     if (!contexts.has(participantId)) {
         contexts.set(participantId, new Context(participantId));
     }
-    return contexts.get(participantId)!;
+    return contexts.get(participantId);
 }
 
 /**
@@ -29,7 +29,10 @@ function getCurrentSASMaterial(): string {
         const pHash = context.getHash();
         array.push(pId + pHash);
     }
-    array.sort();
+    array.sort((a, b) => a.localeCompare(b));
+    console.log(
+        `E2E: Current Context len: ${contexts.size} with [${Array.from(contexts.keys()).join(", ")}]`,
+    );
     return array.join("");
 }
 
