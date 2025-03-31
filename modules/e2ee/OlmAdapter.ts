@@ -1,4 +1,3 @@
-import { safeJsonParse } from "@jitsi/js-utils/json";
 import * as base64js from "base64-js";
 import Olm from "@matrix-org/olm";
 
@@ -108,7 +107,7 @@ class OlmData {
         const encryptionKey = base64js.fromByteArray(key);
         return this.session_for_sending.encrypt(
             JSON.stringify({ encryptionKey, index }),
-        );;
+        );
     }
 
     decryptKeyInfo(ciphertext: OlmCiphertext) {
@@ -116,7 +115,7 @@ class OlmData {
             ciphertext.type,
             ciphertext.body,
         );
-        const json = safeJsonParse(data);
+        const json = JSON.parse(data);
         const key = base64js.toByteArray(json.encryptionKey);
         return { key: key, index: json.index };
     }
@@ -202,7 +201,7 @@ export class OlmAdapter extends Listenable {
             this._olmAccount = new window.Olm.Account();
             this._olmAccount.create();
 
-            const idKeys = safeJsonParse(this._olmAccount.identity_keys());
+            const idKeys = JSON.parse(this._olmAccount.identity_keys());
             this._publicCurve25519Key = idKeys.curve25519;
 
             const { publicKeyBase64, privateKey } = await generateKyberKeys();
@@ -1003,7 +1002,7 @@ export class OlmAdapter extends Listenable {
         // Generate a One Time Key.
         this._olmAccount.generate_one_time_keys(1);
 
-        const otKeys = safeJsonParse(this._olmAccount.one_time_keys());
+        const otKeys = JSON.parse(this._olmAccount.one_time_keys());
         const values = Object.values(otKeys.curve25519);
 
         if (!values.length || typeof values[0] !== "string") {
