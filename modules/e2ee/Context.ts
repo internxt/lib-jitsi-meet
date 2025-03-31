@@ -337,8 +337,8 @@ export class Context {
      * See also https://developer.mozilla.org/en-US/docs/Web/API/AesGcmParams
      */
     _makeIV(synchronizationSource: number, timestamp: number) {
-        const iv = new ArrayBuffer(IV_LENGTH);
-        const ivView = new DataView(iv);
+        const iv = new Uint8Array(IV_LENGTH);
+        const ivView = new DataView(iv.buffer);
 
         // having to keep our own send count (similar to a picture id) is not ideal.
         if (!this._sendCounts.has(synchronizationSource)) {
@@ -348,15 +348,14 @@ export class Context {
         }
 
         const sendCount = this._sendCounts.get(synchronizationSource) ?? 0;
-        const randomTail = crypto.getRandomValues(new Uint32Array(1))[0];  
-
+     
         ivView.setUint32(0, synchronizationSource);
         ivView.setUint32(4, timestamp);
         ivView.setUint32(8, sendCount % 0xffff);
-        ivView.setUint32(12, randomTail); 
+        ivView.setUint32(12,  crypto.getRandomValues(new Uint32Array(1))[0]); 
 
         this._sendCounts.set(synchronizationSource, sendCount + 1);
 
-        return new Uint8Array(iv);
+        return iv;
     }
 }
