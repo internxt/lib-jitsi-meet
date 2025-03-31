@@ -72,7 +72,7 @@
     "gen-types": "tsc --declaration --emitDeclarationOnly --outFile types/index.d.ts",
     "lint": "eslint .",
     "lint-fix": "eslint . --fix",
-    "postinstall": "patch-package && mkdir -p public/libs && cp node_modules/@dashlane/pqc-kem-kyber512-browser/dist/pqc-kem-kyber512.wasm dist/umd",
+    "postinstall": "patch-package && mkdir -p public/libs && mkdir -p dist/umd && cp node_modules/@dashlane/pqc-kem-kyber512-browser/dist/pqc-kem-kyber512.wasm dist/umd",
     "prepack": "npm run build && npm run gen-types",
     "test": "karma start karma.conf.js",
     "test-watch": "karma start karma.conf.js --no-single-run",

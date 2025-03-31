@@ -1,18 +1,16 @@
 import { createKeccak, createHMAC } from "hash-wasm";
-const AES = "AES-GCM";
-const AES_KEY_LEN = 256;
-const HASH_LEN = 256;
+import { AES, AES_KEY_LEN, HASH_LEN } from "./Constants";
 
 /**
  * Computes commitment to two strings.
  *
- * @param {string} value1 - The first string.
- * @param {string} value2 - The second string.
+ * @param {string} value1 - The first value.
+ * @param {string|Uint8Array} value2 - The second value.
  * @returns {Promise<string>} Computed commitment.
  */
 export async function computeCommitment(
     value1: string,
-    value2: string,
+    value2: string | Uint8Array,
 ): Promise<string> {
     try {
         const hasher = await createKeccak(HASH_LEN);
@@ -160,4 +158,15 @@ export function decryptData(
         key,
         data,
     );
+}
+
+export async function commitToSecret(
+    id: string,
+    keyOlm: Uint8Array,
+    keyPQ: Uint8Array,
+    index: number,
+): Promise<string> {
+    const com1 = await computeCommitment(id + index, keyOlm);
+    const com2 = await computeCommitment(id + index, keyPQ);
+    return com1 + com2;
 }

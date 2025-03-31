@@ -1,22 +1,22 @@
 /// <reference types="node" />
 
-import { getLogger } from "@jitsi/logger";
 import browser from "../browser";
 import JitsiLocalTrack from "../RTC/JitsiLocalTrack";
 import JingleSessionPC from "../xmpp/JingleSessionPC";
 import TraceablePeerConnection from "../RTC/TraceablePeerConnection";
-import { CustomRTCRtpReceiver, CustomRTCRtpSender } from "./E2EEContext";
+import E2EEContext, {
+    CustomRTCRtpReceiver,
+    CustomRTCRtpSender,
+} from "./E2EEContext";
 
 import * as JitsiConferenceEvents from "../../JitsiConferenceEvents";
+import JitsiParticipant from "../../JitsiParticipant";
 
 import Listenable from "../util/Listenable";
 import { OlmAdapter } from "./OlmAdapter";
 import JitsiConference from "../../JitsiConference";
-import E2EEContext from "./E2EEContext";
 import RTCEvents from "../../service/RTC/RTCEvents";
 import { generateEmojiSas } from "./SAS";
-
-const logger = getLogger(__filename);
 
 /**
  * This module integrates {@link E2EEContext} with {@link OlmAdapter} in order to distribute the keys for encryption.
@@ -25,6 +25,7 @@ export class ManagedKeyHandler extends Listenable {
     conference: JitsiConference;
     e2eeCtx: E2EEContext;
     enabled: boolean;
+    init: Promise<Promise<unknown>[]>;
     _olmAdapter: OlmAdapter;
     private _conferenceJoined: boolean;
 
@@ -45,6 +46,14 @@ export class ManagedKeyHandler extends Listenable {
         this.conference.on(
             JitsiConferenceEvents.USER_LEFT,
             this._onParticipantLeft.bind(this),
+        );
+        this.conference.on(
+            JitsiConferenceEvents.ENDPOINT_MESSAGE_RECEIVED,
+            this._onEndpointMessageReceived.bind(this),
+        );
+        this.conference.on(
+            JitsiConferenceEvents.CONFERENCE_LEFT,
+            this._onConferenceLeft.bind(this),
         );
         this.conference.on(JitsiConferenceEvents.CONFERENCE_JOINED, () => {
             this._conferenceJoined = true;
@@ -76,11 +85,6 @@ export class ManagedKeyHandler extends Listenable {
         this._olmAdapter.on(
             OlmAdapter.events.PARTICIPANT_KEY_UPDATED,
             this._onParticipantKeyUpdated.bind(this),
-        );
-
-        this._olmAdapter.on(
-            OlmAdapter.events.PARTICIPANT_INIT_KEYS,
-            this._onInitKeys.bind(this),
         );
 
         this._olmAdapter.on(
@@ -126,14 +130,15 @@ export class ManagedKeyHandler extends Listenable {
         }
 
         if (enabled) {
-            logger.info("E2E: Enabling e2ee");
+            console.info("E2E: Enabling e2ee");
 
             this.enabled = true;
-            await this._olmAdapter.initSessions();
+            this.init = this._olmAdapter.initSessions();
+            await this.init;
         }
 
         if (!enabled) {
-            logger.info("E2E: Disabling e2ee");
+            console.info("E2E: Disabling e2ee");
             this.enabled = false;
             this.e2eeCtx.cleanupAll();
             this._olmAdapter.clearAllParticipantsSessions();
@@ -188,7 +193,7 @@ export class ManagedKeyHandler extends Listenable {
                 track.getParticipantId(),
             );
         } else {
-            logger.warn(
+            console.warn(
                 `E2E: Could not handle E2EE for ${track}: receiver not found in: ${tpc}`,
             );
         }
@@ -215,7 +220,7 @@ export class ManagedKeyHandler extends Listenable {
                 track.getParticipantId(),
             );
         } else {
-            logger.warn(
+            console.warn(
                 `E2E: Could not handle E2EE for ${track}: sender not found in ${pc}`,
             );
         }
@@ -246,8 +251,9 @@ export class ManagedKeyHandler extends Listenable {
      * @private
      */
     async _onParticipantJoined(id: string) {
-        logger.info(`E2E: A new participant ${id} joined the conference`);
+        console.info(`E2E: A new participant ${id} joined the conference`);
         if (this._conferenceJoined && this.enabled) {
+            await this.init;
             await this._olmAdapter._ratchetKeyImpl();
         }
     }
@@ -256,13 +262,22 @@ export class ManagedKeyHandler extends Listenable {
      * Rotates the current key when a participant leaves the conference.
      * @private
      */
-    _onParticipantLeft(id: string) {
-        logger.info(`E2E: Participant ${id} left the conference.`);
-        this.e2eeCtx.cleanup(id);
-
+    async _onParticipantLeft(id: string, participant: JitsiParticipant) {
+        console.info(`E2E: Participant ${id} left the conference.`);
         if (this.enabled) {
+            await this.init;
+            this._olmAdapter.clearParticipantSession(participant);
+            this.e2eeCtx.cleanup(id);
             this._olmAdapter._rotateKeyImpl();
         }
+    }
+
+    async _onConferenceLeft() {
+        this._olmAdapter._onConferenceLeft();
+    }
+
+    async _onEndpointMessageReceived(participant: JitsiParticipant, payload) {
+        this._olmAdapter._onEndpointMessageReceived(participant, payload);
     }
 
     /**
@@ -303,26 +318,6 @@ export class ManagedKeyHandler extends Listenable {
      */
     _onParticipantKeysCommitted(id: string, commitment: Uint8Array) {
         this.e2eeCtx.setKeysCommitment(id, commitment);
-    }
-
-    /**
-     * Inits participant's key.
-     *
-     * @param {string} id - The participant ID.
-     * @param {Uint8Array} commitment - The commitment to participant's identity keys.
-     * @param {Uint8Array} olmKey - The olm key of the participant.
-     * @param {Uint8Array} pqKey - The pq key of the participant.
-     * @param {number} index - The key's index.
-     * @private
-     */
-    _onInitKeys(
-        id: string,
-        commitment: Uint8Array,
-        olmKey: Uint8Array,
-        pqKey: Uint8Array,
-        index: number,
-    ) {
-        this.e2eeCtx.initKey(id, commitment, olmKey, pqKey, index);
     }
 
     /**

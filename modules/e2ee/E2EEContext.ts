@@ -1,5 +1,4 @@
 /* global RTCRtpScriptTransform */
-import { getLogger } from "@jitsi/logger";
 import Listenable from "../util/Listenable";
 
 // Extend the RTCRtpReceiver interface due to lack of support of streams
@@ -20,8 +19,6 @@ export interface CustomRTCRtpSender extends RTCRtpSender {
     };
     transform: RTCRtpScriptTransform;
 }
-
-const logger = getLogger(__filename);
 
 /**
  * Context encapsulating the cryptography bits required for E2EE.
@@ -72,7 +69,7 @@ export default class E2EEcontext extends Listenable {
 
         this._worker = new Worker(workerUrl, { name: "E2EE Worker" });
 
-        this._worker.onerror = (e) => logger.error(e);
+        this._worker.onerror = (e) => console.error(e);
 
         this._worker.onmessage = this.updateSAS.bind(this);
     }
@@ -136,7 +133,7 @@ export default class E2EEcontext extends Listenable {
                     },
                     [receiverStreams.readable, receiverStreams.writable],
                 );
-            } else logger.error(`createEncodedStreams operation failed!`);
+            } else console.error(`createEncodedStreams operation failed!`);
         }
     }
 
@@ -173,7 +170,7 @@ export default class E2EEcontext extends Listenable {
                     },
                     [senderStreams.readable, senderStreams.writable],
                 );
-            } else logger.error(`createEncodedStreams operation failed!`);
+            } else console.error(`createEncodedStreams operation failed!`);
         }
     }
 
@@ -210,32 +207,6 @@ export default class E2EEcontext extends Listenable {
         this._worker.postMessage({
             operation: "setKeysCommitment",
             commitment,
-            participantId,
-        });
-    }
-
-    /**
-     * Set the E2EE key for the specified participant.
-     *
-     * @param {string} participantId - The ID of the participant who's key we are setting.
-     * @param {Uint8Array} commitment - The commitment to the participant's identity keys.
-     * @param {Uint8Array} olmKey - The olm key for the given participant.
-     * @param {Uint8Array} pqKey - The pq key for the given participant.
-     * @param {number} keyIndex - The key index.
-     */
-    initKey(
-        participantId: string,
-        commitment: Uint8Array,
-        olmKey: Uint8Array,
-        pqKey: Uint8Array,
-        index: number,
-    ) {
-        this._worker.postMessage({
-            operation: "initKeys",
-            commitment,
-            olmKey,
-            pqKey,
-            index,
             participantId,
         });
     }
