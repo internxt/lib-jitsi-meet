@@ -1,5 +1,6 @@
 import { safeJsonParse } from "@jitsi/js-utils/json";
 import * as base64js from "base64-js";
+import Olm from '@matrix-org/olm';
 
 import Listenable from "../util/Listenable";
 import { FEATURE_E2EE, JITSI_MEET_MUC_TYPE } from "../xmpp/xmpp";
@@ -28,8 +29,6 @@ import {
 } from "./Constants";
 
 type ProtocolStatus = (typeof PROTOCOL_STATUS)[keyof typeof PROTOCOL_STATUS];
-type OlmSession = Window["Olm"]["Session"];
-type OlmAccount = Window["Olm"]["Account"];
 
 const kOlmData = "OlmData";
 const OlmAdapterEvents = {
@@ -44,8 +43,8 @@ class OlmData {
     private keyToSendOlm: Uint8Array;
     private keyToSendPQ: Uint8Array;
     private indexToSend: number;
-    session_for_sending: OlmSession;
-    session_for_reciving: OlmSession;
+    session_for_sending: Olm.Session;
+    session_for_reciving: Olm.Session;
     pqSessionKey: CryptoKey;
     kemSecret: Uint8Array;
     reSendKeyInfo: boolean;
@@ -102,9 +101,10 @@ class OlmData {
     }
     encryptGivenKeyInfo(key: Uint8Array, index: number) {
         const encryptionKey = base64js.fromByteArray(key);
-        return this.session_for_sending.encrypt(
+        const cipher = this.session_for_sending.encrypt(
             JSON.stringify({ encryptionKey, index }),
         );
+        return  JSON.stringify(cipher);
     }
 
     decryptKeyInfo(ciphertext) {
@@ -149,7 +149,7 @@ export class OlmAdapter extends Listenable {
     >;
     private _publicKyberKeyBase64: string;
     private _privateKyberKey: Uint8Array;
-    private _olmAccount: OlmAccount;
+    private _olmAccount: Olm.Account;
     private _publicCurve25519Key: string;
     private _indenityKeyCommitment: string;
     static events: {

@@ -348,10 +348,12 @@ export class Context {
         }
 
         const sendCount = this._sendCounts.get(synchronizationSource) ?? 0;
+        const randomTail = crypto.getRandomValues(new Uint32Array(1))[0];  
 
         ivView.setUint32(0, synchronizationSource);
         ivView.setUint32(4, timestamp);
         ivView.setUint32(8, sendCount % 0xffff);
+        ivView.setUint32(12, randomTail); 
 
         this._sendCounts.set(synchronizationSource, sendCount + 1);
 
