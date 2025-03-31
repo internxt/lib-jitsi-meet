@@ -106,10 +106,9 @@ class OlmData {
     }
     encryptGivenKeyInfo(key: Uint8Array, index: number): OlmCiphertext {
         const encryptionKey = base64js.fromByteArray(key);
-        const cipher = this.session_for_sending.encrypt(
+        return this.session_for_sending.encrypt(
             JSON.stringify({ encryptionKey, index }),
-        );
-        return cipher;
+        );;
     }
 
     decryptKeyInfo(ciphertext: OlmCiphertext) {
