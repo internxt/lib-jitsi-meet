@@ -1,6 +1,6 @@
 import { safeJsonParse } from "@jitsi/js-utils/json";
 import * as base64js from "base64-js";
-import Olm from '@matrix-org/olm';
+import Olm from "@matrix-org/olm";
 
 import Listenable from "../util/Listenable";
 import { FEATURE_E2EE, JITSI_MEET_MUC_TYPE } from "../xmpp/xmpp";
@@ -35,6 +35,11 @@ const OlmAdapterEvents = {
     PARTICIPANT_KEY_RATCHET: "olm.partitipant_key_ratchet",
     PARTICIPANT_KEY_UPDATED: "olm.partitipant_key_updated",
     PARTICIPANT_KEYS_COMMITMENT: "olm.participant_keys_committed",
+};
+
+type OlmCiphertext = {
+    type: number;
+    body: string;
 };
 
 class OlmData {
@@ -99,15 +104,15 @@ class OlmData {
     encryptKeyInfo() {
         return this.encryptGivenKeyInfo(this.keyToSendOlm, this.indexToSend);
     }
-    encryptGivenKeyInfo(key: Uint8Array, index: number) {
+    encryptGivenKeyInfo(key: Uint8Array, index: number): OlmCiphertext {
         const encryptionKey = base64js.fromByteArray(key);
         const cipher = this.session_for_sending.encrypt(
             JSON.stringify({ encryptionKey, index }),
         );
-        return  JSON.stringify(cipher);
+        return cipher;
     }
 
-    decryptKeyInfo(ciphertext) {
+    decryptKeyInfo(ciphertext: OlmCiphertext) {
         const data = this.session_for_reciving.decrypt(
             ciphertext.type,
             ciphertext.body,
@@ -600,7 +605,7 @@ export class OlmAdapter extends Listenable {
      */
     async _sendPQSessionAckMessage(
         encapsKyber: string,
-        ciphertext: string,
+        ciphertext: OlmCiphertext,
         pqCiphertext: string,
         pId: string,
     ): Promise<void> {
@@ -624,7 +629,7 @@ export class OlmAdapter extends Listenable {
      * @private
      */
     async _sendSessionAckMessage(
-        ciphertext: string,
+        ciphertext: OlmCiphertext,
         pqCiphertext: string,
         pId: string,
     ): Promise<void> {
@@ -648,7 +653,7 @@ export class OlmAdapter extends Listenable {
      * @private
      */
     async _sendKeyInfoMessage(
-        ciphertext: string,
+        ciphertext: OlmCiphertext,
         pqCiphertext: string,
         pId: string,
     ): Promise<void> {
