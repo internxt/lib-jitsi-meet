@@ -5,13 +5,7 @@ import {
     decryptData,
     computeHash,
 } from "./crypto-workers";
-import { KEYRING_SIZE, VIDEO_UNENCRYPTED_BYTES } from "./Constants";
-
-let printEncStart = true;
-
-/* We use a 96 bit IV for AES GCM. This is signalled in plain together with the
- packet. See https://developer.mozilla.org/en-US/docs/Web/API/AesGcmParams */
-const IV_LENGTH = 12;
+import { KEYRING_SIZE, VIDEO_UNENCRYPTED_BYTES, IV_LENGTH } from "./Constants";
 
 /**
  * Per-participant context holding the cryptographic keys and
@@ -207,16 +201,10 @@ export class Context {
             ); // append frame trailer.
             encodedFrame.data = newData;
 
-            if (printEncStart) {
-                console.info("E2E: Start encryption of my frames!");
-                printEncStart = false;
-            }
-
             return encodedFrame;
         } catch (e) {
             // TODO: surface this to the app.
             console.error(`E2E: Encryption failed: ${e}`);
-            printEncStart = true;
 
             // We are not enqueuing the frame here on purpose.
         }
