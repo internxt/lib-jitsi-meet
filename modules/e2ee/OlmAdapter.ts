@@ -342,15 +342,16 @@ export class OlmAdapter extends Listenable {
                 const status = olmData.status;
 
                 if (
-                    status != PROTOCOL_STATUS.DONE &&
-                    status != PROTOCOL_STATUS.READY_TO_START
+                    status !== PROTOCOL_STATUS.DONE &&
+                    status !== PROTOCOL_STATUS.WAITING_DONE &&
+                    status !== PROTOCOL_STATUS.READY_TO_START
                 ) {
                     olmData.reSendKeyInfo = true;
                 }
 
                 if (
-                    status == PROTOCOL_STATUS.DONE ||
-                    status == PROTOCOL_STATUS.WAITING_DONE
+                    status === PROTOCOL_STATUS.DONE ||
+                    status === PROTOCOL_STATUS.WAITING_DONE
                 ) {
                     this.emit(OlmAdapterEvents.PARTICIPANT_KEY_RATCHET, pId);
                 }
@@ -383,15 +384,16 @@ export class OlmAdapter extends Listenable {
                 const status = olmData.status;
 
                 if (
-                    status != PROTOCOL_STATUS.DONE &&
-                    status != PROTOCOL_STATUS.READY_TO_START
+                    status !== PROTOCOL_STATUS.DONE &&
+                    status !== PROTOCOL_STATUS.WAITING_DONE &&
+                    status !== PROTOCOL_STATUS.READY_TO_START
                 ) {
                     olmData.reSendKeyInfo = true;
                 }
 
                 if (
-                    status == PROTOCOL_STATUS.DONE ||
-                    status == PROTOCOL_STATUS.WAITING_DONE
+                    status === PROTOCOL_STATUS.DONE ||
+                    status === PROTOCOL_STATUS.WAITING_DONE
                 ) {
                     this.sendKeyInfoToParticipant(pId, olmData);
                 }
