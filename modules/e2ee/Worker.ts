@@ -30,9 +30,6 @@ function getCurrentSASMaterial(): string {
         array.push(pId + pHash);
     }
     array.sort((a, b) => a.localeCompare(b));
-    console.log(
-        `E2E: Current Context len: ${contexts.size} with [${Array.from(contexts.keys()).join(", ")}]`,
-    );
     return array.join("");
 }
 

@@ -131,8 +131,9 @@ export class ManagedKeyHandler extends Listenable {
 
         if (enabled) {
             console.info("E2E: Enabling e2ee");
-
             this.enabled = true;
+
+            await this._olmAdapter.init();
             this.init = this._olmAdapter.initSessions();
             await this.init;
         }
@@ -140,6 +141,7 @@ export class ManagedKeyHandler extends Listenable {
         if (!enabled) {
             console.info("E2E: Disabling e2ee");
             this.enabled = false;
+            
             this.e2eeCtx.cleanupAll();
             this._olmAdapter.clearAllParticipantsSessions();
         }
@@ -212,7 +214,7 @@ export class ManagedKeyHandler extends Listenable {
         }
 
         const pc = session.peerconnection;
-        const sender = pc && pc.findSenderForTrack(track.track);
+        const sender = pc?.findSenderForTrack(track.track);
 
         if (sender) {
             this.e2eeCtx.handleSender(

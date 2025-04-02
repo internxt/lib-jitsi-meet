@@ -1,0 +1,24 @@
+{
+  "name": "vodozemac-wasm-bindings",
+  "type": "module",
+  "collaborators": [
+    "Anis Mekacher"
+  ],
+  "description": "vodozemac JS (wasm) bindings",
+  "version": "0.8.1",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Mekacher-Anis/vodozemac-bindings"
+  },
+  "files": [
+    "vodozemac_bg.wasm",
+    "vodozemac.js",
+    "vodozemac.d.ts"
+  ],
+  "main": "vodozemac.js",
+  "types": "vodozemac.d.ts",
+  "sideEffects": [
+    "./snippets/*"
+  ]
+}

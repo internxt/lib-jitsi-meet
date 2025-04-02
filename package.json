@@ -21,7 +21,6 @@
     "@jitsi/logger": "2.0.2",
     "@jitsi/precall-test": "1.0.6",
     "@jitsi/rtcstats": "9.7.0",
-    "@matrix-org/olm": "^3.2.15",
     "@testrtc/watchrtc-sdk": "1.38.2",
     "async-es": "3.2.4",
     "base64-js": "1.3.1",
@@ -82,7 +81,8 @@
   },
   "browser": {
     "dist/umd/lib-jitsi-meet.min.js": "dist/umd/lib-jitsi-meet.min.js",
-    "pqc-kem-kyber512.wasm": "dist/umd/pqc-kem-kyber512.wasm"
+    "pqc-kem-kyber512.wasm": "dist/umd/pqc-kem-kyber512.wasm",
+    "vodozemac.wasm": "dist/umd/vodozemac.wasm"
   },
   "module": "dist/esm/JitsiMeetJS.js",
   "files": [
