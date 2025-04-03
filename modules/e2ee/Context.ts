@@ -17,14 +17,12 @@ export class Context {
     private materialOlm: Uint8Array;
     private materialPQ: Uint8Array;
     private _currentKeyIndex: number;
-    private _sendCounts: Map<number, number>;
     private _hash: string;
     private _keyCommtiment: string;
     /**
      * @param {string} id
      */
     constructor(id: string) {
-        this._sendCounts = new Map();
         this.encryptionKey = null as any;
         this.materialOlm = new Uint8Array();
         this.materialPQ = new Uint8Array();
@@ -140,10 +138,7 @@ export class Context {
     ) {
         const key: CryptoKey = this.encryptionKey;
         try {
-            const iv = this._makeIV(
-                encodedFrame.getMetadata().synchronizationSource ?? 0,
-                encodedFrame.timestamp,
-            );
+            const iv = crypto.getRandomValues(new Uint8Array(IV_LENGTH));
             // Thіs is not encrypted and contains the VP8 payload descriptor or the Opus TOC byte.
             let unencrypted_bytes_number: number = 1; // for audio frame
             if (encodedFrame instanceof RTCEncodedVideoFrame)
@@ -315,46 +310,5 @@ export class Context {
                 `E2E: Got error while decrypting frame from ${this._participantId}: ${error}`,
             );
         }
-    }
-
-    /**
-     * Construct the IV used for AES-GCM and sent (in plain) with the packet similar to
-     * https://tools.ietf.org/html/rfc7714#section-8.1
-     * It concatenates
-     * - the 32 bit synchronization source (SSRC) given on the encoded frame,
-     * - the 32 bit rtp timestamp given on the encoded frame,
-     * - a send counter that is specific to the SSRC. Starts at a random number.
-     * The send counter is essentially the pictureId but we currently have to implement this ourselves.
-     * There is no XOR with a salt. Note that this IV leaks the SSRC to the receiver but since this is
-     * randomly generated and SFUs may not rewrite this is considered acceptable.
-     * The SSRC is used to allow demultiplexing multiple streams with the same key, as described in
-     *   https://tools.ietf.org/html/rfc3711#section-4.1.1
-     * The RTP timestamp is 32 bits and advances by the codec clock rate (90khz for video, 48khz for
-     * opus audio) every second. For video it rolls over roughly every 13 hours.
-     * The send counter will advance at the frame rate (30fps for video, 50fps for 20ms opus audio)
-     * every second. It will take a long time to roll over.
-     *
-     * See also https://developer.mozilla.org/en-US/docs/Web/API/AesGcmParams
-     */
-    _makeIV(synchronizationSource: number, timestamp: number) {
-        const iv = new ArrayBuffer(IV_LENGTH);
-        const ivView = new DataView(iv);
-
-        // having to keep our own send count (similar to a picture id) is not ideal.
-        if (!this._sendCounts.has(synchronizationSource)) {
-            // Initialize with a random offset, similar to the RTP sequence number.
-            const randomOffset = crypto.getRandomValues(new Uint16Array(1))[0];
-            this._sendCounts.set(synchronizationSource, randomOffset);
-        }
-
-        const sendCount = this._sendCounts.get(synchronizationSource) ?? 0;
-
-        ivView.setUint32(0, synchronizationSource);
-        ivView.setUint32(4, timestamp);
-        ivView.setUint32(8, sendCount % 0xffff);
-
-        this._sendCounts.set(synchronizationSource, sendCount + 1);
-
-        return new Uint8Array(iv);
     }
 }

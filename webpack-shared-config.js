@@ -40,6 +40,14 @@ module.exports = (minimize, analyzeBundle) => {
                 },
                 test: path.join(__dirname, 'JitsiMeetJS.ts')
             }, {
+                // Fix vodozemac dependency
+                test: /\.wasm$/,
+                type: 'asset/resource',
+                generator: {
+                    filename: 'vodozemac.wasm'
+                }
+            },
+            {
             // Fix pqc-kem-kyber512-browser dependency webpack.config.kem.babel.js
                 loader: 'string-replace-loader',
                 options: {
