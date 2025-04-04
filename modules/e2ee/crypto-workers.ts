@@ -26,8 +26,8 @@ async function computeHash(
     participantID: string,
     key1: Uint8Array | string,
     key2: Uint8Array | string,
-    index: number,
-    keyCommitment: string = "",
+    index: number = -1,
+    keyCommitment: string = "NoKeyCommitment",
 ): Promise<string> {
     try {
         const hasher = await createBLAKE3(HASH_LEN);
@@ -37,12 +37,13 @@ async function computeHash(
         hasher.update(key1);
         hasher.update(key2);
         hasher.update("index=" + index);
-        if (keyCommitment) {
-            hasher.update(keyCommitment);
-        }
+        hasher.update(keyCommitment);
+
         return hasher.digest();
     } catch (error) {
-        return Promise.reject(new Error(`Hash computation failed: ${error}`));
+        return Promise.reject(
+            new Error(`E2E: Hash computation failed: ${error}`),
+        );
     }
 }
 
@@ -64,7 +65,7 @@ export async function deriveEncryptionKey(
         hasher.update(key2);
         const keyBytes = hasher.digest("binary");
 
-        const encryptionKey = await crypto.subtle.importKey(
+        return crypto.subtle.importKey(
             "raw",
             keyBytes,
             {
@@ -74,10 +75,10 @@ export async function deriveEncryptionKey(
             false,
             ["encrypt", "decrypt"],
         );
-
-        return encryptionKey;
     } catch (error) {
-        return Promise.reject(new Error(`Key derivation failed: ${error}`));
+        return Promise.reject(
+            new Error(`E2E: Key derivation failed: ${error}`),
+        );
     }
 }
 
@@ -94,7 +95,7 @@ export async function ratchetKey(keyBytes: Uint8Array): Promise<Uint8Array> {
         hasher.update(RATCHET_CONTEXT);
         return hasher.digest("binary");
     } catch (error) {
-        return Promise.reject(new Error(`Ratchet failed: ${error}`));
+        return Promise.reject(new Error(`E2E: Ratchet failed: ${error}`));
     }
 }
 
@@ -172,7 +173,6 @@ export async function hashKeysOfParticipant(
     index: number,
     keyCommitment: string,
 ): Promise<string> {
-
     return computeHash(
         KEY_HASH_PREFIX,
         participantID,
@@ -191,15 +191,15 @@ export async function hashKeysOfParticipant(
  * @returns {Promise<string>} Computed commitment.
  */
 export async function commitToIdentityKeys(
+    participantID: string,
     publicKyberKey: string,
     publicKey: string,
 ): Promise<string> {
     return computeHash(
         MEDIA_KEY_COMMITMENT_PREFIX,
-        "participantIdentityKeys",
+        participantID,
         publicKyberKey,
         publicKey,
-        -1,
     );
 }
 /**

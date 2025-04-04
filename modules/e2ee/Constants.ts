@@ -20,6 +20,13 @@ export const PROTOCOL_STATUS = {
     DONE: "protocol-established",
 };
 
+export const kOlmData = "OlmData";
+export const OlmAdapterEvents = {
+    PARTICIPANT_KEY_RATCHET: "olm.partitipant_key_ratchet",
+    PARTICIPANT_KEY_UPDATED: "olm.partitipant_key_updated",
+    PARTICIPANT_KEYS_COMMITMENT: "olm.participant_keys_committed",
+};
+
 export const IV_LENGTH = 16;
 export const MEDIA_KEY_LEN = 32;
 export const AUX = Uint8Array.from([
@@ -58,6 +65,6 @@ export const RATCHET_CONTEXT =
 export const MEDIA_KEY_COMMITMENT_PREFIX =
     "LIB-JITSI-MEET; E2E with Kyber; 2025-04-04; Commit to media key shares";
 export const KEY_HASH_PREFIX =
-    "LIB-JITSI-MEET; E2E with Kyber; 2025-04-04; Hash of the current encryption key";
+    "LIB-JITSI-MEET; E2E with Kyber; 2025-04-04; Hash current encryption keys of the participant";
 export const IDENTITY_KEYS_PREFIX =
     "LIB-JITSI-MEET; E2E with Kyber; 2025-04-04; Hash identity keys of the participant";
