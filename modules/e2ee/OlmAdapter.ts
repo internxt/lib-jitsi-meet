@@ -759,7 +759,7 @@ export class OlmAdapter extends Listenable {
                             olmData.cleanKeyInfo();
                             this._sendMessage(
                                 OLM_MESSAGE_TYPES.SESSION_DONE,
-                                "",
+                                {},
                                 pId,
                             );
 
@@ -783,6 +783,7 @@ export class OlmAdapter extends Listenable {
                     break;
                 }
                 case OLM_MESSAGE_TYPES.SESSION_DONE: {
+                    console.log(`E2E: Got SESSION_DONE.`);
                     if (olmData.status === PROTOCOL_STATUS.WAITING_DONE) {
                         if (olmData.reSendKeyInfo) {
                             console.info(

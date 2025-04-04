@@ -255,6 +255,7 @@ export class ManagedKeyHandler extends Listenable {
     async _onParticipantJoined(id: string) {
         console.info(`E2E: A new participant ${id} joined the conference`);
         if (this._conferenceJoined && this.enabled) {
+            await this._olmAdapter.init();
             await this.init;
             await this._olmAdapter._ratchetKeyImpl();
         }
@@ -267,6 +268,7 @@ export class ManagedKeyHandler extends Listenable {
     async _onParticipantLeft(id: string, participant: JitsiParticipant) {
         console.info(`E2E: Participant ${id} left the conference.`);
         if (this.enabled) {
+            await this._olmAdapter.init();
             await this.init;
             this._olmAdapter.clearParticipantSession(participant);
             this.e2eeCtx.cleanup(id);
