@@ -48,3 +48,16 @@ export const VIDEO_UNENCRYPTED_BYTES = {
     key: 10,
     delta: 3,
 };
+
+export const SAS_LEN = 48;
+
+export const DERIVE_CONTEXT =
+    "LIB-JITSI-MEET; E2E with Kyber; 2025-04-04; Derive AES Encryption Key from two keys";
+export const RATCHET_CONTEXT =
+    "LIB-JITSI-MEET; E2E with Kyber; 2025-04-04; Ratchet AES Encryption Key";
+export const MEDIA_KEY_COMMITMENT_PREFIX =
+    "LIB-JITSI-MEET; E2E with Kyber; 2025-04-04; Commit to media key shares";
+export const KEY_HASH_PREFIX =
+    "LIB-JITSI-MEET; E2E with Kyber; 2025-04-04; Hash of the current encryption key";
+export const IDENTITY_KEYS_PREFIX =
+    "LIB-JITSI-MEET; E2E with Kyber; 2025-04-04; Hash identity keys of the participant";

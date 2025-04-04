@@ -3,7 +3,7 @@ import {
     ratchetKey,
     encryptData,
     decryptData,
-    computeHash,
+    hashKeysOfParticipant,
 } from "./crypto-workers";
 import { KEYRING_SIZE, VIDEO_UNENCRYPTED_BYTES, IV_LENGTH } from "./Constants";
 
@@ -74,11 +74,12 @@ export class Context {
         this.materialPQ = pqKey;
         this.encryptionKey = await deriveEncryptionKey(this.materialOlm, pqKey);
         this._currentKeyIndex = index % KEYRING_SIZE;
-        this._hash = await computeHash(
+        this._hash = await hashKeysOfParticipant(
+            this._participantId,
             this.materialOlm,
             this.materialPQ,
-            this._keyCommtiment,
             this._currentKeyIndex,
+            this._keyCommtiment,
         );
         console.info(
             `E2E: Set keys for ${this._participantId}, index is ${this._currentKeyIndex} and hash is ${this._hash}`,
