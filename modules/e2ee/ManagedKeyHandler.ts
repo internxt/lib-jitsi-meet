@@ -16,7 +16,7 @@ import Listenable from "../util/Listenable";
 import { OlmAdapter } from "./OlmAdapter";
 import JitsiConference from "../../JitsiConference";
 import RTCEvents from "../../service/RTC/RTCEvents";
-import { generateEmojiSas } from "./SAS";
+import { generateEmojiSas } from "./crypto-workers";
 
 /**
  * This module integrates {@link E2EEContext} with {@link OlmAdapter} in order to distribute the keys for encryption.
@@ -141,7 +141,7 @@ export class ManagedKeyHandler extends Listenable {
         if (!enabled) {
             console.info("E2E: Disabling e2ee");
             this.enabled = false;
-            
+
             this.e2eeCtx.cleanupAll();
             this._olmAdapter.clearAllParticipantsSessions();
         }
@@ -255,6 +255,7 @@ export class ManagedKeyHandler extends Listenable {
     async _onParticipantJoined(id: string) {
         console.info(`E2E: A new participant ${id} joined the conference`);
         if (this._conferenceJoined && this.enabled) {
+            await this._olmAdapter.init();
             await this.init;
             await this._olmAdapter._ratchetKeyImpl();
         }
@@ -267,6 +268,7 @@ export class ManagedKeyHandler extends Listenable {
     async _onParticipantLeft(id: string, participant: JitsiParticipant) {
         console.info(`E2E: Participant ${id} left the conference.`);
         if (this.enabled) {
+            await this._olmAdapter.init();
             await this.init;
             this._olmAdapter.clearParticipantSession(participant);
             this.e2eeCtx.cleanup(id);

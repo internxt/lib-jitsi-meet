@@ -1,55 +1,49 @@
-import { createKeccak, createHMAC } from "hash-wasm";
-import { AES, AES_KEY_LEN, HASH_LEN } from "./Constants";
-
-/**
- * Computes commitment to two strings.
- *
- * @param {string} value1 - The first value.
- * @param {string|Uint8Array} value2 - The second value.
- * @returns {Promise<string>} Computed commitment.
- */
-export async function computeCommitment(
-    value1: string,
-    value2: string | Uint8Array,
-): Promise<string> {
-    try {
-        const hasher = await createKeccak(HASH_LEN);
-        hasher.init();
-        hasher.update(value1);
-        hasher.update(value2);
-        return hasher.digest();
-    } catch (error) {
-        return Promise.reject(
-            new Error(`Commitment computation failed: ${error}`),
-        );
-    }
-}
+import { createBLAKE3 } from "hash-wasm";
+import {
+    AES,
+    AES_KEY_LEN,
+    HASH_LEN,
+    SAS_LEN,
+    RATCHET_CONTEXT,
+    DERIVE_CONTEXT,
+    MEDIA_KEY_COMMITMENT_PREFIX,
+    KEY_HASH_PREFIX,
+} from "./Constants";
+import { emojiMapping } from "./SAS";
 
 /**
  * Computes hash.
  *
- * @param {Uint8Array} value1 - The first value.
- * @param {Uint8Array} value2 - The second value.
- * @param {string} value3 - The thirs value.
- * @param {number} value4 - The forth value.
+ * @param {string} context - The context value.
+ * @param {string} participantID - The string value.
+ * @param {Uint8Array} key1 - The first key.
+ * @param {Uint8Array} key2 - The second key.
+ * @param {number} index - The index.
  * @returns {Promise<string>} Computed hash.
  */
-export async function computeHash(
-    value1: Uint8Array,
-    value2: Uint8Array,
-    value3: string,
-    value4: number,
+async function computeHash(
+    context: string,
+    participantID: string,
+    key1: Uint8Array | string,
+    key2: Uint8Array | string,
+    index: number = -1,
+    keyCommitment: string = "NoKeyCommitment",
 ): Promise<string> {
     try {
-        const hasher = await createKeccak(HASH_LEN);
+        const hasher = await createBLAKE3(HASH_LEN);
         hasher.init();
-        hasher.update(value1);
-        hasher.update(value2);
-        hasher.update(value3);
-        hasher.update("index=" + value4);
+        hasher.update(context);
+        hasher.update(participantID);
+        hasher.update(key1);
+        hasher.update(key2);
+        hasher.update("index=" + index);
+        hasher.update(keyCommitment);
+
         return hasher.digest();
     } catch (error) {
-        return Promise.reject(new Error(`Hash computation failed: ${error}`));
+        return Promise.reject(
+            new Error(`E2E: Hash computation failed: ${error}`),
+        );
     }
 }
 
@@ -65,29 +59,26 @@ export async function deriveEncryptionKey(
     key2: Uint8Array,
 ): Promise<CryptoKey> {
     try {
-        const key = new Uint8Array(key1.length + key2.length);
-        key.set(key1, 0);
-        key.set(key2, key1.length);
+        const hasher = await createBLAKE3(HASH_LEN, key1);
+        hasher.init();
+        hasher.update(DERIVE_CONTEXT);
+        hasher.update(key2);
+        const keyBytes = hasher.digest("binary");
 
-        const hasher = createKeccak(HASH_LEN);
-        const hmac = await createHMAC(hasher, key);
-        hmac.update("Derive_AES_Encryption_Key");
-        const keyBytes = hmac.digest("binary");
-
-        const encryptionKey = await crypto.subtle.importKey(
+        return crypto.subtle.importKey(
             "raw",
             keyBytes,
             {
-                name: "AES-GCM",
-                length: 256,
+                name: AES,
+                length: AES_KEY_LEN,
             },
             false,
             ["encrypt", "decrypt"],
         );
-
-        return encryptionKey;
     } catch (error) {
-        return Promise.reject(new Error(`Key derivation failed: ${error}`));
+        return Promise.reject(
+            new Error(`E2E: Key derivation failed: ${error}`),
+        );
     }
 }
 
@@ -99,12 +90,12 @@ export async function deriveEncryptionKey(
  */
 export async function ratchetKey(keyBytes: Uint8Array): Promise<Uint8Array> {
     try {
-        const hasher = createKeccak(AES_KEY_LEN);
-        const hmac = await createHMAC(hasher, keyBytes);
-        hmac.update("JFrameInfo");
-        return hmac.digest("binary");
+        const hasher = await createBLAKE3(AES_KEY_LEN, keyBytes);
+        hasher.init();
+        hasher.update(RATCHET_CONTEXT);
+        return hasher.digest("binary");
     } catch (error) {
-        return Promise.reject(new Error(`Ratchet failed: ${error}`));
+        return Promise.reject(new Error(`E2E: Ratchet failed: ${error}`));
     }
 }
 
@@ -160,13 +151,79 @@ export function decryptData(
     );
 }
 
-export async function commitToSecret(
-    id: string,
+export async function commitToMediaKeyShares(
+    participantID: string,
     keyOlm: Uint8Array,
     keyPQ: Uint8Array,
     index: number,
 ): Promise<string> {
-    const com1 = await computeCommitment(id + index, keyOlm);
-    const com2 = await computeCommitment(id + index, keyPQ);
-    return com1 + com2;
+    return computeHash(
+        MEDIA_KEY_COMMITMENT_PREFIX,
+        participantID,
+        keyOlm,
+        keyPQ,
+        index,
+    );
+}
+
+export async function hashKeysOfParticipant(
+    participantID: string,
+    keyOlm: Uint8Array,
+    keyPQ: Uint8Array,
+    index: number,
+    keyCommitment: string,
+): Promise<string> {
+    return computeHash(
+        KEY_HASH_PREFIX,
+        participantID,
+        keyOlm,
+        keyPQ,
+        index,
+        keyCommitment,
+    );
+}
+
+/**
+ * Computes commitment to two strings.
+ *
+ * @param {string} value1 - The first value.
+ * @param {string} value2 - The second value.
+ * @returns {Promise<string>} Computed commitment.
+ */
+export async function commitToIdentityKeys(
+    participantID: string,
+    publicKyberKey: string,
+    publicKey: string,
+): Promise<string> {
+    return computeHash(
+        MEDIA_KEY_COMMITMENT_PREFIX,
+        participantID,
+        publicKyberKey,
+        publicKey,
+    );
+}
+/**
+ * Generates a SAS composed of emojies.
+ * Borrowed from the Matrix JS SDK.
+ *
+ * @param {string} data - The string from which to generate SAS.
+ * @returns {Promise<string[][]>} The SAS emojies.
+ */
+export async function generateEmojiSas(data: string): Promise<string[][]> {
+    const hasher = await createBLAKE3(SAS_LEN);
+    hasher.init();
+    hasher.update(data);
+    const sasBytes = hasher.digest("binary");
+    // Just like base64.
+    const emojis = [
+        sasBytes[0] >> 2,
+        ((sasBytes[0] & 0x3) << 4) | (sasBytes[1] >> 4),
+        ((sasBytes[1] & 0xf) << 2) | (sasBytes[2] >> 6),
+        sasBytes[2] & 0x3f,
+        sasBytes[3] >> 2,
+        ((sasBytes[3] & 0x3) << 4) | (sasBytes[4] >> 4),
+        ((sasBytes[4] & 0xf) << 2) | (sasBytes[5] >> 6),
+    ];
+
+    return emojis.map((num) => emojiMapping[num]);
 }

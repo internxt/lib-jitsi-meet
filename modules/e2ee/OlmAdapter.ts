@@ -17,9 +17,9 @@ import {
 } from "./crypto-utils";
 import {
     ratchetKey,
-    computeCommitment,
+    commitToIdentityKeys,
     deriveEncryptionKey,
-    commitToSecret,
+    commitToMediaKeyShares,
 } from "./crypto-workers";
 import JitsiConference from "../../JitsiConference";
 import JitsiParticipant from "../../JitsiParticipant";
@@ -73,7 +73,7 @@ class OlmData {
         this.keyToSendOlm = olmKey;
         this.keyToSendPQ = pqKey;
         this.indexToSend = index;
-        return commitToSecret(
+        return commitToMediaKeyShares(
             id,
             this.keyToSendOlm,
             this.keyToSendPQ,
@@ -196,7 +196,8 @@ export class OlmAdapter extends Listenable {
                     await generateKyberKeys();
                 this._publicKyberKeyBase64 = publicKeyBase64;
                 this._privateKyberKey = privateKey;
-                this._indenityKeyCommitment = await computeCommitment(
+                this._indenityKeyCommitment = await commitToIdentityKeys(
+                    this.myId,
                     this._publicKyberKeyBase64,
                     this._publicCurve25519Key,
                 );
@@ -680,7 +681,8 @@ export class OlmAdapter extends Listenable {
                         const { otKey, publicKey, publicKyberKey, commitment } =
                             msg.data;
                         olmData.commitment = commitment;
-                        const keyCommitment = await computeCommitment(
+                        const keyCommitment = await commitToIdentityKeys(
+                            pId,
                             publicKyberKey,
                             publicKey,
                         );
@@ -730,7 +732,8 @@ export class OlmAdapter extends Listenable {
                             message_type,
                         } = msg.data;
 
-                        const keyCommitment = await computeCommitment(
+                        const keyCommitment = await commitToIdentityKeys(
+                            pId,
                             publicKyberKey,
                             publicKey,
                         );
@@ -803,7 +806,7 @@ export class OlmAdapter extends Listenable {
                         const pqKey =
                             await olmData.decryptPQKeyInfo(pqCiphertext);
 
-                        const commitment = await commitToSecret(
+                        const commitment = await commitToMediaKeyShares(
                             pId,
                             key,
                             pqKey,
@@ -854,7 +857,7 @@ export class OlmAdapter extends Listenable {
                         const pqKey =
                             await olmData.decryptPQKeyInfo(pqCiphertext);
 
-                        const commitment = await commitToSecret(
+                        const commitment = await commitToMediaKeyShares(
                             pId,
                             key,
                             pqKey,

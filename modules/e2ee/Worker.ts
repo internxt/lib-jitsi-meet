@@ -27,7 +27,7 @@ function getCurrentSASMaterial(): string {
     let array: string[] = [];
     for (const [pId, context] of contexts) {
         const pHash = context.getHash();
-        array.push(pId + pHash);
+        if (pHash) array.push(pId + pHash);
     }
     array.sort((a, b) => a.localeCompare(b));
     return array.join("");
