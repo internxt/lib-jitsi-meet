@@ -20,6 +20,13 @@ export const PROTOCOL_STATUS = {
     DONE: "protocol-established",
 };
 
+export const kOlmData = "OlmData";
+export const OlmAdapterEvents = {
+    PARTICIPANT_KEY_RATCHET: "olm.partitipant_key_ratchet",
+    PARTICIPANT_KEY_UPDATED: "olm.partitipant_key_updated",
+    PARTICIPANT_KEYS_COMMITMENT: "olm.participant_keys_committed",
+};
+
 export const IV_LENGTH = 16;
 export const MEDIA_KEY_LEN = 32;
 export const AUX = Uint8Array.from([
