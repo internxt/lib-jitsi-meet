@@ -3,7 +3,6 @@ import initVodozemac, {
     Session,
     EncryptedOlmMessage,
 } from "vodozemac-wasm";
-
 import {
     generateKyberKeys,
     encapsulateSecret,
@@ -18,7 +17,6 @@ import {
     deriveEncryptionKey,
     commitToMediaKeyShares,
 } from "./crypto-workers";
-import JitsiParticipant from "../../JitsiParticipant";
 import {
     PROTOCOL_STATUS,
     ProtocolStatus,
@@ -273,11 +271,7 @@ export class OlmAdapter {
         return result;
     }
 
-    async _onConferenceLeft(participants: JitsiParticipant[]) {
-        for (const participant of participants) {
-            this.clearParticipantSession(participant.getId());
-        }
-
+    async clearMySession() {
         if (this._olmAccount) {
             this._olmAccount.free();
             this._olmAccount = undefined;

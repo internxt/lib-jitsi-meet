@@ -359,8 +359,8 @@ export class ManagedKeyHandler extends Listenable {
     async _onParticipantLeft(id: string) {
         console.info(`E2E: Participant ${id} left the conference.`);
         if (this.enabled && this._olmAdapter.isInitialized()) {
-            await this.initSessions;
             this._olmAdapter.clearParticipantSession(id);
+            await this.initSessions;
             this.e2eeCtx.cleanup(id);
             const { olmKey, pqKey, index } = this._olmAdapter.updateMyKeys();
             this.setKey(olmKey, pqKey, index);
@@ -380,7 +380,10 @@ export class ManagedKeyHandler extends Listenable {
 
     async _onConferenceLeft() {
         const participants = this.conference.getParticipants();
-        this._olmAdapter._onConferenceLeft(participants);
+        for (const participant of participants) {
+            this._olmAdapter.clearParticipantSession(participant.getId());
+        }
+        this._olmAdapter.clearMySession();
     }
 
     async _onEndpointMessageReceived(participant: JitsiParticipant, payload) {
@@ -461,7 +464,7 @@ export class ManagedKeyHandler extends Listenable {
                             message_type,
                             pqCiphertext,
                         );
-                    this._onParticipantKeyUpdated(pId, olmKey, pqKey, index);
+                    this.updateParticipantKey(pId, olmKey, pqKey, index);
                     this._sendMessage(OLM_MESSAGE_TYPES.SESSION_ACK, data, pId);
                     break;
                 }
@@ -475,7 +478,7 @@ export class ManagedKeyHandler extends Listenable {
                             message_type,
                             pqCiphertext,
                         );
-                    this._onParticipantKeyUpdated(pId, olmKey, pqKey, index);
+                    this.updateParticipantKey(pId, olmKey, pqKey, index);
                     this._sendMessage(OLM_MESSAGE_TYPES.SESSION_DONE, "", pId);
                     if (data) {
                         this._sendMessage(
@@ -520,7 +523,7 @@ export class ManagedKeyHandler extends Listenable {
                             message_type,
                             pqCiphertext,
                         );
-                    this._onParticipantKeyUpdated(pId, olmKey, pqKey, index);
+                    this.updateParticipantKey(pId, olmKey, pqKey, index);
                     break;
                 }
             }
@@ -555,7 +558,7 @@ export class ManagedKeyHandler extends Listenable {
      * @param {number} index - The new key's index.
      * @private
      */
-    _onParticipantKeyUpdated(
+    updateParticipantKey(
         id: string,
         olmKey: Uint8Array,
         pqKey: Uint8Array,
