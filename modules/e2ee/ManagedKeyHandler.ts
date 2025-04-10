@@ -429,7 +429,6 @@ export class ManagedKeyHandler extends Listenable {
                         publicKey,
                         publicKyberKey,
                         ciphertext,
-                        message_type,
                     } = msg.data;
                     const { data, keyCommitment } =
                         await this._olmAdapter.createPQsessionAckMessage(
@@ -438,7 +437,6 @@ export class ManagedKeyHandler extends Listenable {
                             publicKey,
                             publicKyberKey,
                             ciphertext,
-                            message_type,
                         );
                     this.e2eeCtx.setKeysCommitment(pId, keyCommitment);
                     this._sendMessage(
@@ -449,19 +447,13 @@ export class ManagedKeyHandler extends Listenable {
                     break;
                 }
                 case OLM_MESSAGE_TYPES.PQ_SESSION_ACK: {
-                    const {
-                        encapsKyber,
-                        ciphertext,
-                        message_type,
-                        pqCiphertext,
-                    } = msg.data;
+                    const { encapsKyber, ciphertext, pqCiphertext } = msg.data;
 
                     const { data, olmKey, pqKey, index } =
                         await this._olmAdapter.createSessionAckMessage(
                             pId,
                             encapsKyber,
                             ciphertext,
-                            message_type,
                             pqCiphertext,
                         );
                     this.updateParticipantKey(pId, olmKey, pqKey, index);
@@ -469,13 +461,12 @@ export class ManagedKeyHandler extends Listenable {
                     break;
                 }
                 case OLM_MESSAGE_TYPES.SESSION_ACK: {
-                    const { ciphertext, message_type, pqCiphertext } = msg.data;
+                    const { ciphertext, pqCiphertext } = msg.data;
 
                     const { data, olmKey, pqKey, index } =
                         await this._olmAdapter.createSessionDoneMessage(
                             pId,
                             ciphertext,
-                            message_type,
                             pqCiphertext,
                         );
                     this.updateParticipantKey(pId, olmKey, pqKey, index);
@@ -515,12 +506,11 @@ export class ManagedKeyHandler extends Listenable {
                     break;
                 }
                 case OLM_MESSAGE_TYPES.KEY_INFO: {
-                    const { ciphertext, message_type, pqCiphertext } = msg.data;
+                    const { ciphertext, pqCiphertext } = msg.data;
                     const { olmKey, pqKey, index } =
                         await this._olmAdapter.processKeyInfoMessage(
                             pId,
                             ciphertext,
-                            message_type,
                             pqCiphertext,
                         );
                     this.updateParticipantKey(pId, olmKey, pqKey, index);

@@ -1,3 +1,7 @@
+//vodozemac message types
+export const PREKEY_MESSAGE = 0;
+export const NORMAL_MESSAGE = 1;
+
 export const OLM_MESSAGE_TYPE = "olm";
 export const OLM_MESSAGE_TYPES = {
     ERROR: "error",
@@ -53,7 +57,6 @@ export type ReplyMessage =
 
 export type KeyInfo = {
     ciphertext: string;
-    message_type: number;
     pqCiphertext: string;
 };
 
@@ -66,7 +69,6 @@ export type SessionInit = {
 export type PQsessionAck = {
     encapsKyber: string;
     ciphertext: string;
-    message_type: number;
     pqCiphertext: string;
 };
 
@@ -75,12 +77,10 @@ export type PQsessionInit = {
     publicKey: string;
     publicKyberKey: string;
     ciphertext: string;
-    message_type: number;
 };
 
 export type SessionAck = {
     ciphertext: string;
-    message_type: number;
     pqCiphertext: string;
 };
 
