@@ -247,12 +247,12 @@ export class OlmAdapter {
     clearParticipantSession(pId: string) {
         try {
             const olmData = this._getParticipantOlmData(pId);
+            olmData.status = PROTOCOL_STATUS.TERMINATED;
 
             if (olmData.session) {
                 olmData.session.free();
                 olmData.session = undefined;
             }
-            olmData.status = PROTOCOL_STATUS.TERMINATED;
         } catch (error) {
             console.error(
                 `E2E: Failed to clear session for participat ${pId}: ${error}`,

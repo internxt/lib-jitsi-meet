@@ -236,7 +236,6 @@ export class ManagedKeyHandler extends Listenable {
                         `E2E: Failed to initialize session with ${pId}: ${error}`,
                     );
                     this._reqs.delete(pId);
-                    throw error;
                 }
             });
 
@@ -357,12 +356,12 @@ export class ManagedKeyHandler extends Listenable {
      * Rotates the current key when a participant leaves the conference.
      * @private
      */
-    async _onParticipantLeft(pId: string) {
-        console.info(`E2E: Participant ${pId} left the conference.`);
+    async _onParticipantLeft(id: string) {
+        console.info(`E2E: Participant ${id} left the conference.`);
         if (this.enabled && this._olmAdapter.isInitialized()) {
-            //await this.initSessions;
-            this._olmAdapter.clearParticipantSession(pId);
-            this.e2eeCtx.cleanup(pId);
+            await this.initSessions;
+            this._olmAdapter.clearParticipantSession(id);
+            this.e2eeCtx.cleanup(id);
             const { olmKey, pqKey, index } = this._olmAdapter.updateMyKeys();
             this.setKey(olmKey, pqKey, index);
             const participants = this.conference.getParticipants();
