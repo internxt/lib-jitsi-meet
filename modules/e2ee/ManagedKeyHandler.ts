@@ -108,7 +108,6 @@ export class ManagedKeyHandler extends Listenable {
         this.e2eeCtx.on("sasUpdated", (sasStr: string) => {
             (async () => {
                 const sas = await generateEmojiSas(sasStr);
-                console.log(`E2E: Generated SAS: ${sas}`);
                 this.conference.eventEmitter.emit(
                     JitsiConferenceEvents.E2EE_SAS_AVAILABLE,
                     sas,
@@ -146,12 +145,12 @@ export class ManagedKeyHandler extends Listenable {
         }
 
         if (enabled) {
-            console.info("E2E: Enabling e2ee");
+            this.logInfo("Enabling e2ee");
             this.enableE2E();
         }
 
         if (!enabled) {
-            console.info("E2E: Disabling e2ee");
+            this.logInfo("Disabling e2ee");
             this.disableE2E();
         }
 
@@ -200,8 +199,8 @@ export class ManagedKeyHandler extends Listenable {
                 localParticipantId > participant.getId(),
         );
         const keys = this._olmAdapter.generateOneTimeKeys(list.length);
-        console.info(
-            `E2E: My ID is ${localParticipantId}, should send session-init to smaller IDs: [ ${list.map((p) => p.getId())}]`,
+        this.logInfo(
+            `My ID is ${localParticipantId}, should send session-init to smaller IDs: [ ${list.map((p) => p.getId())}]`,
         );
 
         this.initSessions = (async () => {
@@ -214,6 +213,7 @@ export class ManagedKeyHandler extends Listenable {
                             pId,
                             lastKey,
                         );
+                    this.logInfo(`Sent session-init to participant ${pId}`);
                     this._sendMessage(
                         OLM_MESSAGE_TYPES.SESSION_INIT,
                         data,
@@ -228,8 +228,8 @@ export class ManagedKeyHandler extends Listenable {
                         sessionPromise,
                         timeout(REQ_TIMEOUT),
                     ]);
-                    console.info(
-                        `E2E: Session with ${pId} initialized successfully.`,
+                    this.logInfo(
+                        `Session with ${pId} initialized successfully.`,
                     );
                     return result;
                 } catch (error) {
@@ -334,7 +334,7 @@ export class ManagedKeyHandler extends Listenable {
      * @private
      */
     async _onParticipantJoined(id: string) {
-        console.info(`E2E: Participant ${id} joined the conference.`);
+        this.logInfo(`Participant ${id} joined the conference.`);
         if (
             this._conferenceJoined &&
             this.enabled &&
@@ -358,7 +358,7 @@ export class ManagedKeyHandler extends Listenable {
      * @private
      */
     async _onParticipantLeft(id: string) {
-        console.info(`E2E: Participant ${id} left the conference.`);
+        this.logInfo(`Participant ${id} left the conference.`);
         if (this.enabled && this._olmAdapter.isInitialized()) {
             this._olmAdapter.clearParticipantSession(id);
             await this.initSessions;
@@ -393,7 +393,7 @@ export class ManagedKeyHandler extends Listenable {
                 payload[JITSI_MEET_MUC_TYPE] !== OLM_MESSAGE_TYPE ||
                 !payload.olm
             ) {
-                console.warn("E2E: Invalid or missing olm payload");
+                console.error("E2E: Invalid or missing olm payload");
                 return;
             }
             if (!this._olmAdapter.isInitialized()) {
@@ -473,6 +473,9 @@ export class ManagedKeyHandler extends Listenable {
                     this.updateParticipantKey(pId, key);
                     this._sendMessage(OLM_MESSAGE_TYPES.SESSION_DONE, "", pId);
                     if (data) {
+                        this.logInfo(
+                            `Keys changes during session-init, sending new keys to ${pId}.`,
+                        );
                         this._sendMessage(
                             OLM_MESSAGE_TYPES.KEY_INFO,
                             data,
@@ -494,16 +497,21 @@ export class ManagedKeyHandler extends Listenable {
                     break;
                 }
                 case OLM_MESSAGE_TYPES.SESSION_DONE: {
-                    console.info(`E2E: Recived SESSION_DONE message.`);
                     const data =
                         await this._olmAdapter.processSessionDoneMessage(pId);
                     if (data) {
+                        this.logInfo(
+                            `Keys changes during session-init, sending new keys to ${pId}.`,
+                        );
                         this._sendMessage(
                             OLM_MESSAGE_TYPES.KEY_INFO,
                             data,
                             pId,
                         );
                     }
+                    this.logInfo(
+                        `Participant ${pId} established E2E channel with us.`,
+                    );
                     break;
                 }
                 case OLM_MESSAGE_TYPES.KEY_INFO: {
@@ -519,7 +527,7 @@ export class ManagedKeyHandler extends Listenable {
             }
         } catch (error) {
             const data: SessionError = { error };
-            console.log(`E2E: Error processing message: ${error}`);
+            console.error(`E2E: Error processing message: ${error}`);
             this._sendMessage(
                 OLM_MESSAGE_TYPES.ERROR,
                 data,
@@ -573,5 +581,9 @@ export class ManagedKeyHandler extends Listenable {
             },
         };
         this.conference.sendMessage(msg, participantId);
+    }
+
+    logInfo(message: string) {
+        console.info(`E2E: ${message}`);
     }
 }
