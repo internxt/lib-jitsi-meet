@@ -1,24 +1,6 @@
 /* global RTCRtpScriptTransform */
 import Listenable from "../util/Listenable";
-
-// Extend the RTCRtpReceiver interface due to lack of support of streams
-export interface CustomRTCRtpReceiver extends RTCRtpReceiver {
-    kJitsiE2EE: boolean;
-    createEncodedStreams?: () => {
-        readable: ReadableStream;
-        writable: WritableStream;
-    };
-    transform: RTCRtpScriptTransform;
-}
-
-export interface CustomRTCRtpSender extends RTCRtpSender {
-    kJitsiE2EE: boolean;
-    createEncodedStreams?: () => {
-        readable: ReadableStream;
-        writable: WritableStream;
-    };
-    transform: RTCRtpScriptTransform;
-}
+import { CustomRTCRtpReceiver, CustomRTCRtpSender } from "./Types";
 
 /**
  * Context encapsulating the cryptography bits required for E2EE.
@@ -201,9 +183,9 @@ export default class E2EEcontext extends Listenable {
      * Sets keys commitment for the specified participant.
      *
      * @param {string} participantId - The ID of the participant who's key we are setting.
-     * @param {Uint8Array} commitment - The commitment to the participant's identity keys.
+     * @param {string} commitment - The commitment to the participant's identity keys.
      */
-    setKeysCommitment(participantId: string, commitment: Uint8Array) {
+    setKeysCommitment(participantId: string, commitment: string) {
         this._worker.postMessage({
             operation: "setKeysCommitment",
             commitment,
