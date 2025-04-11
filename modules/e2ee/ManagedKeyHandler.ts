@@ -25,6 +25,7 @@ import {
     CustomRTCRtpSender,
     ReplyMessage,
     SessionError,
+    MediaKey,
 } from "./Types";
 
 function timeout<T>(ms: number): Promise<T> {
@@ -449,27 +450,27 @@ export class ManagedKeyHandler extends Listenable {
                 case OLM_MESSAGE_TYPES.PQ_SESSION_ACK: {
                     const { encapsKyber, ciphertext, pqCiphertext } = msg.data;
 
-                    const { data, olmKey, pqKey, index } =
+                    const { data, key } =
                         await this._olmAdapter.createSessionAckMessage(
                             pId,
                             encapsKyber,
                             ciphertext,
                             pqCiphertext,
                         );
-                    this.updateParticipantKey(pId, olmKey, pqKey, index);
+                    this.updateParticipantKey(pId, key);
                     this._sendMessage(OLM_MESSAGE_TYPES.SESSION_ACK, data, pId);
                     break;
                 }
                 case OLM_MESSAGE_TYPES.SESSION_ACK: {
                     const { ciphertext, pqCiphertext } = msg.data;
 
-                    const { data, olmKey, pqKey, index } =
+                    const { data, key } =
                         await this._olmAdapter.createSessionDoneMessage(
                             pId,
                             ciphertext,
                             pqCiphertext,
                         );
-                    this.updateParticipantKey(pId, olmKey, pqKey, index);
+                    this.updateParticipantKey(pId, key);
                     this._sendMessage(OLM_MESSAGE_TYPES.SESSION_DONE, "", pId);
                     if (data) {
                         this._sendMessage(
@@ -507,13 +508,12 @@ export class ManagedKeyHandler extends Listenable {
                 }
                 case OLM_MESSAGE_TYPES.KEY_INFO: {
                     const { ciphertext, pqCiphertext } = msg.data;
-                    const { olmKey, pqKey, index } =
-                        await this._olmAdapter.processKeyInfoMessage(
-                            pId,
-                            ciphertext,
-                            pqCiphertext,
-                        );
-                    this.updateParticipantKey(pId, olmKey, pqKey, index);
+                    const key = await this._olmAdapter.processKeyInfoMessage(
+                        pId,
+                        ciphertext,
+                        pqCiphertext,
+                    );
+                    this.updateParticipantKey(pId, key);
                     break;
                 }
             }
@@ -548,13 +548,8 @@ export class ManagedKeyHandler extends Listenable {
      * @param {number} index - The new key's index.
      * @private
      */
-    updateParticipantKey(
-        id: string,
-        olmKey: Uint8Array,
-        pqKey: Uint8Array,
-        index: number,
-    ) {
-        this.e2eeCtx.setKey(id, olmKey, pqKey, index);
+    updateParticipantKey(id: string, key: MediaKey) {
+        this.e2eeCtx.setKey(id, key.olmKey, key.pqKey, key.index);
     }
 
     /**
