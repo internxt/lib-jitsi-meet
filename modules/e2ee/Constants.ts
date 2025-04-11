@@ -1,25 +1,4 @@
 export const REQ_TIMEOUT = 20 * 1000;
-export const OLM_MESSAGE_TYPE = "olm";
-export const OLM_MESSAGE_TYPES = {
-    ERROR: "error",
-    KEY_INFO: "key-info",
-    SESSION_ACK: "session-ack",
-    PQ_SESSION_ACK: "pq-session-ack",
-    SESSION_INIT: "session-init",
-    PQ_SESSION_INIT: "pq-session-init",
-    SESSION_DONE: "session-done",
-};
-
-export const PROTOCOL_STATUS = {
-    TERMINATED: "protocol-terminated",
-    READY_TO_START: "ready-to-start",
-    WAITING_SESSION_ACK: "waiting-for-session-ack",
-    WAITING_PQ_SESSION_ACK: "waiting-for-pq-session-ack",
-    WAITING_PQ_SESSION_INIT: "waiting-for-pq-session-init",
-    WAITING_DONE: "waiting-for-done",
-    DONE: "protocol-established",
-};
-
 export const IV_LENGTH = 16;
 export const MEDIA_KEY_LEN = 32;
 export const AUX = Uint8Array.from([
