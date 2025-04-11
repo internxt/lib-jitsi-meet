@@ -25,7 +25,7 @@ describe("Test Kyber KEM", () => {
     it("key encapsulation should throw an error if no key is given", async () => {
         await expectAsync(encapsulateSecret("")).toBeRejectedWithError(
             Error,
-            `Secret encapsulation failed: no public key given`,
+            /No public key/,
         );
     });
 
@@ -36,17 +36,11 @@ describe("Test Kyber KEM", () => {
 
         await expectAsync(
             decapsulateSecret("", privateKey),
-        ).toBeRejectedWithError(
-            Error,
-            `Secret decapsulation failed: no ciphertext given`,
-        );
+        ).toBeRejectedWithError(Error, /No ciphertext/);
 
         await expectAsync(
             decapsulateSecret(ciphertextBase64, new Uint8Array()),
-        ).toBeRejectedWithError(
-            Error,
-            `Secret decapsulation failed: no private key given`,
-        );
+        ).toBeRejectedWithError(Error, /No private key/);
     });
 
     it("encapsulate and decrypt should work", async () => {

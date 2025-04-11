@@ -4,6 +4,7 @@ import {
     encapsulateSecret,
     decapsulateSecret,
     generateKey,
+    getError,
 } from "./crypto-utils";
 import { ratchetKey, commitToIdentityKeys } from "./crypto-workers";
 import {
@@ -46,11 +47,6 @@ export class OlmAdapter {
         this._olmInitialized = false;
     }
 
-    private thowError(method: string, error: any): never {
-        const errorMessage = `E2E: Function ${method} failed: ${error}`;
-        throw new Error(errorMessage);
-    }
-
     async init() {
         try {
             await initVodozemac();
@@ -68,7 +64,7 @@ export class OlmAdapter {
             );
             this._olmInitialized = true;
         } catch (error) {
-            this.thowError("ínit", error);
+            throw getError("ínit", error);
         }
     }
 
@@ -88,7 +84,7 @@ export class OlmAdapter {
             );
             return keys;
         } catch (error) {
-            this.thowError("generateOneTimeKeys", error);
+            throw getError("generateOneTimeKeys", error);
         }
     }
 
@@ -102,7 +98,7 @@ export class OlmAdapter {
             this._mediaKey = newMediaKey;
             return newMediaKey;
         } catch (error) {
-            this.thowError("ratchetMyKeys", error);
+            throw getError("ratchetMyKeys", error);
         }
     }
 
@@ -111,7 +107,7 @@ export class OlmAdapter {
             const olmData = this._getParticipantOlmData(pId);
             return olmData.isDone();
         } catch (error) {
-            this.thowError("checkIfShouldRatchetParticipantKey", error);
+            throw getError("checkIfShouldRatchetParticipantKey", error);
         }
     }
 
@@ -125,7 +121,7 @@ export class OlmAdapter {
             this._mediaKey = newMediaKey;
             return newMediaKey;
         } catch (error) {
-            this.thowError("updateMyKeys", error);
+            throw getError("updateMyKeys", error);
         }
     }
 
@@ -141,7 +137,7 @@ export class OlmAdapter {
             }
             return data;
         } catch (error) {
-            this.thowError("checkIfShouldSendKeyInfoToParticipant", error);
+            throw getError("checkIfShouldSendKeyInfoToParticipant", error);
         }
     }
 
@@ -150,7 +146,7 @@ export class OlmAdapter {
             const olmData = this._getParticipantOlmData(pId);
             olmData.clearSession();
         } catch (error) {
-            this.thowError("clearParticipantSession", error);
+            throw getError("clearParticipantSession", error);
         }
     }
 
@@ -210,7 +206,7 @@ export class OlmAdapter {
             olmData.setStatus(PROTOCOL_STATUS.WAITING_PQ_SESSION_ACK);
             return { data, keyCommitment };
         } catch (error) {
-            this.thowError("createPQsessionInitMessage", error);
+            throw getError("createPQsessionInitMessage", error);
         }
     }
 
@@ -259,7 +255,7 @@ export class OlmAdapter {
             olmData.setStatus(PROTOCOL_STATUS.WAITING_SESSION_ACK);
             return { data, keyCommitment };
         } catch (error) {
-            this.thowError("createPQsessionAckMessage", error);
+            throw getError("createPQsessionAckMessage", error);
         }
     }
 
@@ -298,7 +294,7 @@ export class OlmAdapter {
             olmData.setStatus(PROTOCOL_STATUS.WAITING_DONE);
             return { data, key };
         } catch (error) {
-            this.thowError("createSessionAckMessage", error);
+            throw getError("createSessionAckMessage", error);
         }
     }
 
@@ -325,7 +321,7 @@ export class OlmAdapter {
 
             return { data, key };
         } catch (error) {
-            this.thowError("createSessionDoneMessage", error);
+            throw getError("createSessionDoneMessage", error);
         }
     }
 
@@ -342,7 +338,7 @@ export class OlmAdapter {
 
             return data;
         } catch (error) {
-            this.thowError("processSessionDoneMessage", error);
+            throw getError("processSessionDoneMessage", error);
         }
     }
 
@@ -360,7 +356,7 @@ export class OlmAdapter {
 
             return olmData.decryptKeys(ciphertext, pqCiphertext);
         } catch (error) {
-            this.thowError("processKeyInfoMessage", error);
+            throw getError("processKeyInfoMessage", error);
         }
     }
 
@@ -383,7 +379,7 @@ export class OlmAdapter {
 
             return data;
         } catch (error) {
-            this.thowError("createSessionInitMessage", error);
+            throw getError("createSessionInitMessage", error);
         }
     }
 }

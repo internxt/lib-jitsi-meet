@@ -8,8 +8,7 @@ import {
 import { KEYRING_SIZE, VIDEO_UNENCRYPTED_BYTES, IV_LENGTH } from "./Constants";
 
 /**
- * Per-participant context holding the cryptographic keys and
- * encode/decode functions
+ * Per-participant context holding the cryptographic keys
  */
 export class Context {
     private readonly _participantId: string;
@@ -19,9 +18,7 @@ export class Context {
     private _currentKeyIndex: number;
     private _hash: string;
     private _keyCommtiment: string;
-    /**
-     * @param {string} id
-     */
+
     constructor(id: string) {
         this.encryptionKey = null as any;
         this.materialOlm = new Uint8Array();
@@ -32,10 +29,6 @@ export class Context {
         this._currentKeyIndex = -1;
     }
 
-    /**
-     * Ratchet keys.
-     * @private
-     */
     async ratchetKeys() {
         const currentIndex = this._currentKeyIndex;
         if (currentIndex >= 0) {
@@ -48,17 +41,10 @@ export class Context {
         }
     }
 
-    /**
-     * Sets key commitment
-     * @private
-     */
     async setKeyCommitment(commitment: string) {
         this._keyCommtiment = commitment;
     }
 
-    /**
-     * Returns the key hash.
-     */
     getHash() {
         return this._hash;
     }
@@ -97,12 +83,8 @@ export class Context {
         encodedFrame: RTCEncodedVideoFrame | RTCEncodedAudioFrame,
         controller: TransformStreamDefaultController,
     ) {
-        const keyIndex = this._currentKeyIndex;
         if (this._currentKeyIndex >= 0) {
-            const encryptedFrame = await this._encryptFrame(
-                encodedFrame,
-                keyIndex,
-            );
+            const encryptedFrame = await this._encryptFrame(encodedFrame);
 
             if (encryptedFrame) {
                 controller.enqueue(encryptedFrame);
@@ -114,7 +96,6 @@ export class Context {
      * Function that will encrypt the given encoded frame.
      *
      * @param {RTCEncodedVideoFrame|RTCEncodedAudioFrame} encodedFrame - Encoded video frame.
-     * @param {number} keyIndex - The index of the encryption key in _cryptoKeyRing array.
      * @returns {Promise<RTCEncodedVideoFrame|RTCEncodedAudioFrame>} - The encrypted frame.
      * @private
      * The VP8 payload descriptor described in
@@ -135,9 +116,9 @@ export class Context {
      */
     async _encryptFrame(
         encodedFrame: RTCEncodedVideoFrame | RTCEncodedAudioFrame,
-        keyIndex: number,
     ) {
         const key: CryptoKey = this.encryptionKey;
+        const keyIndex = this._currentKeyIndex;
         try {
             const iv = crypto.getRandomValues(new Uint8Array(IV_LENGTH));
             // Thіs is not encrypted and contains the VP8 payload descriptor or the Opus TOC byte.
@@ -231,7 +212,6 @@ export class Context {
      * Function that will decrypt the given encoded frame.
      *
      * @param {RTCEncodedVideoFrame|RTCEncodedAudioFrame} encodedFrame - Encoded video frame.
-     * @param {number} keyIndex - The index of the decryption key in _cryptoKeyRing array.
      * @returns {Promise<RTCEncodedVideoFrame|RTCEncodedAudioFrame>} - The decrypted frame.
      * @private
      */
@@ -239,15 +219,6 @@ export class Context {
         encodedFrame: RTCEncodedVideoFrame | RTCEncodedAudioFrame,
     ) {
         const encryptionKey = this.encryptionKey;
-
-        // Construct frame trailer. Similar to the frame header described in
-        // https://tools.ietf.org/html/draft-omara-sframe-00#section-4.2
-        // but we put it at the end.
-        //
-        // ---------+-------------------------+-+---------+----
-        // payload  |IV...(length = IV_LENGTH)|R|IV_LENGTH|KID |
-        // ---------+-------------------------+-+---------+----
-
         try {
             let ind = 1;
             if (encodedFrame instanceof RTCEncodedVideoFrame)
