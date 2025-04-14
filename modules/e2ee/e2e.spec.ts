@@ -1,16 +1,17 @@
 import { ManagedKeyHandler } from '../../modules/e2ee/ManagedKeyHandler';
 import JitsiConference from '../../JitsiConference';
 import JitsiParticipant from '../../JitsiParticipant';
-import EventEmitter from '../util/EventEmitter';
 
-import { mock, instance, when, anything, verify } from 'ts-mockito';
+import { mock, instance, when, anything, verify, spy } from 'ts-mockito';
 import initKyber from '@dashlane/pqc-kem-kyber512-browser/dist/pqc-kem-kyber512.js';
 import initOlm from 'vodozemac-wasm/javascript/pkg/vodozemac.js';
+import RTC from '../RTC/RTC';
 
+function delay(ms: number) {
+  return new Promise( resolve => setTimeout(resolve, ms) );
+}
 
 describe('Test e2e module', () => {
-
-    let allParticipants: Record<string, JitsiParticipant> = {};
 
     beforeAll(async () => {
         const kyberPath = '/base/node_modules/@dashlane/pqc-kem-kyber512-browser/dist/pqc-kem-kyber512.wasm';
@@ -19,94 +20,171 @@ describe('Test e2e module', () => {
         await initOlm(wasmPath);
       });
 
-    beforeEach( () => {
-        allParticipants = {};
-    });
+    const xmppServerMock = {
+      listeners: new Map<string, ManagedKeyHandler>(),
+      participants: new Map<string, JitsiParticipant>(),
 
-    function createMockConference(id: string): JitsiConference {
-        const realEventEmitter = new EventEmitter();
-        const mockConference = mock(JitsiConference);
-        when(mockConference.eventEmitter).thenReturn(realEventEmitter);
-        when(mockConference.myUserId()).thenReturn(id);
-        when(mockConference.getParticipants()).thenReturn(Object.values(allParticipants));
-        when(mockConference.on(anything(), anything())).thenCall((eventName, listener) => {
-            realEventEmitter.on(eventName, listener);
+      getParticipantsFor(id: string) {
+        const list: JitsiParticipant[] = [];
+        this.participants.forEach((participant, pId) => {
+           if(id !== pId){
+            list.push(participant);
+           }
         });
-        when(mockConference.emit(anything(), anything())).thenCall((eventName, ...args) => {
-            realEventEmitter.emit(eventName, ...args);
-        });
-        const rtcStub = { on: () => {} }; 
-        when(mockConference.rtc).thenReturn(rtcStub);
+        return list;
+      },
 
-        return instance(mockConference);
+      async enableE2E(){
+        for (const [_, keyHandler] of this.listeners) {
+          await keyHandler.setEnabled(true);
+        }
+      },
+
+      diableE2E(){
+        this.listeners.forEach((keyHandler, _id) => {
+          keyHandler.setEnabled(false);
+        });
+      },
+
+      userJoined(keyHandler: ManagedKeyHandler) {
+        const pId = keyHandler.conference.myUserId();
+        if (!this.listeners.has(pId)) {
+          const list: string[] = [];
+          this.listeners.forEach((keyHandler, id) => {
+              keyHandler._onParticipantJoined(pId);
+              list.push(id);
+        });
+          this.listeners.set(pId, keyHandler);
+
+          for (const id of list) {
+            keyHandler._onParticipantJoined(id);
+          }
+
+          const participant = createMockParticipant(pId);
+          this.participants.set(pId, participant);
+          
+        }
+      },
+
+      userLeft(pId: string){
+        this.participants.delete(pId);
+        this.listeners.forEach((keyHandler, id) => {
+          if (id !== pId) {
+            keyHandler._onParticipantLeft(pId);
+          }
+        });
+      },
+      
+    
+      
+      sendMessage(pId: string, payload: any) {
+        this.listeners.forEach((keyHandler, id) => {
+          if (id === pId) {
+           keyHandler._onEndpointMessageReceived(this.participants.get(pId), payload);
+          }
+        });
       }
+    };
+
+    async function createMockManagedKeyHandler(): Promise<{id: string, keyHandler: ManagedKeyHandler}> {
+      const id = new Date().getTime().toString().slice(-8);
+
+      const conferenceMock = mock<JitsiConference>();
+
+      when(conferenceMock.myUserId()).thenReturn(id);
+      
+      const mockRTC = new RTC(conferenceMock);
+      when(conferenceMock.rtc).thenReturn(mockRTC);
+
+      const eventHandlers = new Map<string, Function[]>();
+      when(conferenceMock.on(anything(), anything())).thenCall((eventName, handler) => {
+        if (!eventHandlers.has(eventName)) {
+          eventHandlers.set(eventName, []);
+        }
+        eventHandlers.get(eventName)?.push(handler);
+        return conferenceMock;
+      });
+      when(conferenceMock.getParticipants()).thenCall( () => {
+        return xmppServerMock.getParticipantsFor(id);
+      }
+      );
+
+      when(conferenceMock.sendMessage(anything(), anything())).thenCall((pId, payload) => {
+        xmppServerMock.sendMessage(pId, payload);
+      });
+
+        const conference = instance(conferenceMock);
+        const keyHandler = new ManagedKeyHandler(conference);
+        await delay(100);
+        
+        return {id, keyHandler};
+      }
+
 
     function createMockParticipant(participantId: string): JitsiParticipant {
         const mockParticipant = mock(JitsiParticipant);
         when(mockParticipant.getId()).thenReturn(participantId);
         when(mockParticipant.hasFeature(anything())).thenReturn(true);
-        return mockParticipant;
+        const participant = instance(mockParticipant);
+        return participant;
       }
-
-    function createMockManagedKeyHandler(): { id: string, keyHandler: ManagedKeyHandler } {
-
-        const id = new Date().getTime().toString().slice(-8);
-        const keyHandlerMock = mock(ManagedKeyHandler);
-        const mockedConference = createMockConference(id);
-
-        const realKeyHandler = new ManagedKeyHandler(mockedConference);
-        when(keyHandlerMock.conference).thenReturn(mockedConference);
-        when(keyHandlerMock.setEnabled(anything())).thenCall(
-            (...args) => realKeyHandler.setEnabled(args[0])
-          );
-        when(keyHandlerMock.isEnabled()).thenCall(
-            () => realKeyHandler.isEnabled()
-          );
-        when(keyHandlerMock.setKey(anything(), anything(), anything())).thenCall(
-            (...args) => realKeyHandler.setKey(args[0], args[1], args[2])
-          );
-        when(keyHandlerMock._onParticipantJoined(anything())).thenCall(
-            (...args) => realKeyHandler._onParticipantJoined(args[0])
-        );
-        when(keyHandlerMock._onParticipantLeft(anything(), anything())).thenCall(
-            (...args) => realKeyHandler._onParticipantLeft(args[0], args[1])
-        );
-              
-
-        const keyHandler = instance(keyHandlerMock);
-
-        const participant =  createMockParticipant(id);
-        allParticipants[id] = participant;
-
-        console.log(`ID TESTING: ${keyHandler.conference.myUserId()}`); 
-
-        return {id, keyHandler };
-    }
-
     
     it('should enable e2e sucessfully', async () => {
 
-        const { id: idAlice, keyHandler: Alice } = createMockManagedKeyHandler();
-        const { id: idBob, keyHandler: Bob } = createMockManagedKeyHandler();
-        const { id: idEve, keyHandler: Eve } = createMockManagedKeyHandler();
+        const {id: idA, keyHandler: alice } = await createMockManagedKeyHandler();
+        const {id: idB, keyHandler: bob } = await createMockManagedKeyHandler();
+        const {id: idE, keyHandler: eve } = await createMockManagedKeyHandler();
 
-        verify(Alice._onParticipantJoined(idBob));
-        verify(Alice._onParticipantJoined(idEve));
+        console.log('IDs we have', idA, idB, idE);
 
-        verify(Bob._onParticipantJoined(idAlice));
-        verify(Bob._onParticipantJoined(idEve));
+        const aliceSpy = spy(alice);
+        const bobSpy = spy(bob);
+        const eveSpy = spy(eve);
 
-        verify(Eve._onParticipantJoined(idAlice));
-        verify(Eve._onParticipantJoined(idBob));
+        const olmAliceSpy = spy(alice._olmAdapter);
+        const olmBobSpy = spy(bob._olmAdapter);
+        const olmEveSpy = spy(eve._olmAdapter);
 
-        Alice.setEnabled(true);
-        Bob.setEnabled(true);
-        Eve.setEnabled(true);
+ 
+        xmppServerMock.userJoined(alice);
+        xmppServerMock.userJoined(bob);
 
-        expect(Alice.isEnabled()).toBe(true);
-        expect(Bob.isEnabled()).toBe(true);
-        expect(Eve.isEnabled()).toBe(true);
+        verify((aliceSpy as any)._onParticipantJoined(idB)).called();
+        verify((bobSpy as any)._onParticipantJoined(idA)).called();
+        
+        xmppServerMock.userJoined(eve);
+
+        verify((aliceSpy as any)._onParticipantJoined(idE)).called();
+        verify((bobSpy as any)._onParticipantJoined(idE)).called();
+        verify((eveSpy as any)._onParticipantJoined(idA)).called();
+        verify((eveSpy as any)._onParticipantJoined(idB)).called();
+
+        await xmppServerMock.enableE2E();
+
+        expect(alice.isEnabled()).toBe(true);
+        expect(bob.isEnabled()).toBe(true);
+        expect(eve.isEnabled()).toBe(true);
+
+        expect(alice._olmAdapter.isInitialized()).toBe(true);
+        expect(bob._olmAdapter.isInitialized()).toBe(true);
+        expect(eve._olmAdapter.isInitialized()).toBe(true);
+
+        verify(aliceSpy.enableE2E()).called();
+        verify(bobSpy.enableE2E()).called();
+        verify(eveSpy.enableE2E()).called();
+
+        
+
+        verify(olmAliceSpy.generateOneTimeKeys(0)).called();
+        verify(olmBobSpy.generateOneTimeKeys(1)).called();
+        verify(olmEveSpy.generateOneTimeKeys(2)).called();
        
+
+        verify(olmAliceSpy.createSessionInitMessage(anything(),anything())).never();
+        verify(olmBobSpy.createSessionInitMessage(idA,anything())).called();
+        verify(olmEveSpy.createSessionInitMessage(idA,anything())).called();
+        verify(olmEveSpy.createSessionInitMessage(idB,anything())).called(); 
+
     });
     
 });
