@@ -15,35 +15,43 @@ function delay(ms: number) {
     return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-class WorkerMock {
-  public onmessage: ((event: MessageEvent) => void) | null = null;
-  public onerror: ((event: Event) => void) | null = null;
-  private readonly _fakeWorkerSelf: any;
-  constructor(_scriptUrl: string, _options?: WorkerOptions) {
-    const originalSelf = globalThis.self;
-    const workerInstance = this;
-   const interceptedPostMessage = function(data: any) {
-    setTimeout(() => {
-      workerInstance.onmessage?.({ data } as MessageEvent);
-    }, 0);
-  };
-    this._fakeWorkerSelf = originalSelf;
-    this._fakeWorkerSelf.postMessage = interceptedPostMessage;
-    (globalThis as any).self = this._fakeWorkerSelf;
-    require("./Worker");
-    (globalThis as any).self = originalSelf;
-  }
-  postMessage(data: any) {
-    setTimeout(() => {
-      this._fakeWorkerSelf.onmessage?.({ data } as MessageEvent);
-    }, 0);
-  }
-  terminate() {
-    // Optional: simulate cleanup
-  }
-}
+
   
 describe("Test e2e module", () => {
+
+  class WorkerMock {
+    public onmessage: ((event: MessageEvent) => void) | null = null;
+    public onerror: ((event: Event) => void) | null = null;
+    private readonly _fakeWorkerSelf: {
+      postMessage: (data: any) => void;
+      onmessage: ((event: MessageEvent) => void) | null;
+    };
+  
+    constructor(_scriptUrl: string, _options?: WorkerOptions) {
+      this._fakeWorkerSelf = {
+        postMessage: (data: any) => {
+          setTimeout(() => {
+            this.onmessage?.({ data } as MessageEvent);
+          }, 0);
+        },
+        onmessage: null,
+      };
+      (globalThis as any).self = this._fakeWorkerSelf;
+      const originalSelf = globalThis.self;
+      require('../../dist/umd/lib-jitsi-meet.e2ee-worker.js');
+      (globalThis as any).self = originalSelf;
+    }
+    postMessage(data: any) {
+      setTimeout(() => {
+        this._fakeWorkerSelf.onmessage?.({ data } as MessageEvent);
+      }, 0);
+    }
+  }
+
+  beforeEach(() => { 
+    (window as any).Worker = WorkerMock;
+  });
+
     beforeAll(async () => {
         const kyberPath =
             "/base/node_modules/@dashlane/pqc-kem-kyber512-browser/dist/pqc-kem-kyber512.wasm";
@@ -53,10 +61,7 @@ describe("Test e2e module", () => {
         await initOlm(wasmPath);
     });
 
-    beforeEach(() => { 
-      (window as any).Worker = WorkerMock;
-    });
-
+   
     const xmppServerMock = {
         listeners: new Map<string, ManagedKeyHandler>(),
         participants: new Map<string, JitsiParticipant>(),
