@@ -146,12 +146,12 @@ export class ManagedKeyHandler extends Listenable {
 
         if (enabled) {
             console.info("E2E: Enabling e2ee");
-            this.enableE2E();
+            await this.enableE2E();
         }
 
         if (!enabled) {
             console.info("E2E: Disabling e2ee");
-            this.disableE2E();
+            await this.disableE2E();
         }
 
         this.conference.setLocalParticipantProperty("e2ee.enabled", enabled);
