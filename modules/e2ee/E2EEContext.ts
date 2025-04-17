@@ -53,7 +53,13 @@ export default class E2EEcontext extends Listenable {
 
         this._worker.onerror = (e) => console.error(e);
 
-        this._worker.onmessage = this.updateSAS.bind(this);
+        this._worker.onmessage = (event: MessageEvent) => {
+            const { operation, sas } = event.data;
+        
+            if (operation === "updateSAS") {
+                this.updateSAS(sas); 
+            }
+        };
     }
 
     /**
@@ -208,9 +214,7 @@ export default class E2EEcontext extends Listenable {
     /**
      * Update SAS string.
      */
-    private async updateSAS(event: MessageEvent) {
-        if (event.data.operation === "updateSAS") {
-            this.emit("sasUpdated", event.data.sas);
-        }
+    private async updateSAS(sas: string[]) {
+        this.emit("sasUpdated", sas);
     }
 }

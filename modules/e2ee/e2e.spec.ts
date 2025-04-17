@@ -10,58 +10,85 @@ import RTC from "../RTC/RTC";
 import { OlmAdapter } from "./OlmAdapter";
 import EventEmitter from "../util/EventEmitter";
 import * as JitsiConferenceEvents from "../../JitsiConferenceEvents";
+import E2EEContext from "./E2EEContext";
 
 function delay(ms: number) {
     return new Promise((resolve) => setTimeout(resolve, ms));
+} 
+
+import { setupWorker } from './Worker.ts';
+
+
+class WorkerMock {
+  public onmessage: ((event: MessageEvent) => void) | null = null;
+  public onerror: ((event: Event) => void) | null = null;
+  private readonly _fakeWorkerSelf: {
+    postMessage: (data: any) => void;
+    onmessage: ((event: MessageEvent) => void) | null;
+  };
+
+  constructor(_scriptUrl: string, _options?: WorkerOptions) {
+    this._fakeWorkerSelf = {
+      postMessage: (data: any) => {
+        setTimeout(() => {
+          this.onmessage?.({ data } as MessageEvent);
+        }, 0);
+      },
+      onmessage: null,
+    };
+    (globalThis as any).self = this._fakeWorkerSelf;
+    const originalSelf = globalThis.self;
+    setupWorker(this._fakeWorkerSelf); 
+    (globalThis as any).self = originalSelf;
+  }
+  postMessage(data: any) {
+    this._fakeWorkerSelf.onmessage?.({ data } as MessageEvent);
+  }
 }
 
-
-  
-describe("Test e2e module", () => {
-
-  class WorkerMock {
-    public onmessage: ((event: MessageEvent) => void) | null = null;
-    public onerror: ((event: Event) => void) | null = null;
-    private readonly _fakeWorkerSelf: {
-      postMessage: (data: any) => void;
-      onmessage: ((event: MessageEvent) => void) | null;
-    };
-  
-    constructor(_scriptUrl: string, _options?: WorkerOptions) {
-      this._fakeWorkerSelf = {
-        postMessage: (data: any) => {
-          setTimeout(() => {
-            this.onmessage?.({ data } as MessageEvent);
-          }, 0);
-        },
-        onmessage: null,
-      };
-      (globalThis as any).self = this._fakeWorkerSelf;
-      const originalSelf = globalThis.self;
-      require('../../dist/umd/lib-jitsi-meet.e2ee-worker.js');
-      (globalThis as any).self = originalSelf;
-    }
-    postMessage(data: any) {
-      setTimeout(() => {
-        this._fakeWorkerSelf.onmessage?.({ data } as MessageEvent);
-      }, 0);
-    }
-  }
-
+// Set up for tests
+describe('E2EEcontext with multiple instances', () => {
+  beforeAll(async () => {
+    const kyberPath =
+        "/base/node_modules/@dashlane/pqc-kem-kyber512-browser/dist/pqc-kem-kyber512.wasm";
+    await initKyber(kyberPath);
+    const wasmPath =
+        "/base/node_modules/vodozemac-wasm/javascript/pkg/vodozemac_bg.wasm";
+    await initOlm(wasmPath);
+});
   beforeEach(() => { 
     (window as any).Worker = WorkerMock;
   });
+  
+  it('should create separate workers for each E2EEcontext instance', async () => {
+    const context1 = new E2EEContext();
+    const context2 = new E2EEContext();
 
-    beforeAll(async () => {
-        const kyberPath =
-            "/base/node_modules/@dashlane/pqc-kem-kyber512-browser/dist/pqc-kem-kyber512.wasm";
-        await initKyber(kyberPath);
-        const wasmPath =
-            "/base/node_modules/vodozemac-wasm/javascript/pkg/vodozemac_bg.wasm";
-        await initOlm(wasmPath);
-    });
+    const contextSpy1 = spy(context1);
+    const contextSpy2 = spy(context2);
+  
+    const key1 = new Uint8Array([
+      1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+      0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+    ]);
 
+  const key2 = new Uint8Array([
+      2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+      0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+    ]);
+  
    
+    context1.setKey('participant1',key1, key1, 1);
+    context2.setKey('participant2', key2, key2, 1);
+    
+
+    await delay (800);
+
+    verify((contextSpy1 as any).updateSAS(anything())).called();
+    verify((contextSpy2 as any).updateSAS(anything())).called();
+    
+  });
+
     const xmppServerMock = {
         listeners: new Map<string, ManagedKeyHandler>(),
         participants: new Map<string, JitsiParticipant>(),
@@ -399,5 +426,5 @@ describe("Test e2e module", () => {
         console.log("Alice SAS values", xmppServerMock.getSas(idA));
         console.log("Bob SAS values", xmppServerMock.getSas(idB));
         console.log("Eve SAS values", xmppServerMock.getSas(idE));
-    });
+    }); 
 });
