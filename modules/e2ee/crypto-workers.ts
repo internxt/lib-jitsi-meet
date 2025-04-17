@@ -154,7 +154,7 @@ export function decryptData(
 
 export async function commitToMediaKeyShares(
     participantID: string,
-    key: MediaKey
+    key: MediaKey,
 ): Promise<string> {
     return computeHash(
         MEDIA_KEY_COMMITMENT_PREFIX,
@@ -225,4 +225,16 @@ export async function generateEmojiSas(data: string): Promise<string[][]> {
     ];
 
     return emojis.map((num) => emojiMapping[num]);
+}
+
+export function logInfo(message: string) {
+    console.info(`E2E: ${message}`);
+}
+
+export function logWarning(message: string) {
+    console.warn(`E2E: ${message}`);
+}
+
+export function logError(message: string) {
+    console.error(`E2E: ${message}`);
 }

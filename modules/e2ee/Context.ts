@@ -4,49 +4,51 @@ import {
     encryptData,
     decryptData,
     hashKeysOfParticipant,
+    logError,
+    logInfo,
 } from "./crypto-workers";
 import { KEYRING_SIZE, VIDEO_UNENCRYPTED_BYTES, IV_LENGTH } from "./Constants";
+
+let printEncStart = true;
 
 /**
  * Per-participant context holding the cryptographic keys
  */
 export class Context {
-    private readonly _participantId: string;
+    private readonly id: string;
     private encryptionKey: CryptoKey;
-    private materialOlm: Uint8Array;
-    private materialPQ: Uint8Array;
-    private _currentKeyIndex: number;
-    private _hash: string;
-    private _keyCommtiment: string;
+    private olmKey: Uint8Array;
+    private pqKey: Uint8Array;
+    private index: number;
+    private hash: string;
+    private commitment: string;
 
     constructor(id: string) {
         this.encryptionKey = null as any;
-        this.materialOlm = new Uint8Array();
-        this.materialPQ = new Uint8Array();
-        this._participantId = id;
-        this._keyCommtiment = "";
-        this._hash = "";
-        this._currentKeyIndex = -1;
+        this.olmKey = new Uint8Array();
+        this.pqKey = new Uint8Array();
+        this.id = id;
+        this.commitment = "";
+        this.hash = "";
+        this.index = -1;
     }
 
     async ratchetKeys() {
-        const currentIndex = this._currentKeyIndex;
+        const currentIndex = this.index;
         if (currentIndex >= 0) {
-            const newMaterialOlm = await ratchetKey(this.materialOlm);
-            const newMaterialPQ = await ratchetKey(this.materialPQ);
-            console.info(
-                `E2E: Ratchet keys of participant ${this._participantId}`,
-            );
+            const newMaterialOlm = await ratchetKey(this.olmKey);
+            const newMaterialPQ = await ratchetKey(this.pqKey);
+            logInfo(`Ratchet keys of participant ${this.id}`);
             this.setKey(newMaterialOlm, newMaterialPQ, currentIndex + 1);
         }
     }
 
     async setKeyCommitment(commitment: string) {
-        this._keyCommtiment = commitment;
+        this.commitment = commitment;
     }
 
     getHash() {
-        return this._hash;
+        return this.hash;
     }
 
     /**
@@ -56,19 +58,19 @@ export class Context {
      * @param {number} index The keys index.
      */
     async setKey(olmKey: Uint8Array, pqKey: Uint8Array, index: number) {
-        this.materialOlm = olmKey;
-        this.materialPQ = pqKey;
-        this.encryptionKey = await deriveEncryptionKey(this.materialOlm, pqKey);
-        this._currentKeyIndex = index % KEYRING_SIZE;
-        this._hash = await hashKeysOfParticipant(
-            this._participantId,
-            this.materialOlm,
-            this.materialPQ,
-            this._currentKeyIndex,
-            this._keyCommtiment,
+        this.olmKey = olmKey;
+        this.pqKey = pqKey;
+        this.encryptionKey = await deriveEncryptionKey(this.olmKey, pqKey);
+        this.index = index % KEYRING_SIZE;
+        this.hash = await hashKeysOfParticipant(
+            this.id,
+            this.olmKey,
+            this.pqKey,
+            this.index,
+            this.commitment,
         );
-        console.info(
-            `E2E: Set keys for ${this._participantId}, index is ${this._currentKeyIndex} and hash is ${this._hash}`,
+        logInfo(
+            `Set keys for ${this.id}, index is ${this.index} and hash is ${this.hash}`,
         );
     }
 
@@ -83,7 +85,7 @@ export class Context {
         encodedFrame: RTCEncodedVideoFrame | RTCEncodedAudioFrame,
         controller: TransformStreamDefaultController,
     ) {
-        if (this._currentKeyIndex >= 0) {
+        if (this.index >= 0) {
             const encryptedFrame = await this._encryptFrame(encodedFrame);
 
             if (encryptedFrame) {
@@ -118,7 +120,7 @@ export class Context {
         encodedFrame: RTCEncodedVideoFrame | RTCEncodedAudioFrame,
     ) {
         const key: CryptoKey = this.encryptionKey;
-        const keyIndex = this._currentKeyIndex;
+        const keyIndex = this.index;
         try {
             const iv = crypto.getRandomValues(new Uint8Array(IV_LENGTH));
             // Thіs is not encrypted and contains the VP8 payload descriptor or the Opus TOC byte.
@@ -177,11 +179,14 @@ export class Context {
                 frameHeader.byteLength + cipherText.byteLength + iv.byteLength,
             ); // append frame trailer.
             encodedFrame.data = newData;
-
+            if (printEncStart) {
+                logInfo("Started encrypting my frames!");
+                printEncStart = false;
+            }
             return encodedFrame;
         } catch (e) {
             // TODO: surface this to the app.
-            console.error(`E2E: Encryption failed: ${e}`);
+            logError(`Encryption failed: ${e}`);
 
             // We are not enqueuing the frame here on purpose.
         }
@@ -199,7 +204,7 @@ export class Context {
     ) {
         const data = new Uint8Array(encodedFrame.data);
         const keyIndex = data[encodedFrame.data.byteLength - 1];
-        if (keyIndex === this._currentKeyIndex) {
+        if (keyIndex === this.index) {
             const decodedFrame = await this._decryptFrame(encodedFrame);
 
             if (decodedFrame) {
@@ -278,9 +283,7 @@ export class Context {
 
             return encodedFrame;
         } catch (error) {
-            console.error(
-                `E2E: Got error while decrypting frame from ${this._participantId}: ${error}`,
-            );
+            logError(`Decryption of a frame from ${this.id} failed: ${error}`);
         }
     }
 }
