@@ -3,6 +3,11 @@ import * as base64js from "base64-js";
 import { encryptData, decryptData } from "./crypto-workers";
 import { IV_LENGTH, MEDIA_KEY_LEN, AUX } from "./Constants";
 
+export function getError(method: string, error: any): Error {
+    const errorMessage = `E2E: Function ${method} failed: ${error}`;
+    return new Error(errorMessage);
+}
+
 /**
  * Generates Kyber key pair.
  *
@@ -18,9 +23,7 @@ export async function generateKyberKeys(): Promise<{
         const publicKeyBase64 = base64js.fromByteArray(publicKey);
         return { publicKeyBase64, privateKey };
     } catch (error) {
-        return Promise.reject(
-            new Error(`Kyber key generation failed: ${error}`),
-        );
+        return Promise.reject(getError("generateKyberKeys", error));
     }
 }
 
@@ -35,12 +38,10 @@ export async function encapsulateSecret(publicKyberKeyBase64: string): Promise<{
     encapsulatedBase64: string;
     sharedSecret: Uint8Array;
 }> {
-    if (!publicKyberKeyBase64?.length) {
-        return Promise.reject(
-            new Error(`Secret encapsulation failed: no public key given`),
-        );
-    }
     try {
+        if (!publicKyberKeyBase64?.length) {
+            throw Error(`No public key`);
+        }
         const kem = await kemBuilder();
         const participantEncapsulationKey: Uint8Array =
             base64js.toByteArray(publicKyberKeyBase64);
@@ -51,9 +52,7 @@ export async function encapsulateSecret(publicKyberKeyBase64: string): Promise<{
 
         return { encapsulatedBase64: kyberCiphertext, sharedSecret };
     } catch (error) {
-        return Promise.reject(
-            new Error(`Secret encapsulation failed: ${error}`),
-        );
+        return Promise.reject(getError("encapsulateSecret", error));
     }
 }
 
@@ -69,17 +68,14 @@ export async function decapsulateSecret(
     ciphertextBase64: string,
     privateKey: Uint8Array,
 ): Promise<Uint8Array> {
-    if (!ciphertextBase64?.length) {
-        return Promise.reject(
-            new Error(`Secret decapsulation failed: no ciphertext given`),
-        );
-    }
-    if (!privateKey?.length) {
-        return Promise.reject(
-            new Error(`Secret decapsulation failed: no private key given`),
-        );
-    }
     try {
+        if (!ciphertextBase64?.length) {
+            throw new Error(`No ciphertext`);
+        }
+        if (!privateKey?.length) {
+            throw new Error(`No private key`);
+        }
+
         const kem = await kemBuilder();
         const pqCiphertext: Uint8Array = base64js.toByteArray(ciphertextBase64);
         const { sharedSecret } = await kem.decapsulate(
@@ -89,9 +85,7 @@ export async function decapsulateSecret(
 
         return sharedSecret;
     } catch (error) {
-        return Promise.reject(
-            new Error(`Secret decapsulation failed: ${error}`),
-        );
+        return Promise.reject(getError("decapsulateSecret", error));
     }
 }
 
@@ -107,18 +101,14 @@ export async function decryptKeyInfoPQ(
     ciphertextBase64: string,
     key: CryptoKey,
 ): Promise<Uint8Array> {
-    if (!ciphertextBase64?.length) {
-        return Promise.reject(
-            new Error("PQ key decryption failed: ciphertext is not given"),
-        );
-    }
-    if (!key) {
-        return Promise.reject(
-            new Error("PQ key decryption failed: key is not given"),
-        );
-    }
-
     try {
+        if (!ciphertextBase64?.length) {
+            throw new Error("No ciphertext");
+        }
+        if (!key) {
+            throw new Error("No key");
+        }
+
         const ciphertext = base64js.toByteArray(ciphertextBase64);
         const iv = ciphertext.slice(0, IV_LENGTH);
         const cipher = ciphertext.slice(IV_LENGTH);
@@ -126,7 +116,7 @@ export async function decryptKeyInfoPQ(
 
         return new Uint8Array(plaintext);
     } catch (error) {
-        return Promise.reject(new Error(`PQ key decryption failed: ${error}`));
+        return Promise.reject(getError("decryptKeyInfoPQ", error));
     }
 }
 
@@ -141,18 +131,14 @@ export async function encryptKeyInfoPQ(
     key: CryptoKey,
     plaintext: Uint8Array,
 ): Promise<string> {
-    if (!key) {
-        return Promise.reject(
-            new Error("PQ key encryption failed: key is undefined"),
-        );
-    }
-    if (!plaintext?.length) {
-        return Promise.reject(
-            new Error("PQ key encryption failed: message is undefined"),
-        );
-    }
-
     try {
+        if (!key) {
+            throw new Error("No key");
+        }
+        if (!plaintext?.length) {
+            throw new Error("No message");
+        }
+
         const iv = crypto.getRandomValues(new Uint8Array(IV_LENGTH));
         const ciphertext = new Uint8Array(
             await encryptData(iv, AUX, key, plaintext),
@@ -166,7 +152,7 @@ export async function encryptKeyInfoPQ(
 
         return resultBase64;
     } catch (error) {
-        return Promise.reject(new Error(`PQ key encryption failed: ${error}`));
+        return Promise.reject(getError("encryptKeyInfoPQ", error));
     }
 }
 
