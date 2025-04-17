@@ -6,19 +6,12 @@ export function setupWorker(self: {
 }) {
     class E2EEWorker {
         private readonly contexts: Map<string, Context>;
-        private readonly id: Uint8Array;
 
         constructor(selfInstance: typeof self) {
             this.contexts = new Map();
-            this.id = crypto.getRandomValues(new Uint8Array(10));
 
-            // Log worker ID to verify multiple instances
-            console.log("TEST: worker id", this.id);
-
-            // Bind message handling
             selfInstance.onmessage = this.handleMessage.bind(this);
 
-            // If RTCTransformEvent exists, bind RTC transform handling
             if ((selfInstance as any).RTCTransformEvent) {
                 (selfInstance as any).onrtctransform = this.handleRTCTransform.bind(this);
             }
@@ -78,7 +71,6 @@ export function setupWorker(self: {
 
                 case "setKey": {
                     const { participantId, olmKey, pqKey, index } = event.data;
-                    console.log("TEST: SET KEY worker id", this.id);
                     const context = this.getParticipantContext(participantId);
                     await context.setKey(olmKey, pqKey, index);
                     const sas = this.getCurrentSASMaterial();
@@ -131,6 +123,7 @@ export function setupWorker(self: {
         }
     }
 
-    // Create a separate worker instance for each call to `setupWorker`
-    new E2EEWorker(self);
+    return new E2EEWorker(self);
 }
+
+setupWorker(self);

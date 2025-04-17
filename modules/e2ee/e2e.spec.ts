@@ -1,105 +1,92 @@
+import { mock, instance, when, anything, verify, spy } from "ts-mockito";
+
 import { ManagedKeyHandler } from "../../modules/e2ee/ManagedKeyHandler";
 import JitsiConference from "../../JitsiConference";
 import JitsiParticipant from "../../JitsiParticipant";
-
-import { mock, instance, when, anything, verify, spy } from "ts-mockito";
-import initKyber from "@dashlane/pqc-kem-kyber512-browser/dist/pqc-kem-kyber512.js";
-import initOlm from "vodozemac-wasm/javascript/pkg/vodozemac.js";
 import RTC from "../RTC/RTC";
-
 import { OlmAdapter } from "./OlmAdapter";
 import EventEmitter from "../util/EventEmitter";
 import * as JitsiConferenceEvents from "../../JitsiConferenceEvents";
 import E2EEContext from "./E2EEContext";
+import { setupWorker } from "./Worker.ts";
+
+import initKyber from "@dashlane/pqc-kem-kyber512-browser/dist/pqc-kem-kyber512.js";
+import initOlm from "vodozemac-wasm/javascript/pkg/vodozemac.js";
 
 function delay(ms: number) {
     return new Promise((resolve) => setTimeout(resolve, ms));
-} 
-
-import { setupWorker } from './Worker.ts';
-
-
-class WorkerMock {
-  public onmessage: ((event: MessageEvent) => void) | null = null;
-  public onerror: ((event: Event) => void) | null = null;
-  private readonly _fakeWorkerSelf: {
-    postMessage: (data: any) => void;
-    onmessage: ((event: MessageEvent) => void) | null;
-  };
-
-  constructor(_scriptUrl: string, _options?: WorkerOptions) {
-    this._fakeWorkerSelf = {
-      postMessage: (data: any) => {
-        setTimeout(() => {
-          this.onmessage?.({ data } as MessageEvent);
-        }, 0);
-      },
-      onmessage: null,
-    };
-    (globalThis as any).self = this._fakeWorkerSelf;
-    const originalSelf = globalThis.self;
-    setupWorker(this._fakeWorkerSelf); 
-    (globalThis as any).self = originalSelf;
-  }
-  postMessage(data: any) {
-    this._fakeWorkerSelf.onmessage?.({ data } as MessageEvent);
-  }
 }
 
-// Set up for tests
-describe('E2EEcontext with multiple instances', () => {
-  beforeAll(async () => {
-    const kyberPath =
-        "/base/node_modules/@dashlane/pqc-kem-kyber512-browser/dist/pqc-kem-kyber512.wasm";
-    await initKyber(kyberPath);
-    const wasmPath =
-        "/base/node_modules/vodozemac-wasm/javascript/pkg/vodozemac_bg.wasm";
-    await initOlm(wasmPath);
-});
-  beforeEach(() => { 
-    (window as any).Worker = WorkerMock;
-  });
-  
-  it('should create separate workers for each E2EEcontext instance', async () => {
-    const context1 = new E2EEContext();
-    const context2 = new E2EEContext();
+class WorkerMock {
+    public onmessage: ((event: MessageEvent) => void) | null = null;
+    public onerror: ((event: Event) => void) | null = null;
+    private readonly _fakeWorkerSelf: {
+        postMessage: (data: any) => void;
+        onmessage: ((event: MessageEvent) => void) | null;
+    };
 
-    const contextSpy1 = spy(context1);
-    const contextSpy2 = spy(context2);
-  
-    const key1 = new Uint8Array([
-      1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-      0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
-    ]);
+    constructor(_scriptUrl: string, _options?: WorkerOptions) {
+        this._fakeWorkerSelf = {
+            postMessage: (data: any) => {
+                setTimeout(() => {
+                    this.onmessage?.({ data } as MessageEvent);
+                }, 0);
+            },
+            onmessage: null,
+        };
+        (globalThis as any).self = this._fakeWorkerSelf;
+        const originalSelf = globalThis.self;
+        setupWorker(this._fakeWorkerSelf);
+        (globalThis as any).self = originalSelf;
+    }
+    postMessage(data: any) {
+        this._fakeWorkerSelf.onmessage?.({ data } as MessageEvent);
+    }
+}
 
-  const key2 = new Uint8Array([
-      2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-      0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
-    ]);
-  
-   
-    context1.setKey('participant1',key1, key1, 1);
-    context2.setKey('participant2', key2, key2, 1);
-    
+describe("E2EEcontext with multiple instances", () => {
+    beforeAll(async () => {
+        const kyberPath =
+            "/base/node_modules/@dashlane/pqc-kem-kyber512-browser/dist/pqc-kem-kyber512.wasm";
+        await initKyber(kyberPath);
+        const wasmPath =
+            "/base/node_modules/vodozemac-wasm/javascript/pkg/vodozemac_bg.wasm";
+        await initOlm(wasmPath);
+    });
+    beforeEach(() => {
+        (window as any).Worker = WorkerMock;
+    });
 
-    await delay (800);
+    it("should create separate workers for each E2EEcontext instance", async () => {
+        const context1 = new E2EEContext();
+        const context2 = new E2EEContext();
 
-    verify((contextSpy1 as any).updateSAS(anything())).called();
-    verify((contextSpy2 as any).updateSAS(anything())).called();
-    
-  });
+        const contextSpy1 = spy(context1);
+        const contextSpy2 = spy(context2);
+
+        const key1 = crypto.getRandomValues(new Uint8Array(32));
+        const key2 = crypto.getRandomValues(new Uint8Array(32));
+
+        context1.setKey("participant1", key1, key1, 1);
+        context2.setKey("participant2", key2, key2, 1);
+
+        await delay(800);
+
+        verify((contextSpy1 as any).updateSAS(anything())).called();
+        verify((contextSpy2 as any).updateSAS(anything())).called();
+    });
 
     const xmppServerMock = {
         listeners: new Map<string, ManagedKeyHandler>(),
         participants: new Map<string, JitsiParticipant>(),
         sasMap: new Map<string, string[]>(),
 
-        setSas(id: string, sas: string[]){
-          this.sasMap.set(id, sas);
+        setSas(id: string, sas: string[]) {
+            this.sasMap.set(id, sas);
         },
 
         getSas(id: string): string[] {
-          return this.sasMap.get(id);
+            return this.sasMap.get(id);
         },
 
         getParticipantsFor(id: string) {
@@ -180,13 +167,17 @@ describe('E2EEcontext with multiple instances', () => {
         when(conferenceMock.rtc).thenReturn(mockRTC);
 
         const eventEmitterMock = mock<EventEmitter>();
-        when(eventEmitterMock.emit(anything(), anything())).thenCall( (event, sas) => {
-          if (event === JitsiConferenceEvents.E2EE_SAS_AVAILABLE ) {
-            xmppServerMock.setSas(id, sas);
-          }
-        } );
+        when(eventEmitterMock.emit(anything(), anything())).thenCall(
+            (event, sas) => {
+                if (event === JitsiConferenceEvents.E2EE_SAS_AVAILABLE) {
+                    xmppServerMock.setSas(id, sas);
+                }
+            },
+        );
 
-        when(conferenceMock.eventEmitter).thenReturn(instance(eventEmitterMock));
+        when(conferenceMock.eventEmitter).thenReturn(
+            instance(eventEmitterMock),
+        );
 
         const eventHandlers = new Map<string, Function[]>();
         when(conferenceMock.on(anything(), anything())).thenCall(
@@ -290,19 +281,14 @@ describe('E2EEcontext with multiple instances', () => {
             olmAdapterSpy.createSessionDoneMessage(pId, anything(), anything()),
         ).called();
     }
+
     it("should enable e2e sucessfully for 3 participants", async () => {
-        const {
-            id: idA,
-            keyHandler: alice,
-        } = await createMockManagedKeyHandler();
-        const {
-            id: idB,
-            keyHandler: bob,
-        } = await createMockManagedKeyHandler();
-        const {
-            id: idE,
-            keyHandler: eve,
-        } = await createMockManagedKeyHandler();
+        const { id: idA, keyHandler: alice } =
+            await createMockManagedKeyHandler();
+        const { id: idB, keyHandler: bob } =
+            await createMockManagedKeyHandler();
+        const { id: idE, keyHandler: eve } =
+            await createMockManagedKeyHandler();
 
         const aliceSpy = spy(alice);
         const bobSpy = spy(bob);
@@ -423,8 +409,16 @@ describe('E2EEcontext with multiple instances', () => {
 
         await delay(800);
 
-        console.log("Alice SAS values", xmppServerMock.getSas(idA));
-        console.log("Bob SAS values", xmppServerMock.getSas(idB));
-        console.log("Eve SAS values", xmppServerMock.getSas(idE));
-    }); 
+        const sasA = xmppServerMock.getSas(idA);
+        const sasB = xmppServerMock.getSas(idB);
+        const sasE = xmppServerMock.getSas(idE);
+
+        console.log("Alice SAS values", sasA);
+        console.log("Bob SAS values", sasB);
+        console.log("Eve SAS values", sasE);
+
+        expect(sasA.length).toBe(7);
+        expect(sasA).toEqual(sasB);
+        expect(sasA).toEqual(sasE);
+    });
 });
