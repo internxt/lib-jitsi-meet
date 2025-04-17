@@ -150,7 +150,7 @@ export class OlmAdapter {
         }
     }
 
-    _getParticipantOlmData(pId: string): SessionData {
+    private _getParticipantOlmData(pId: string): SessionData {
         let result = this._olmDataMap.get(pId);
         if (!result) {
             result = new SessionData(this._mediaKey);

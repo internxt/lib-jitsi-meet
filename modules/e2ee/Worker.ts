@@ -1,8 +1,11 @@
 import { Context } from "./Context";
+import { logError, logInfo } from "./crypto-workers";
 
 export function setupWorker(self: {
     postMessage: (data: any) => void;
     onmessage: ((event: MessageEvent) => void) | null;
+    onrtctransform?: (event: any) => void;
+    RTCTransformEvent?: any;
 }) {
     class E2EEWorker {
         private readonly contexts: Map<string, Context>;
@@ -12,26 +15,25 @@ export function setupWorker(self: {
 
             selfInstance.onmessage = this.handleMessage.bind(this);
 
-            if ((selfInstance as any).RTCTransformEvent) {
-                (selfInstance as any).onrtctransform = this.handleRTCTransform.bind(this);
+            if (self.RTCTransformEvent) {
+                self.onrtctransform = this.handleRTCTransform.bind(this);
             }
         }
 
         private getParticipantContext(participantId: string): Context {
-            if (!this.contexts.has(participantId)) {
-                this.contexts.set(participantId, new Context(participantId));
+            let context = this.contexts.get(participantId);
+            if (!context) {
+                context = new Context(participantId);
+                this.contexts.set(participantId, context);
             }
-            return this.contexts.get(participantId);
+            return context;
         }
 
         private getCurrentSASMaterial(): string {
-            const array: string[] = [];
-            for (const [pId, context] of this.contexts) {
-                const pHash = context.getHash();
-                if (pHash) array.push(pId + pHash);
-            }
-            array.sort((a, b) => a.localeCompare(b));
-            return array.join("");
+            return [...this.contexts.entries()]
+                .map(([pId, context]) => pId + (context.getHash() || ""))
+                .sort()
+                .join("");
         }
 
         private handleTransform(
@@ -41,7 +43,7 @@ export function setupWorker(self: {
             writableStream: WritableStream,
         ): void {
             if (operation !== "encode" && operation !== "decode") {
-                console.error(`E2E: Invalid operation: ${operation}`);
+                logError(`Invalid operation: ${operation}`);
                 return;
             }
 
@@ -63,9 +65,15 @@ export function setupWorker(self: {
             switch (operation) {
                 case "encode":
                 case "decode": {
-                    const { readableStream, writableStream, participantId } = event.data;
+                    const { readableStream, writableStream, participantId } =
+                        event.data;
                     const context = this.getParticipantContext(participantId);
-                    this.handleTransform(context, operation, readableStream, writableStream);
+                    this.handleTransform(
+                        context,
+                        operation,
+                        readableStream,
+                        writableStream,
+                    );
                     break;
                 }
 
@@ -100,13 +108,12 @@ export function setupWorker(self: {
 
                 case "cleanupAll": {
                     this.contexts.clear();
-                    console.info("E2E: Stopped encryption of my frames!");
+                    logInfo("Stopped encrypting my frames!");
                     break;
                 }
 
                 default:
-                    console.error("E2E: e2ee worker received unknown operation", operation);
-                    break;
+                    logError(`Worker received unknown operation: ${operation}`);
             }
         }
 
