@@ -20,7 +20,8 @@ module.exports = (minimize, analyzeBundle) => {
             fallback: {
                 'module': false, // Explicitly handle `module` resolution
                 'fs': false,
-                'path': false
+                'path': false,
+                'crypto': false
             },
             extensions: [ '.json', '.ts', '.js', '.wasm' ]
         },

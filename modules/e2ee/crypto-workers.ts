@@ -10,6 +10,7 @@ import {
     KEY_HASH_PREFIX,
 } from "./Constants";
 import { emojiMapping } from "./SAS";
+import { MediaKey } from "./Types";
 
 /**
  * Computes hash.
@@ -153,16 +154,14 @@ export function decryptData(
 
 export async function commitToMediaKeyShares(
     participantID: string,
-    keyOlm: Uint8Array,
-    keyPQ: Uint8Array,
-    index: number,
+    key: MediaKey
 ): Promise<string> {
     return computeHash(
         MEDIA_KEY_COMMITMENT_PREFIX,
         participantID,
-        keyOlm,
-        keyPQ,
-        index,
+        key.olmKey,
+        key.pqKey,
+        key.index,
     );
 }
 

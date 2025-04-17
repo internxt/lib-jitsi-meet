@@ -18,6 +18,8 @@ module.exports = function(config) {
             'node_modules/jquery/dist/jquery.slim.min.js',
             './modules/**/*.spec.js',
             './modules/**/*.spec.ts',
+            './tests/*.spec.ts',
+            './tests/*.spec.js',
             './service/**/*.spec.ts',
             './*.spec.ts',
             {
@@ -87,15 +89,7 @@ module.exports = function(config) {
         // start these browsers
         // available browser launchers:
         // https://npmjs.org/browse/keyword/karma-launcher
-        browsers: [ 'ChromeHeadlessWithFlags' ],
-        customLaunchers: {
-            ChromeHeadlessWithFlags: {
-                base: 'ChromeHeadless',
-                flags: [
-                    '--enable-webcrypto'
-                ]
-            }
-        },
+        browsers: [ 'ChromeHeadless' ],
 
         // Continuous Integration mode
         // if true, Karma captures browsers, runs the tests and exits

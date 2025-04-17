@@ -5,11 +5,19 @@ import {
     decryptKeyInfoPQ,
     encryptKeyInfoPQ,
     generateKey,
-} from "./crypto-utils";
+} from "../modules/e2ee/crypto-utils";
 
-import { deriveEncryptionKey } from "./crypto-workers";
+import { deriveEncryptionKey } from "../modules/e2ee/crypto-workers";
+import initKyber from "@dashlane/pqc-kem-kyber512-browser/dist/pqc-kem-kyber512.js";
 
 describe("Test Kyber KEM", () => {
+
+    beforeAll(async () => {
+        const kyberPath =
+            "/base/node_modules/@dashlane/pqc-kem-kyber512-browser/dist/pqc-kem-kyber512.js";
+        await initKyber(kyberPath);
+    });
+
     it("key encapsulation and decapsulation should work", async () => {
         const { publicKeyBase64, privateKey } = await generateKyberKeys();
         const { encapsulatedBase64: ciphertextBase64, sharedSecret } =
@@ -73,9 +81,7 @@ describe("Test Kyber KEM", () => {
 
         expect(key1).toEqual(key2);
     });
-});
 
-describe("Test key encryption", () => {
     it("key encryption and decryption should work", async () => {
         const keyBytes = generateKey();
         const key = await crypto.subtle.importKey(

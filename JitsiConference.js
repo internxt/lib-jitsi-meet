@@ -339,8 +339,7 @@ JitsiConference.prototype.constructor = JitsiConference;
  * @static
  */
 JitsiConference.resourceCreator = function() {
-    const d = new Date();
-    const time = d.getTime();
+    const time = new Date().getTime();
 
     return time.toString().slice(-8);
 };
