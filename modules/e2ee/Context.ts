@@ -7,7 +7,7 @@ import {
     logError,
     logInfo,
 } from "./crypto-workers";
-import { KEYRING_SIZE, VIDEO_UNENCRYPTED_BYTES, IV_LENGTH } from "./Constants";
+import { KEYRING_SIZE, UNENCRYPTED_BYTES, IV_LENGTH } from "./Constants";
 
 let printEncStart = true;
 
@@ -124,16 +124,10 @@ export class Context {
         try {
             const iv = crypto.getRandomValues(new Uint8Array(IV_LENGTH));
             // Thіs is not encrypted and contains the VP8 payload descriptor or the Opus TOC byte.
-            let unencrypted_bytes_number: number = 1; // for audio frame
-            if (encodedFrame instanceof RTCEncodedVideoFrame)
-                unencrypted_bytes_number =
-                    VIDEO_UNENCRYPTED_BYTES[
-                        encodedFrame.type as keyof typeof VIDEO_UNENCRYPTED_BYTES
-                    ];
             const frameHeader = new Uint8Array(
                 encodedFrame.data,
                 0,
-                unencrypted_bytes_number,
+                UNENCRYPTED_BYTES,
             );
 
             // Frame trailer contains the R|IV_LENGTH and key index
@@ -151,32 +145,32 @@ export class Context {
             // ---------+-------------------------+-+---------+----
             const data: Uint8Array = new Uint8Array(
                 encodedFrame.data,
-                unencrypted_bytes_number,
+                UNENCRYPTED_BYTES,
             );
             const additionalData = new Uint8Array(
                 encodedFrame.data,
                 0,
-                frameHeader.byteLength,
+                UNENCRYPTED_BYTES,
             );
             const cipherText = await encryptData(iv, additionalData, key, data);
 
             const newData = new ArrayBuffer(
-                frameHeader.byteLength +
+                UNENCRYPTED_BYTES +
                     cipherText.byteLength +
-                    iv.byteLength +
+                    IV_LENGTH +
                     frameTrailer.byteLength,
             );
             const newUint8 = new Uint8Array(newData);
 
             newUint8.set(frameHeader); // copy first bytes.
-            newUint8.set(new Uint8Array(cipherText), frameHeader.byteLength); // add ciphertext.
+            newUint8.set(new Uint8Array(cipherText), UNENCRYPTED_BYTES); // add ciphertext.
             newUint8.set(
                 new Uint8Array(iv),
-                frameHeader.byteLength + cipherText.byteLength,
+                UNENCRYPTED_BYTES + cipherText.byteLength,
             ); // append IV.
             newUint8.set(
                 frameTrailer,
-                frameHeader.byteLength + cipherText.byteLength + iv.byteLength,
+                UNENCRYPTED_BYTES + cipherText.byteLength + IV_LENGTH,
             ); // append frame trailer.
             encodedFrame.data = newData;
             if (printEncStart) {
@@ -225,13 +219,6 @@ export class Context {
     ) {
         const encryptionKey = this.encryptionKey;
         try {
-            let ind = 1;
-            if (encodedFrame instanceof RTCEncodedVideoFrame)
-                ind =
-                    VIDEO_UNENCRYPTED_BYTES[
-                        encodedFrame.type as keyof typeof VIDEO_UNENCRYPTED_BYTES
-                    ];
-            const frameHeader = new Uint8Array(encodedFrame.data, 0, ind);
             const frameTrailer = new Uint8Array(
                 encodedFrame.data,
                 encodedFrame.data.byteLength - 2,
@@ -247,19 +234,18 @@ export class Context {
                 ivLength,
             );
 
-            const cipherTextStart = frameHeader.byteLength;
             const cipherTextLength =
                 encodedFrame.data.byteLength -
-                (frameHeader.byteLength + ivLength + frameTrailer.byteLength);
+                (UNENCRYPTED_BYTES + ivLength + frameTrailer.byteLength);
 
             const additionalData = new Uint8Array(
                 encodedFrame.data,
                 0,
-                frameHeader.byteLength,
+                UNENCRYPTED_BYTES,
             );
             const data = new Uint8Array(
                 encodedFrame.data,
-                cipherTextStart,
+                UNENCRYPTED_BYTES,
                 cipherTextLength,
             );
             const plainText = await decryptData(
@@ -270,14 +256,14 @@ export class Context {
             );
 
             const newData = new ArrayBuffer(
-                frameHeader.byteLength + plainText.byteLength,
+                UNENCRYPTED_BYTES + plainText.byteLength,
             );
             const newUint8 = new Uint8Array(newData);
 
             newUint8.set(
-                new Uint8Array(encodedFrame.data, 0, frameHeader.byteLength),
+                new Uint8Array(encodedFrame.data, 0, UNENCRYPTED_BYTES),
             );
-            newUint8.set(new Uint8Array(plainText), frameHeader.byteLength);
+            newUint8.set(new Uint8Array(plainText), UNENCRYPTED_BYTES);
 
             encodedFrame.data = newData;
 

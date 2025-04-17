@@ -14,19 +14,12 @@ export const HASH_LEN = 256;
 export const KEYRING_SIZE = 16;
 
 // We copy the first bytes of the VP8 payload unencrypted.
-// For keyframes this is 10 bytes, for non-keyframes (delta) 3. See
-//   https://tools.ietf.org/html/rfc6386#section-9.1
 // This allows the bridge to continue detecting keyframes (only one byte needed in the JVB)
-// and is also a bit easier for the VP8 decoder (i.e. it generates funny garbage pictures
-// instead of being unable to decode).
-// This is a bit for show and we might want to reduce to 1 unconditionally in the final version.
+//    https://tools.ietf.org/html/rfc6386#section-9.1
 //
 // For audio (where frame.type is not set) we do not encrypt the opus TOC byte:
 //   https://tools.ietf.org/html/rfc6716#section-3.1
-export const VIDEO_UNENCRYPTED_BYTES = {
-    key: 10,
-    delta: 3,
-};
+export const UNENCRYPTED_BYTES = 1;
 
 export const SAS_LEN = 48;
 
