@@ -13,7 +13,12 @@ import Listenable from "../util/Listenable";
 import { OlmAdapter } from "./OlmAdapter";
 import JitsiConference from "../../JitsiConference";
 import RTCEvents from "../../service/RTC/RTCEvents";
-import { generateEmojiSas } from "./crypto-workers";
+import {
+    generateEmojiSas,
+    logError,
+    logInfo,
+    logWarning,
+} from "./crypto-workers";
 
 import { JITSI_MEET_MUC_TYPE, FEATURE_E2EE } from "../xmpp/xmpp";
 import { REQ_TIMEOUT } from "./Constants";
@@ -145,12 +150,12 @@ export class ManagedKeyHandler extends Listenable {
         }
 
         if (enabled) {
-            this.logInfo("Enabling e2ee");
+            logInfo("Enabling e2ee");
             await this.enableE2E();
         }
 
         if (!enabled) {
-            this.logInfo("Disabling e2ee");
+            logInfo("Disabling e2ee");
             await this.disableE2E();
         }
 
@@ -199,7 +204,7 @@ export class ManagedKeyHandler extends Listenable {
                 localParticipantId > participant.getId(),
         );
         const keys = this._olmAdapter.generateOneTimeKeys(list.length);
-        this.logInfo(
+        logInfo(
             `My ID is ${localParticipantId}, should send session-init to smaller IDs: [ ${list.map((p) => p.getId())}]`,
         );
 
@@ -213,7 +218,7 @@ export class ManagedKeyHandler extends Listenable {
                             pId,
                             lastKey,
                         );
-                    this.logInfo(`Sent session-init to participant ${pId}`);
+                    logInfo(`Sent session-init to participant ${pId}`);
                     this._sendMessage(
                         OLM_MESSAGE_TYPES.SESSION_INIT,
                         data,
@@ -228,13 +233,11 @@ export class ManagedKeyHandler extends Listenable {
                         sessionPromise,
                         timeout(REQ_TIMEOUT),
                     ]);
-                    this.logInfo(
-                        `Session with ${pId} initialized successfully.`,
-                    );
+                    logInfo(`Session with ${pId} initialized successfully.`);
                     return result;
                 } catch (error) {
-                    console.error(
-                        `E2E: Failed to initialize session with ${pId}: ${error}`,
+                    logError(
+                        `Failed to initialize session with ${pId}: ${error}`,
                     );
                     this._reqs.delete(pId);
                 }
@@ -276,8 +279,8 @@ export class ManagedKeyHandler extends Listenable {
                 track.getParticipantId(),
             );
         } else {
-            console.warn(
-                `E2E: Could not handle E2EE for ${track}: receiver not found in: ${tpc}`,
+            logWarning(
+                `Could not handle E2EE for ${track}: receiver not found in: ${tpc}`,
             );
         }
     }
@@ -303,7 +306,7 @@ export class ManagedKeyHandler extends Listenable {
                 track.getParticipantId(),
             );
         } else {
-            console.warn(
+            logWarning(
                 `E2E: Could not handle E2EE for ${track}: sender not found in ${pc}`,
             );
         }
@@ -334,7 +337,7 @@ export class ManagedKeyHandler extends Listenable {
      * @private
      */
     async _onParticipantJoined(id: string) {
-        this.logInfo(`Participant ${id} joined the conference.`);
+        logInfo(`Participant ${id} joined the conference.`);
         if (
             this._conferenceJoined &&
             this.enabled &&
@@ -358,7 +361,7 @@ export class ManagedKeyHandler extends Listenable {
      * @private
      */
     async _onParticipantLeft(id: string) {
-        this.logInfo(`Participant ${id} left the conference.`);
+        logInfo(`Participant ${id} left the conference.`);
         if (this.enabled && this._olmAdapter.isInitialized()) {
             this._olmAdapter.clearParticipantSession(id);
             await this.initSessions;
@@ -393,7 +396,7 @@ export class ManagedKeyHandler extends Listenable {
                 payload[JITSI_MEET_MUC_TYPE] !== OLM_MESSAGE_TYPE ||
                 !payload.olm
             ) {
-                console.error("E2E: Invalid or missing olm payload");
+                logError("E2E: Invalid or missing olm payload");
                 return;
             }
             if (!this._olmAdapter.isInitialized()) {
@@ -473,7 +476,7 @@ export class ManagedKeyHandler extends Listenable {
                     this.updateParticipantKey(pId, key);
                     this._sendMessage(OLM_MESSAGE_TYPES.SESSION_DONE, "", pId);
                     if (data) {
-                        this.logInfo(
+                        logInfo(
                             `Keys changes during session-init, sending new keys to ${pId}.`,
                         );
                         this._sendMessage(
@@ -487,20 +490,20 @@ export class ManagedKeyHandler extends Listenable {
                         requestPromise.resolve();
                         this._reqs.delete(pId);
                     } else
-                        console.warn(
-                            `E2E: Session with ${pId} was established after reaching time out.`,
+                        logWarning(
+                            `Session with ${pId} was established after reaching time out.`,
                         );
                     break;
                 }
                 case OLM_MESSAGE_TYPES.ERROR: {
-                    console.error(msg.data.error);
+                    logError(msg.data.error);
                     break;
                 }
                 case OLM_MESSAGE_TYPES.SESSION_DONE: {
                     const data =
                         await this._olmAdapter.processSessionDoneMessage(pId);
                     if (data) {
-                        this.logInfo(
+                        logInfo(
                             `Keys changes during session-init, sending new keys to ${pId}.`,
                         );
                         this._sendMessage(
@@ -509,7 +512,7 @@ export class ManagedKeyHandler extends Listenable {
                             pId,
                         );
                     }
-                    this.logInfo(
+                    logInfo(
                         `Participant ${pId} established E2E channel with us.`,
                     );
                     break;
@@ -527,7 +530,7 @@ export class ManagedKeyHandler extends Listenable {
             }
         } catch (error) {
             const data: SessionError = { error };
-            console.error(`E2E: Error processing message: ${error}`);
+            logError(`Error while processing message: ${error}`);
             this._sendMessage(
                 OLM_MESSAGE_TYPES.ERROR,
                 data,
@@ -541,7 +544,6 @@ export class ManagedKeyHandler extends Listenable {
      * @param {Uint8Array} olmKey - The olm key.
      * @param {Uint8Array} pqKey - The pq key.
      * @param {number} index - The keys index.
-     * @private
      */
     setKey(olmKey: Uint8Array, pqKey: Uint8Array, index: number) {
         this.e2eeCtx.setKey(this.conference.myUserId(), olmKey, pqKey, index);
@@ -551,22 +553,18 @@ export class ManagedKeyHandler extends Listenable {
      * Updates a participant's key.
      *
      * @param {string} id - The participant ID.
-     * @param {Uint8Array} olmKey - The new olm key of the participant.
-     * @param {Uint8Array} pqKey - The new pq key of the participant.
-     * @param {number} index - The new key's index.
-     * @private
+     * @param {MediaKey} key - The new key of the participant.
      */
     updateParticipantKey(id: string, key: MediaKey) {
         this.e2eeCtx.setKey(id, key.olmKey, key.pqKey, key.index);
     }
 
     /**
-     * Internal helper to send the given object to the given participant ID.
-     * This function merely exists so the transport can be easily swapped.
-     * Currently messages are transmitted via XMPP MUC private messages.
+     * Sends the given object to the given participant ID via XMPP MUC private messages.
      *
-     * @param {object} data - The data that will be sent to the target participant.
-     * @param {string} participantId - ID of the target participant.
+     * @param {MessageType} type - The message type.
+     * @param {ReplyMessage} data - The message data.
+     * @param {string} participantId - The target participant ID.
      */
     _sendMessage(
         type: MessageType,
@@ -581,9 +579,5 @@ export class ManagedKeyHandler extends Listenable {
             },
         };
         this.conference.sendMessage(msg, participantId);
-    }
-
-    logInfo(message: string) {
-        console.info(`E2E: ${message}`);
     }
 }
