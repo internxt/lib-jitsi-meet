@@ -306,7 +306,7 @@ describe("Test E2E:", () => {
         const olmJohnSpy = spy(john._olmAdapter);
        
         xmppServerMock.userJoined(mallory);
-        await delay(10);
+        await delay(30);
         xmppServerMock.userJoined(john);
 
         await delay(3000);
@@ -384,5 +384,75 @@ describe("Test E2E:", () => {
         expect(sasA_new).toEqual(sasM);
         expect(sasA_new).toEqual(sasJ);
 
+    });
+
+    it("two participants should sucessfully leave an ongoing e2e meeting", async () => {
+
+        const xmppServerMock  = new XmppServerMock();
+
+        const { id: idA, keyHandler: alice } =
+            await createMockManagedKeyHandler(xmppServerMock);
+        const { id: idB, keyHandler: bob } =
+            await createMockManagedKeyHandler(xmppServerMock);
+        const { id: idE, keyHandler: eve } =
+            await createMockManagedKeyHandler(xmppServerMock);
+        const { id: idM, keyHandler: mallory } =
+            await createMockManagedKeyHandler(xmppServerMock);
+        const { id: idJ, keyHandler: john } =
+            await createMockManagedKeyHandler(xmppServerMock);
+
+        const olmAliceSpy = spy(alice._olmAdapter);
+        const olmBobSpy = spy(bob._olmAdapter);
+        const olmEveSpy = spy(eve._olmAdapter);
+
+        xmppServerMock.userJoined(alice);
+        xmppServerMock.userJoined(bob);
+        xmppServerMock.userJoined(eve);
+        xmppServerMock.userJoined(mallory);
+        xmppServerMock.userJoined(john);
+
+
+        await xmppServerMock.enableE2E();
+
+        await delay(800);
+
+        const sasA = xmppServerMock.getSas(idA);
+        const sasB = xmppServerMock.getSas(idB);
+        const sasE = xmppServerMock.getSas(idE);
+        const sasM = xmppServerMock.getSas(idM);
+        const sasJ = xmppServerMock.getSas(idJ);
+
+        console.log("Alice SAS values", sasA);
+        console.log("Bob SAS values", sasB);
+        console.log("Eve SAS values", sasE);
+        console.log("Mallory SAS values", sasM);
+        console.log("John SAS values", sasJ);
+
+        expect(sasA.length).toBe(7);
+        expect(sasA).toEqual(sasB);
+        expect(sasA).toEqual(sasE);
+        expect(sasA).toEqual(sasM);
+        expect(sasA).toEqual(sasJ);
+
+        xmppServerMock.userLeft(idM);
+        xmppServerMock.userLeft(idJ);
+
+        await delay(800);
+
+        verify(olmAliceSpy.updateMyKeys()).times(3);
+        verify(olmBobSpy.updateMyKeys()).times(3);
+        verify(olmEveSpy.updateMyKeys()).times(3);
+
+        const newSasA = xmppServerMock.getSas(idA);
+        const newSasB = xmppServerMock.getSas(idB);
+        const newSasE = xmppServerMock.getSas(idE);
+
+        console.log("New Alice SAS values", newSasA);
+        console.log("New Bob SAS values", newSasB);
+        console.log("New Eve SAS values", newSasE);
+
+        expect(newSasA.length).toBe(7);
+        expect(newSasA).toEqual(newSasB);
+        expect(newSasA).toEqual(newSasE);
     });
 });

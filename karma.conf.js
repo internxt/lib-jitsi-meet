@@ -110,6 +110,12 @@ module.exports = function(config) {
         // if true, Karma captures browsers, runs the tests and exits
         singleRun: true,
 
-        webpack: require('./webpack-shared-config')(false /* minimize */, false /* analyzeBundle */)
+        webpack: require('./webpack-shared-config')(false /* minimize */, false /* analyzeBundle */),
+
+        client: {
+            jasmine: {
+                random: false
+            }
+        }
     });
 };

@@ -530,13 +530,7 @@ export class ManagedKeyHandler extends Listenable {
                 }
             }
         } catch (error) {
-            const data: SessionError = { error };
             logError(`Error while processing message: ${error}`);
-            this._sendMessage(
-                OLM_MESSAGE_TYPES.ERROR,
-                data,
-                participant.getId(),
-            );
         }
     }
 
