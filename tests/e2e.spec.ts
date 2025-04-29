@@ -3,14 +3,17 @@ import { anything, verify, spy } from "ts-mockito";
 import { OlmAdapter } from "../modules/e2ee/OlmAdapter.ts";
 import E2EEContext from "../modules/e2ee/E2EEContext.ts";
 
-import {WorkerMock, XmppServerMock, createMockManagedKeyHandler, delay} from "./mocks.ts";
+import {
+    WorkerMock,
+    XmppServerMock,
+    createMockManagedKeyHandler,
+    delay,
+} from "./mocks.ts";
 
 import initKyber from "@dashlane/pqc-kem-kyber512-browser/dist/pqc-kem-kyber512.js";
 import initOlm from "vodozemac-wasm/javascript/pkg/vodozemac.js";
 
-
 describe("Test E2E:", () => {
-
     beforeAll(async () => {
         const kyberPath =
             "/base/node_modules/@dashlane/pqc-kem-kyber512-browser/dist/pqc-kem-kyber512.wasm";
@@ -43,7 +46,6 @@ describe("Test E2E:", () => {
         verify((contextSpy2 as any).updateSAS(anything())).called();
     });
 
-    
     function verifyRequestRecived(olmAdapterSpy: OlmAdapter, pId: string) {
         verify(olmAdapterSpy.createSessionInitMessage(pId, anything())).never();
         verify(
@@ -113,8 +115,7 @@ describe("Test E2E:", () => {
     }
 
     it("should sucessfully enable e2e for 3 participants", async () => {
-
-        const xmppServerMock  = new XmppServerMock();
+        const xmppServerMock = new XmppServerMock();
 
         const { id: idA, keyHandler: alice } =
             await createMockManagedKeyHandler(xmppServerMock);
@@ -242,8 +243,6 @@ describe("Test E2E:", () => {
             ),
         ).once();
 
-       
-
         const sasA = xmppServerMock.getSas(idA);
         const sasB = xmppServerMock.getSas(idB);
         const sasE = xmppServerMock.getSas(idE);
@@ -258,7 +257,7 @@ describe("Test E2E:", () => {
     });
 
     it("two participants should sucessfully join an ongoing e2e meeting", async () => {
-        const xmppServerMock  = new XmppServerMock();
+        const xmppServerMock = new XmppServerMock();
 
         const { id: idA, keyHandler: alice } =
             await createMockManagedKeyHandler(xmppServerMock);
@@ -274,7 +273,6 @@ describe("Test E2E:", () => {
         const e2eeCtxAliceSpy = spy(alice.e2eeCtx);
         const e2eeCtxBobSpy = spy(bob.e2eeCtx);
         const e2eeCtxEveSpy = spy(eve.e2eeCtx);
-    
 
         xmppServerMock.userJoined(alice);
         xmppServerMock.userJoined(bob);
@@ -304,7 +302,7 @@ describe("Test E2E:", () => {
         const e2eeCtxJohnSpy = spy(john.e2eeCtx);
         const olmMallorySpy = spy(mallory._olmAdapter);
         const olmJohnSpy = spy(john._olmAdapter);
-       
+
         xmppServerMock.userJoined(mallory);
         await delay(30);
         xmppServerMock.userJoined(john);
@@ -364,7 +362,7 @@ describe("Test E2E:", () => {
                 anything(),
             ),
         ).once();
-    
+
         const sasA_new = xmppServerMock.getSas(idA);
         const sasB_new = xmppServerMock.getSas(idB);
         const sasE_new = xmppServerMock.getSas(idE);
@@ -377,18 +375,15 @@ describe("Test E2E:", () => {
         console.log("Mallory SAS values", sasM);
         console.log("John SAS values", sasJ);
 
-
         expect(sasA_new.length).toBe(7);
         expect(sasA_new).toEqual(sasB_new);
         expect(sasA_new).toEqual(sasE_new);
         expect(sasA_new).toEqual(sasM);
         expect(sasA_new).toEqual(sasJ);
-
     });
 
     it("two participants should sucessfully leave an ongoing e2e meeting", async () => {
-
-        const xmppServerMock  = new XmppServerMock();
+        const xmppServerMock = new XmppServerMock();
 
         const { id: idA, keyHandler: alice } =
             await createMockManagedKeyHandler(xmppServerMock);
@@ -410,7 +405,6 @@ describe("Test E2E:", () => {
         xmppServerMock.userJoined(eve);
         xmppServerMock.userJoined(mallory);
         xmppServerMock.userJoined(john);
-
 
         await xmppServerMock.enableE2E();
 

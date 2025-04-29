@@ -11,10 +11,9 @@ import { deriveEncryptionKey } from "../modules/e2ee/crypto-workers";
 import initKyber from "@dashlane/pqc-kem-kyber512-browser/dist/pqc-kem-kyber512.js";
 
 describe("Test Kyber KEM", () => {
-
-    beforeAll(async () => {   
+    beforeAll(async () => {
         const kyberPath =
-        "/base/node_modules/@dashlane/pqc-kem-kyber512-browser/dist/pqc-kem-kyber512.wasm";
+            "/base/node_modules/@dashlane/pqc-kem-kyber512-browser/dist/pqc-kem-kyber512.wasm";
         await initKyber(kyberPath);
     });
 

@@ -9,7 +9,7 @@ import * as JitsiConferenceEvents from "../JitsiConferenceEvents";
 import { mock, instance, when, anything } from "ts-mockito";
 
 export function delay(ms: number) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
+    return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 export class WorkerMock {
@@ -52,85 +52,87 @@ export class XmppServerMock {
         const participant = instance(mockParticipant);
         return participant;
     }
-  
+
     setSas(id: string, sas: string[]) {
-      this.sasMap.set(id, sas);
+        this.sasMap.set(id, sas);
     }
-  
+
     getSas(id: string): string[] {
-      return this.sasMap.get(id);
+        return this.sasMap.get(id);
     }
-  
+
     getParticipantsFor(id: string): JitsiParticipant[] {
-      const list: JitsiParticipant[] = [];
-      this.participants.forEach((participant, pId) => {
-        if (id !== pId) {
-          list.push(participant);
-        }
-      });
-      return list;
-    }
-  
-    async enableE2E() {
-      this.e2e = true;
-      for (const [_, keyHandler] of this.listeners) {
-        await keyHandler.setEnabled(true);
-        expect(keyHandler.isEnabled()).toBe(true);
-        expect(keyHandler._olmAdapter.isInitialized()).toBe(true);
-      }
-    }
-  
-    diableE2E() {
-      this.e2e = false;
-      this.listeners.forEach((keyHandler, _id) => {
-        keyHandler.setEnabled(false);
-      });
-    }
-  
-    async userJoined(keyHandler: ManagedKeyHandler) {
-      if(this.e2e) {
-        keyHandler.setEnabled(true);
-      }
-      const pId = keyHandler.conference.myUserId();
-      if (!this.listeners.has(pId)) {
-        const list: string[] = [];
-        this.listeners.forEach((existingHandler, id) => {
-          existingHandler._onParticipantJoined(pId);
-          list.push(id);
+        const list: JitsiParticipant[] = [];
+        this.participants.forEach((participant, pId) => {
+            if (id !== pId) {
+                list.push(participant);
+            }
         });
-        this.listeners.set(pId, keyHandler);
-  
-        for (const id of list) {
-          keyHandler._onParticipantJoined(id);
-        }
-  
-        const participant = this.createMockParticipant(pId);
-        this.participants.set(pId, participant);
-      }
+        return list;
     }
-  
+
+    async enableE2E() {
+        this.e2e = true;
+        for (const [_, keyHandler] of this.listeners) {
+            await keyHandler.setEnabled(true);
+            expect(keyHandler.isEnabled()).toBe(true);
+            expect(keyHandler._olmAdapter.isInitialized()).toBe(true);
+        }
+    }
+
+    diableE2E() {
+        this.e2e = false;
+        this.listeners.forEach((keyHandler, _id) => {
+            keyHandler.setEnabled(false);
+        });
+    }
+
+    async userJoined(keyHandler: ManagedKeyHandler) {
+        if (this.e2e) {
+            keyHandler.setEnabled(true);
+        }
+        const pId = keyHandler.conference.myUserId();
+        if (!this.listeners.has(pId)) {
+            const list: string[] = [];
+            this.listeners.forEach((existingHandler, id) => {
+                existingHandler._onParticipantJoined(pId);
+                list.push(id);
+            });
+            this.listeners.set(pId, keyHandler);
+
+            for (const id of list) {
+                keyHandler._onParticipantJoined(id);
+            }
+
+            const participant = this.createMockParticipant(pId);
+            this.participants.set(pId, participant);
+        }
+    }
+
     userLeft(pId: string) {
-      this.participants.delete(pId);
-      this.listeners.forEach((keyHandler, id) => {
-        if (id !== pId) {
-          keyHandler._onParticipantLeft(pId);
-        }
-      });
+        this.participants.delete(pId);
+        this.listeners.forEach((keyHandler, id) => {
+            if (id !== pId) {
+                keyHandler._onParticipantLeft(pId);
+            }
+        });
     }
-  
+
     sendMessage(myId: string, pId: string, payload: any) {
-      this.listeners.forEach((keyHandler, id) => {
-        if (id === pId) {
-          keyHandler._onEndpointMessageReceived(
-            this.participants.get(myId),
-            payload
-          );
-        }
-      });
+        this.listeners.forEach((keyHandler, id) => {
+            if (id === pId) {
+                keyHandler._onEndpointMessageReceived(
+                    this.participants.get(myId),
+                    payload,
+                );
+            }
+        });
     }
-  }
-  
-export async function createMockManagedKeyHandler(xmppServerMock: XmppServerMock): Promise<{
+}
+
+export async function createMockManagedKeyHandler(
+    xmppServerMock: XmppServerMock,
+): Promise<{
     id: string;
     keyHandler: ManagedKeyHandler;
 }> {
@@ -153,18 +155,13 @@ export async function createMockManagedKeyHandler(xmppServerMock: XmppServerMock
         },
     );
 
-    when(eventEmitterMock.emit(anything())).thenCall(
-      (event) => {
-          if (event === JitsiConferenceEvents.CONFERENCE_JOINED) {
-              keyHandler._conferenceJoined = true;
-          }
-      },
-  );
+    when(eventEmitterMock.emit(anything())).thenCall((event) => {
+        if (event === JitsiConferenceEvents.CONFERENCE_JOINED) {
+            keyHandler._conferenceJoined = true;
+        }
+    });
 
-
-    when(conferenceMock.eventEmitter).thenReturn(
-        instance(eventEmitterMock),
-    );
+    when(conferenceMock.eventEmitter).thenReturn(instance(eventEmitterMock));
 
     const eventHandlers = new Map<string, Function[]>();
     when(conferenceMock.on(anything(), anything())).thenCall(
