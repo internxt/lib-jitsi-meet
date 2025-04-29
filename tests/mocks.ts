@@ -43,6 +43,7 @@ export class XmppServerMock {
     private readonly listeners = new Map<string, ManagedKeyHandler>();
     private readonly participants = new Map<string, JitsiParticipant>();
     private readonly sasMap = new Map<string, string[]>();
+    private e2e: boolean = false;
 
     createMockParticipant(participantId: string): JitsiParticipant {
         const mockParticipant = mock(JitsiParticipant);
@@ -71,6 +72,7 @@ export class XmppServerMock {
     }
   
     async enableE2E() {
+      this.e2e = true;
       for (const [_, keyHandler] of this.listeners) {
         await keyHandler.setEnabled(true);
         expect(keyHandler.isEnabled()).toBe(true);
@@ -79,12 +81,16 @@ export class XmppServerMock {
     }
   
     diableE2E() {
+      this.e2e = false;
       this.listeners.forEach((keyHandler, _id) => {
         keyHandler.setEnabled(false);
       });
     }
   
-    userJoined(keyHandler: ManagedKeyHandler) {
+    async userJoined(keyHandler: ManagedKeyHandler) {
+      if(this.e2e) {
+        keyHandler.setEnabled(true);
+      }
       const pId = keyHandler.conference.myUserId();
       if (!this.listeners.has(pId)) {
         const list: string[] = [];
@@ -138,6 +144,7 @@ export async function createMockManagedKeyHandler(xmppServerMock: XmppServerMock
     when(conferenceMock.rtc).thenReturn(mockRTC);
 
     const eventEmitterMock = mock<EventEmitter>();
+
     when(eventEmitterMock.emit(anything(), anything())).thenCall(
         (event, sas) => {
             if (event === JitsiConferenceEvents.E2EE_SAS_AVAILABLE) {
@@ -145,6 +152,15 @@ export async function createMockManagedKeyHandler(xmppServerMock: XmppServerMock
             }
         },
     );
+
+    when(eventEmitterMock.emit(anything())).thenCall(
+      (event) => {
+          if (event === JitsiConferenceEvents.CONFERENCE_JOINED) {
+              keyHandler._conferenceJoined = true;
+          }
+      },
+  );
+
 
     when(conferenceMock.eventEmitter).thenReturn(
         instance(eventEmitterMock),
@@ -173,6 +189,7 @@ export async function createMockManagedKeyHandler(xmppServerMock: XmppServerMock
     const conference = instance(conferenceMock);
     const keyHandler = new ManagedKeyHandler(conference);
     await delay(100);
+    conference.eventEmitter.emit(JitsiConferenceEvents.CONFERENCE_JOINED);
 
     return { id, keyHandler };
 }

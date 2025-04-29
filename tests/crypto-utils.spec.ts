@@ -12,9 +12,9 @@ import initKyber from "@dashlane/pqc-kem-kyber512-browser/dist/pqc-kem-kyber512.
 
 describe("Test Kyber KEM", () => {
 
-    beforeAll(async () => {
+    beforeAll(async () => {   
         const kyberPath =
-            "/base/node_modules/@dashlane/pqc-kem-kyber512-browser/dist/pqc-kem-kyber512.js";
+        "/base/node_modules/@dashlane/pqc-kem-kyber512-browser/dist/pqc-kem-kyber512.wasm";
         await initKyber(kyberPath);
     });
 

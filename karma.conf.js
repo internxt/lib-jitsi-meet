@@ -18,8 +18,6 @@ module.exports = function(config) {
             'node_modules/jquery/dist/jquery.slim.min.js',
             './modules/**/*.spec.js',
             './modules/**/*.spec.ts',
-            './tests/*.spec.ts',
-            './tests/*.spec.js',
             './service/**/*.spec.ts',
             './*.spec.ts',
             {
@@ -33,7 +31,9 @@ module.exports = function(config) {
                 included: false,
                 served: true,
                 watched: false
-            }
+            },
+            './tests/*.spec.js',
+            './tests/*.spec.ts'
         ],
         mime: {
             'application/wasm': [ 'wasm' ]
@@ -89,7 +89,22 @@ module.exports = function(config) {
         // start these browsers
         // available browser launchers:
         // https://npmjs.org/browse/keyword/karma-launcher
-        browsers: [ 'ChromeHeadless' ],
+        browsers: [ 'ChromeHeadlessCustom' ],
+        customLaunchers: {
+            ChromeHeadlessCustom: {
+                base: 'ChromeHeadless',
+                flags: [
+                    '--no-sandbox',
+                    '--disable-gpu',
+                    '--allow-insecure-localhost',
+                    '--disable-web-security',
+                    '--disable-features=IsolateOrigins',
+                    '--disable-site-isolation-trials',
+                    '--ignore-certificate-errors',
+                    '--unsafely-treat-insecure-origin-as-secure=http://localhost'
+                ]
+            }
+        },
 
         // Continuous Integration mode
         // if true, Karma captures browsers, runs the tests and exits

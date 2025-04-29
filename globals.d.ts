@@ -6,6 +6,7 @@ declare global {
         RTCTransformEvent: Window.RTCTransformEvent;
         RTCRtpScriptTransform: Window.RTCRtpScriptTransform;
         onrtctransform: Window.onrtctransform;
+        crypto: Crypto;
     }
 
     declare class RTCRtpScriptTransform {

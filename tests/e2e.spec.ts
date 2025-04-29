@@ -9,7 +9,7 @@ import initKyber from "@dashlane/pqc-kem-kyber512-browser/dist/pqc-kem-kyber512.
 import initOlm from "vodozemac-wasm/javascript/pkg/vodozemac.js";
 
 
-describe("E2EEcontext with multiple instances", () => {
+describe("Test E2E:", () => {
 
     beforeAll(async () => {
         const kyberPath =
@@ -112,7 +112,7 @@ describe("E2EEcontext with multiple instances", () => {
         ).called();
     }
 
-    it("should enable e2e sucessfully for 3 participants", async () => {
+    it("should sucessfully enable e2e for 3 participants", async () => {
 
         const xmppServerMock  = new XmppServerMock();
 
@@ -149,6 +149,8 @@ describe("E2EEcontext with multiple instances", () => {
         verify((eveSpy as any)._onParticipantJoined(idB)).called();
 
         await xmppServerMock.enableE2E();
+
+        await delay(800);
 
         verify(aliceSpy.enableE2E()).called();
         verify(bobSpy.enableE2E()).called();
@@ -240,6 +242,46 @@ describe("E2EEcontext with multiple instances", () => {
             ),
         ).once();
 
+       
+
+        const sasA = xmppServerMock.getSas(idA);
+        const sasB = xmppServerMock.getSas(idB);
+        const sasE = xmppServerMock.getSas(idE);
+
+        console.log("Alice SAS values", sasA);
+        console.log("Bob SAS values", sasB);
+        console.log("Eve SAS values", sasE);
+
+        expect(sasA.length).toBe(7);
+        expect(sasA).toEqual(sasB);
+        expect(sasA).toEqual(sasE);
+    });
+
+    it("two participants should sucessfully join an ongoing e2e meeting", async () => {
+        const xmppServerMock  = new XmppServerMock();
+
+        const { id: idA, keyHandler: alice } =
+            await createMockManagedKeyHandler(xmppServerMock);
+        const { id: idB, keyHandler: bob } =
+            await createMockManagedKeyHandler(xmppServerMock);
+        const { id: idE, keyHandler: eve } =
+            await createMockManagedKeyHandler(xmppServerMock);
+
+        const olmAliceSpy = spy(alice._olmAdapter);
+        const olmBobSpy = spy(bob._olmAdapter);
+        const olmEveSpy = spy(eve._olmAdapter);
+
+        const e2eeCtxAliceSpy = spy(alice.e2eeCtx);
+        const e2eeCtxBobSpy = spy(bob.e2eeCtx);
+        const e2eeCtxEveSpy = spy(eve.e2eeCtx);
+    
+
+        xmppServerMock.userJoined(alice);
+        xmppServerMock.userJoined(bob);
+        xmppServerMock.userJoined(eve);
+
+        await xmppServerMock.enableE2E();
+
         await delay(800);
 
         const sasA = xmppServerMock.getSas(idA);
@@ -253,5 +295,94 @@ describe("E2EEcontext with multiple instances", () => {
         expect(sasA.length).toBe(7);
         expect(sasA).toEqual(sasB);
         expect(sasA).toEqual(sasE);
+
+        const { id: idM, keyHandler: mallory } =
+            await createMockManagedKeyHandler(xmppServerMock);
+        const { id: idJ, keyHandler: john } =
+            await createMockManagedKeyHandler(xmppServerMock);
+
+        const e2eeCtxJohnSpy = spy(john.e2eeCtx);
+        const olmMallorySpy = spy(mallory._olmAdapter);
+        const olmJohnSpy = spy(john._olmAdapter);
+       
+        xmppServerMock.userJoined(mallory);
+        await delay(10);
+        xmppServerMock.userJoined(john);
+
+        await delay(3000);
+
+        verify(olmAliceSpy.ratchetMyKeys()).times(2);
+        verify(olmBobSpy.ratchetMyKeys()).times(2);
+        verify(olmEveSpy.ratchetMyKeys()).times(2);
+        verify(olmMallorySpy.ratchetMyKeys()).once();
+        verify(olmJohnSpy.ratchetMyKeys()).never();
+
+        verify(e2eeCtxAliceSpy.ratchetKeys(idB)).times(2);
+        verify(e2eeCtxAliceSpy.ratchetKeys(idE)).times(2);
+        verify(e2eeCtxBobSpy.ratchetKeys(idA)).times(2);
+        verify(e2eeCtxBobSpy.ratchetKeys(idE)).times(2);
+        verify(e2eeCtxEveSpy.ratchetKeys(idA)).times(2);
+        verify(e2eeCtxEveSpy.ratchetKeys(idB)).times(2);
+
+        verify(
+            (e2eeCtxJohnSpy as any).setKey(
+                idA,
+                anything(),
+                anything(),
+                anything(),
+            ),
+        ).once();
+        verify(
+            (e2eeCtxJohnSpy as any).setKey(
+                idB,
+                anything(),
+                anything(),
+                anything(),
+            ),
+        ).once();
+        verify(
+            (e2eeCtxJohnSpy as any).setKey(
+                idE,
+                anything(),
+                anything(),
+                anything(),
+            ),
+        ).once();
+        verify(
+            (e2eeCtxJohnSpy as any).setKey(
+                idM,
+                anything(),
+                anything(),
+                anything(),
+            ),
+        ).once();
+        verify(
+            (e2eeCtxJohnSpy as any).setKey(
+                idJ,
+                anything(),
+                anything(),
+                anything(),
+            ),
+        ).once();
+    
+        const sasA_new = xmppServerMock.getSas(idA);
+        const sasB_new = xmppServerMock.getSas(idB);
+        const sasE_new = xmppServerMock.getSas(idE);
+        const sasM = xmppServerMock.getSas(idM);
+        const sasJ = xmppServerMock.getSas(idJ);
+
+        console.log("New Alice SAS values", sasA_new);
+        console.log("New Bob SAS values", sasB_new);
+        console.log("New Eve SAS values", sasE_new);
+        console.log("Mallory SAS values", sasM);
+        console.log("John SAS values", sasJ);
+
+
+        expect(sasA_new.length).toBe(7);
+        expect(sasA_new).toEqual(sasB_new);
+        expect(sasA_new).toEqual(sasE_new);
+        expect(sasA_new).toEqual(sasM);
+        expect(sasA_new).toEqual(sasJ);
+
     });
 });

@@ -51,7 +51,7 @@ export class ManagedKeyHandler extends Listenable {
     enabled: boolean;
     initSessions: Promise<unknown[]>;
     _olmAdapter: OlmAdapter;
-    private _conferenceJoined: boolean;
+    _conferenceJoined: boolean;
     private readonly _reqs: Map<
         string,
         { resolve: (args?: unknown) => void; reject?: (args?: unknown) => void }
@@ -338,6 +338,7 @@ export class ManagedKeyHandler extends Listenable {
      */
     async _onParticipantJoined(id: string) {
         logInfo(`Participant ${id} joined the conference.`);
+        logInfo(`TEST ${this._conferenceJoined}, ${this.enabled}, ${this._olmAdapter.isInitialized()}.`);
         if (
             this._conferenceJoined &&
             this.enabled &&

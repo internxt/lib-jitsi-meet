@@ -21,7 +21,10 @@ module.exports = (minimize, analyzeBundle) => {
                 'module': false, // Explicitly handle `module` resolution
                 'fs': false,
                 'path': false,
-                'crypto': false
+                'crypto': require.resolve('crypto-browserify'),
+                'stream': require.resolve('stream-browserify'),
+                'buffer': require.resolve('buffer/'),
+                'vm': require.resolve('vm-browserify')
             },
             extensions: [ '.json', '.ts', '.js', '.wasm' ]
         },
