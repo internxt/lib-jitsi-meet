@@ -61,6 +61,10 @@ export class XmppServerMock {
         return this.sasMap.get(id);
     }
 
+    getAllParticipantsIDs(): string[] {
+        return [...this.participants.keys()];
+    }
+
     getParticipantsFor(id: string): JitsiParticipant[] {
         const list: JitsiParticipant[] = [];
         this.participants.forEach((participant, pId) => {
