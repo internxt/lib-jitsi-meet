@@ -7,6 +7,7 @@ import {
     RATCHET_CONTEXT,
     DERIVE_CONTEXT,
     MEDIA_KEY_COMMITMENT_PREFIX,
+    IDENTITY_KEYS_PREFIX,
     KEY_HASH_PREFIX,
 } from "./Constants";
 import { emojiMapping } from "./SAS";
@@ -195,7 +196,7 @@ export async function commitToIdentityKeys(
     publicKey: string,
 ): Promise<string> {
     return computeHash(
-        MEDIA_KEY_COMMITMENT_PREFIX,
+        IDENTITY_KEYS_PREFIX,
         participantID,
         publicKyberKey,
         publicKey,
