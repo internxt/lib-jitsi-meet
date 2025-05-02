@@ -29,7 +29,6 @@ import {
     CustomRTCRtpReceiver,
     CustomRTCRtpSender,
     ReplyMessage,
-    SessionError,
     MediaKey,
 } from "./Types";
 
@@ -364,6 +363,11 @@ export class ManagedKeyHandler extends Listenable {
         logInfo(`Participant ${id} left the conference.`);
         if (this.enabled && this._olmAdapter.isInitialized()) {
             this._olmAdapter.clearParticipantSession(id);
+            const requestPromise = this._reqs.get(id);
+            if (requestPromise) {
+                requestPromise.resolve();
+                this._reqs.delete(id);
+            }
             await this.initSessions;
             this.e2eeCtx.cleanup(id);
             const { olmKey, pqKey, index } = this._olmAdapter.updateMyKeys();

@@ -257,7 +257,6 @@ describe("Test E2E:", () => {
             });
 
             xmppServerMock.userJoined(keyHandler);
-            await delay(30);
         }
         expect(joinedUserData.length).toBe(joinedParticipantsNumber);
 
@@ -320,22 +319,103 @@ describe("Test E2E:", () => {
         verifySasValues(xmppServerMock);
 
         const userIds = xmppServerMock.getAllParticipantsIDs();
-        for (let i = 1; i <= leftParticipantsNumber; i++) {
-            const id = userIds[userIds.length - i];
+        for (let i = 0; i < leftParticipantsNumber; i++) {
+            const id = userIds[i];
             xmppServerMock.userLeft(id);
+            userData.shift();
         }
 
         await delay(800);
 
         const remainingParticipantsCount =
             initialParticipantCount - leftParticipantsNumber;
-        for (let i = 0; i < remainingParticipantsCount; i++) {
-            verify(userData[i].olmSpy.updateMyKeys()).times(
+
+        userData.forEach((user) => {
+            verify(user.olmSpy.updateMyKeys()).times(
                 1 + leftParticipantsNumber,
             );
-        }
+        });
 
         verifyParticipantNumber(xmppServerMock, remainingParticipantsCount);
         verifySasValues(xmppServerMock);
     });
+
+    it("participants should sucessfully join and leave an ongoing e2e meeting", async () => {
+        const initialParticipantCount = 1;
+        const joinedParticipantsNumber = 4;
+        const leftParticipantsNumber = 2;
+        expect(initialParticipantCount).toBeGreaterThan(0);
+        expect(joinedParticipantsNumber).toBeGreaterThan(0);
+        expect(
+            initialParticipantCount + joinedParticipantsNumber,
+        ).toBeGreaterThan(leftParticipantsNumber);
+
+        const xmppServerMock = new XmppServerMock();
+        const userData = await createGroupMeeting(
+            xmppServerMock,
+            initialParticipantCount,
+        );
+        expect(userData.length).toBe(initialParticipantCount);
+
+        await xmppServerMock.enableE2E();
+
+        await delay(800);
+
+        verifyParticipantNumber(xmppServerMock, initialParticipantCount);
+        verifySasValues(xmppServerMock);
+
+        for (let i = 0; i < joinedParticipantsNumber; i++) {
+            const { id, keyHandler } =
+                await createMockManagedKeyHandler(xmppServerMock);
+            const olmSpy = spy(keyHandler._olmAdapter);
+            const e2eeSpy = spy(keyHandler.e2eeCtx);
+            const keyHandlerSpy = spy(keyHandler);
+            userData.push({
+                index: initialParticipantCount + i,
+                id,
+                keyHandlerSpy,
+                olmSpy,
+                e2eeSpy,
+            });
+
+            xmppServerMock.userJoined(keyHandler);
+            await delay(30);
+        }
+        expect(userData.length).toBe(
+            initialParticipantCount + joinedParticipantsNumber,
+        );
+
+        await delay(30);
+        const userIds = xmppServerMock.getAllParticipantsIDs();
+        for (let i = 0; i < leftParticipantsNumber; i++) {
+            const id = userIds[i];
+            xmppServerMock.userLeft(id);
+            userData.shift();
+        }
+        const remainingParticipantsCount =
+            initialParticipantCount +
+            joinedParticipantsNumber -
+            leftParticipantsNumber;
+        expect(userData.length).toBe(remainingParticipantsCount);
+
+        await delay(1000);
+
+        userData.forEach((user) => {
+            const x =
+                joinedParticipantsNumber +
+                initialParticipantCount -
+                1 -
+                user.index;
+            const times =
+                x > joinedParticipantsNumber ? joinedParticipantsNumber : x;
+            verify(user.olmSpy.ratchetMyKeys()).times(times);
+
+            verify(user.olmSpy.updateMyKeys()).times(
+                1 + leftParticipantsNumber,
+            );
+        });
+
+        verifyParticipantNumber(xmppServerMock, remainingParticipantsCount);
+        verifySasValues(xmppServerMock);
+    }, 25000);
 });

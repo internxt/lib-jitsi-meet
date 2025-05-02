@@ -115,10 +115,9 @@ export class XmppServerMock {
 
     userLeft(pId: string) {
         this.participants.delete(pId);
-        this.listeners.forEach((keyHandler, id) => {
-            if (id !== pId) {
+        this.listeners.delete(pId);
+        this.listeners.forEach((keyHandler, _id) => {
                 keyHandler._onParticipantLeft(pId);
-            }
         });
     }
 
