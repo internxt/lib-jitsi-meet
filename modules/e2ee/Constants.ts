@@ -1,11 +1,11 @@
 export const REQ_TIMEOUT = 20 * 1000;
 export const IV_LENGTH = 16;
-export const MEDIA_KEY_LEN = 32;
 export const AUX = Uint8Array.from([
     80, 81, 32, 75, 101, 121, 32, 73, 110, 102, 111,
 ]); // "PQ Key Info"
 export const AES = "AES-GCM";
 export const AES_KEY_LEN = 256;
+export const MEDIA_KEY_LEN = AES_KEY_LEN/8;
 export const HASH_LEN = 256;
 
 // We use a ringbuffer of keys so we can change them and still decode packets that were
@@ -19,7 +19,7 @@ export const KEYRING_SIZE = 16;
 //
 // For audio (where frame.type is not set) we do not encrypt the opus TOC byte:
 //   https://tools.ietf.org/html/rfc6716#section-3.1
-export const UNENCRYPTED_BYTES = 1;
+export const UNENCRYPTED_BYTES_NUMBER = 1;
 
 export const SAS_LEN = 48;
 

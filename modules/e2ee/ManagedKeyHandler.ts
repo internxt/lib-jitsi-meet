@@ -1,5 +1,3 @@
-/// <reference types="node" />
-
 import browser from "../browser";
 import JitsiLocalTrack from "../RTC/JitsiLocalTrack";
 import JingleSessionPC from "../xmpp/JingleSessionPC";
@@ -119,9 +117,6 @@ export class ManagedKeyHandler extends Listenable {
                 );
             })();
         });
-    }
-    async init() {
-        await this._olmAdapter.init();
     }
 
     /**
@@ -332,7 +327,6 @@ export class ManagedKeyHandler extends Listenable {
 
     /**
      * Advances (using ratcheting) the current key when a new participant joins the conference.
-     * Sends a session-init to a new participant if their ID is bigger than ID of this user.
      *
      * @private
      */

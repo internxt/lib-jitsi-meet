@@ -7,7 +7,7 @@ import {
     logError,
     logInfo,
 } from "./crypto-workers";
-import { KEYRING_SIZE, UNENCRYPTED_BYTES, IV_LENGTH } from "./Constants";
+import { KEYRING_SIZE, UNENCRYPTED_BYTES_NUMBER, IV_LENGTH } from "./Constants";
 
 let printEncStart = true;
 
@@ -127,7 +127,7 @@ export class Context {
             const frameHeader = new Uint8Array(
                 encodedFrame.data,
                 0,
-                UNENCRYPTED_BYTES,
+                UNENCRYPTED_BYTES_NUMBER,
             );
 
             // Construct frame trailer. Similar to the frame header described in
@@ -139,29 +139,29 @@ export class Context {
             // ---------+-------------------------+-+---------+----
             const data: Uint8Array = new Uint8Array(
                 encodedFrame.data,
-                UNENCRYPTED_BYTES,
+                UNENCRYPTED_BYTES_NUMBER,
             );
             const additionalData = new Uint8Array(
                 encodedFrame.data,
                 0,
-                UNENCRYPTED_BYTES,
+                UNENCRYPTED_BYTES_NUMBER,
             );
             const cipherText = await encryptData(iv, additionalData, key, data);
 
             const newData = new ArrayBuffer(
-                UNENCRYPTED_BYTES + cipherText.byteLength + IV_LENGTH + 1,
+                UNENCRYPTED_BYTES_NUMBER + cipherText.byteLength + IV_LENGTH + 1,
             );
             const newUint8 = new Uint8Array(newData);
 
             newUint8.set(frameHeader); // copy first bytes.
-            newUint8.set(new Uint8Array(cipherText), UNENCRYPTED_BYTES); // add ciphertext.
+            newUint8.set(new Uint8Array(cipherText), UNENCRYPTED_BYTES_NUMBER); // add ciphertext.
             newUint8.set(
                 new Uint8Array(iv),
-                UNENCRYPTED_BYTES + cipherText.byteLength,
+                UNENCRYPTED_BYTES_NUMBER + cipherText.byteLength,
             ); // append IV.
             newUint8.set(
                 new Uint8Array([keyIndex]),
-                UNENCRYPTED_BYTES + cipherText.byteLength + IV_LENGTH,
+                UNENCRYPTED_BYTES_NUMBER + cipherText.byteLength + IV_LENGTH,
             ); // append frame trailer.
             encodedFrame.data = newData;
             if (printEncStart) {
@@ -218,16 +218,16 @@ export class Context {
 
             const cipherTextLength =
                 encodedFrame.data.byteLength -
-                (UNENCRYPTED_BYTES + IV_LENGTH + 1);
+                (UNENCRYPTED_BYTES_NUMBER + IV_LENGTH + 1);
 
             const additionalData = new Uint8Array(
                 encodedFrame.data,
                 0,
-                UNENCRYPTED_BYTES,
+                UNENCRYPTED_BYTES_NUMBER,
             );
             const data = new Uint8Array(
                 encodedFrame.data,
-                UNENCRYPTED_BYTES,
+                UNENCRYPTED_BYTES_NUMBER,
                 cipherTextLength,
             );
             const plainText = await decryptData(
@@ -238,14 +238,14 @@ export class Context {
             );
 
             const newData = new ArrayBuffer(
-                UNENCRYPTED_BYTES + plainText.byteLength,
+                UNENCRYPTED_BYTES_NUMBER + plainText.byteLength,
             );
             const newUint8 = new Uint8Array(newData);
 
             newUint8.set(
-                new Uint8Array(encodedFrame.data, 0, UNENCRYPTED_BYTES),
+                new Uint8Array(encodedFrame.data, 0, UNENCRYPTED_BYTES_NUMBER),
             );
-            newUint8.set(new Uint8Array(plainText), UNENCRYPTED_BYTES);
+            newUint8.set(new Uint8Array(plainText), UNENCRYPTED_BYTES_NUMBER);
 
             encodedFrame.data = newData;
 
