@@ -145,6 +145,7 @@ export class OlmAdapter {
         try {
             const olmData = this._getParticipantOlmData(pId);
             olmData.clearSession();
+            this._olmDataMap.delete(pId);
         } catch (error) {
             throw getError("clearParticipantSession", error);
         }

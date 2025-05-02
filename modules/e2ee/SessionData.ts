@@ -90,11 +90,11 @@ export class SessionData {
     }
 
     clearSession() {
+        this.status = PROTOCOL_STATUS.TERMINATED;
         if (this.session) {
             this.session.free();
             this.session = undefined;
         }
-        this.status = PROTOCOL_STATUS.TERMINATED;
     }
 
     setDone() {

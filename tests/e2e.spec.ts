@@ -172,7 +172,7 @@ describe("Test E2E:", () => {
         return userData;
     }
 
-    function verifyAllChannels(userData: UserData[]) {
+    function verifyAllChannels(userData: UserData[], times: number = 1) {
         const n = userData.length;
         for (let i = 0; i < n; i++) {
             const user = userData[i];
@@ -190,7 +190,7 @@ describe("Test E2E:", () => {
                         anything(),
                         anything(),
                     ),
-                ).once();
+                ).times(times);
 
                 if (i > j) {
                     verifyRequestSent(olmSpy, pID);
@@ -260,7 +260,7 @@ describe("Test E2E:", () => {
         }
         expect(joinedUserData.length).toBe(joinedParticipantsNumber);
 
-        await delay(3000);
+        await delay(800);
 
         userData.forEach((user) => {
             verify(user.olmSpy.ratchetMyKeys()).times(joinedParticipantsNumber);
@@ -385,7 +385,6 @@ describe("Test E2E:", () => {
             initialParticipantCount + joinedParticipantsNumber,
         );
 
-        await delay(30);
         const userIds = xmppServerMock.getAllParticipantsIDs();
         for (let i = 0; i < leftParticipantsNumber; i++) {
             const id = userIds[i];
@@ -398,7 +397,7 @@ describe("Test E2E:", () => {
             leftParticipantsNumber;
         expect(userData.length).toBe(remainingParticipantsCount);
 
-        await delay(1000);
+        await delay(800);
 
         userData.forEach((user) => {
             const x =
@@ -417,5 +416,116 @@ describe("Test E2E:", () => {
 
         verifyParticipantNumber(xmppServerMock, remainingParticipantsCount);
         verifySasValues(xmppServerMock);
-    }, 25000);
+    });
+
+    it("participants should sucessfully leave and join an ongoing e2e meeting", async () => {
+        const initialParticipantCount = 4;
+        const joinedParticipantsNumber = 4;
+        const leftParticipantsNumber = 2;
+        expect(initialParticipantCount).toBeGreaterThan(0);
+        expect(joinedParticipantsNumber).toBeGreaterThan(0);
+        expect(initialParticipantCount).toBeGreaterThanOrEqual(
+            leftParticipantsNumber,
+        );
+
+        const xmppServerMock = new XmppServerMock();
+        const userData = await createGroupMeeting(
+            xmppServerMock,
+            initialParticipantCount,
+        );
+        expect(userData.length).toBe(initialParticipantCount);
+
+        await xmppServerMock.enableE2E();
+
+        await delay(800);
+
+        verifyParticipantNumber(xmppServerMock, initialParticipantCount);
+        verifySasValues(xmppServerMock);
+
+        const userIds = xmppServerMock.getAllParticipantsIDs();
+        for (let i = 0; i < leftParticipantsNumber; i++) {
+            const id = userIds[i];
+            xmppServerMock.userLeft(id);
+            userData.shift();
+        }
+
+        expect(userData.length).toBe(
+            initialParticipantCount - leftParticipantsNumber,
+        );
+
+        for (let i = 0; i < joinedParticipantsNumber; i++) {
+            const { id, keyHandler } =
+                await createMockManagedKeyHandler(xmppServerMock);
+            const olmSpy = spy(keyHandler._olmAdapter);
+            const e2eeSpy = spy(keyHandler.e2eeCtx);
+            const keyHandlerSpy = spy(keyHandler);
+            userData.push({
+                index: initialParticipantCount + i,
+                id,
+                keyHandlerSpy,
+                olmSpy,
+                e2eeSpy,
+            });
+
+            xmppServerMock.userJoined(keyHandler);
+            await delay(30);
+        }
+
+        const remainingParticipantsCount =
+            initialParticipantCount -
+            leftParticipantsNumber +
+            joinedParticipantsNumber;
+        expect(userData.length).toBe(remainingParticipantsCount);
+
+        await delay(800);
+
+        let times = joinedParticipantsNumber;
+        userData.forEach((user) => {
+            if (user.index < initialParticipantCount) {
+                verify(user.olmSpy.ratchetMyKeys()).times(times);
+                verify(user.olmSpy.updateMyKeys()).times(
+                    1 + leftParticipantsNumber,
+                );
+            } else {
+                times--;
+                verify(user.olmSpy.ratchetMyKeys()).times(times);
+                verify(user.olmSpy.updateMyKeys()).once();
+            }
+        });
+
+        verifyParticipantNumber(xmppServerMock, remainingParticipantsCount);
+        verifySasValues(xmppServerMock);
+    });
+
+    it("should sucessfully enable, diable and enable again e2e for a group meeting", async () => {
+        const participantCount = 3;
+        expect(participantCount).toBeGreaterThan(0);
+
+        const xmppServerMock = new XmppServerMock();
+        const userData = await createGroupMeeting(
+            xmppServerMock,
+            participantCount,
+        );
+        expect(userData.length).toBe(participantCount);
+
+        await xmppServerMock.enableE2E();
+
+        await delay(800);
+
+        verifyAllChannels(userData);
+        verifyParticipantNumber(xmppServerMock, participantCount);
+        verifySasValues(xmppServerMock);
+
+        await xmppServerMock.diableE2E();
+
+        await delay(800);
+
+        await xmppServerMock.enableE2E();
+
+        await delay(800);
+
+        verifyAllChannels(userData, 2);
+        verifyParticipantNumber(xmppServerMock, participantCount);
+        verifySasValues(xmppServerMock);
+    });
 });
