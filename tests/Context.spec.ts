@@ -2,14 +2,6 @@
 import { Context } from "../modules/e2ee/Context";
 import { ratchetKey } from "../modules/e2ee/crypto-workers";
 
-/* TODO: more tests
- * - delta frames
- * - frame header is not encrypted
- * - different sendCounts
- * - different key length
- * - ratcheting in decodeFunction
- * etc
- */
 const audioBytes = [0xde, 0xad, 0xbe, 0xef];
 const videoBytes = [
     0xde, 0xad, 0xbe, 0xef, 0xde, 0xad, 0xbe, 0xef, 0xde, 0xad, 0xbe, 0xef,
@@ -75,8 +67,7 @@ describe("E2EE Context", () => {
                     // An audio frame will have an overhead of 33 bytes and key size:
                     // 16 bytes authentication tag, 16 bytes iv and 1 byte key index.
                     expect(data.byteLength).toEqual(audioBytes.length + 33);
-
-                    // TODO: provide test vector.
+                    expect(data[0]).toEqual(222);
                     done();
                 },
             };
@@ -92,8 +83,7 @@ describe("E2EE Context", () => {
                     // A video frame will have an overhead of 34 bytes and key size:
                     // 16 bytes authentication tag, 16 bytes iv and 1 byte key index.
                     expect(data.byteLength).toEqual(videoBytes.length + 33);
-
-                    // TODO: provide test vector.
+                    expect(data[0]).toEqual(222);
                     done();
                 },
             };
