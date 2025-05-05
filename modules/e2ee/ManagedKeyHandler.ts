@@ -45,9 +45,11 @@ function timeout<T>(ms: number): Promise<T> {
  * This module integrates {@link E2EEContext} with {@link OlmAdapter} in order to distribute the keys for encryption.
  */
 export class ManagedKeyHandler extends Listenable {
+    max_wait: number;
     conference: JitsiConference;
     e2eeCtx: E2EEContext;
     enabled: boolean;
+    initizlized: boolean;
     initSessions: Promise<unknown[]>;
     _olmAdapter: OlmAdapter;
     _conferenceJoined: boolean;
@@ -61,6 +63,8 @@ export class ManagedKeyHandler extends Listenable {
      */
     constructor(conference: JitsiConference) {
         super();
+        this.initizlized = false;
+        this.max_wait = REQ_TIMEOUT;
         this.conference = conference;
         this.e2eeCtx = new E2EEContext();
         this._reqs = new Map();
@@ -121,6 +125,7 @@ export class ManagedKeyHandler extends Listenable {
     }
     async init() {
         await this._olmAdapter.init();
+        this.initizlized = true;
     }
 
     /**
@@ -144,8 +149,8 @@ export class ManagedKeyHandler extends Listenable {
         }
         this.enabled = enabled;
 
-        if (!this._olmAdapter.isInitialized()) {
-            await this._olmAdapter.init();
+        if (!this.initizlized) {
+            await this.init();
         }
 
         if (enabled) {
@@ -230,7 +235,7 @@ export class ManagedKeyHandler extends Listenable {
 
                     const result = await Promise.race([
                         sessionPromise,
-                        timeout(REQ_TIMEOUT),
+                        timeout(this.max_wait),
                     ]);
                     logInfo(`Session with ${pId} initialized successfully.`);
                     return result;
@@ -337,11 +342,7 @@ export class ManagedKeyHandler extends Listenable {
      */
     async _onParticipantJoined(id: string) {
         logInfo(`Participant ${id} joined the conference.`);
-        if (
-            this._conferenceJoined &&
-            this.enabled &&
-            this._olmAdapter.isInitialized()
-        ) {
+        if (this._conferenceJoined && this.enabled && this.initizlized) {
             const participants = this.conference.getParticipants();
             const { olmKey, pqKey, index } =
                 await this._olmAdapter.ratchetMyKeys();
@@ -361,7 +362,7 @@ export class ManagedKeyHandler extends Listenable {
      */
     async _onParticipantLeft(id: string) {
         logInfo(`Participant ${id} left the conference.`);
-        if (this.enabled && this._olmAdapter.isInitialized()) {
+        if (this.enabled && this.initizlized) {
             this._olmAdapter.clearParticipantSession(id);
             const requestPromise = this._reqs.get(id);
             if (requestPromise) {
@@ -403,8 +404,8 @@ export class ManagedKeyHandler extends Listenable {
                 logError("E2E: Invalid or missing olm payload");
                 return;
             }
-            if (!this._olmAdapter.isInitialized()) {
-                throw new Error("Olm not initialized");
+            if (!this.initizlized) {
+                throw new Error("Not initialized");
             }
 
             const msg = payload.olm;

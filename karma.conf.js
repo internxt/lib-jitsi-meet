@@ -35,6 +35,9 @@ module.exports = function(config) {
             './tests/*.spec.js',
             './tests/*.spec.ts'
         ],
+        proxies: {
+            '/libs/pqc-kem-kyber512.wasm': 'node_modules/@dashlane/pqc-kem-kyber512-browser/dist/pqc-kem-kyber512.wasm'
+        },
         mime: {
             'application/wasm': [ 'wasm' ]
         },

@@ -8,6 +8,9 @@ import * as JitsiConferenceEvents from "../JitsiConferenceEvents";
 
 import { mock, instance, when, anything } from "ts-mockito";
 
+const WAIT_TO_AVID_SAME_ID = 100;
+export const TEST_TIMEOUT = 1000;
+
 export function delay(ms: number) {
     return new Promise((resolve) => setTimeout(resolve, ms));
 }
@@ -80,7 +83,7 @@ export class XmppServerMock {
         for (const [_, keyHandler] of this.listeners) {
             await keyHandler.setEnabled(true);
             expect(keyHandler.isEnabled()).toBe(true);
-            expect(keyHandler._olmAdapter.isInitialized()).toBe(true);
+            expect(keyHandler.initizlized).toBe(true);
         }
     }
 
@@ -117,7 +120,7 @@ export class XmppServerMock {
         this.participants.delete(pId);
         this.listeners.delete(pId);
         this.listeners.forEach((keyHandler, _id) => {
-                keyHandler._onParticipantLeft(pId);
+            keyHandler._onParticipantLeft(pId);
         });
     }
 
@@ -161,6 +164,7 @@ export async function createMockManagedKeyHandler(
     when(eventEmitterMock.emit(anything())).thenCall((event) => {
         if (event === JitsiConferenceEvents.CONFERENCE_JOINED) {
             keyHandler._conferenceJoined = true;
+            keyHandler.max_wait = TEST_TIMEOUT;
         }
     });
 
@@ -188,7 +192,7 @@ export async function createMockManagedKeyHandler(
 
     const conference = instance(conferenceMock);
     const keyHandler = new ManagedKeyHandler(conference);
-    await delay(100);
+    await delay(WAIT_TO_AVID_SAME_ID);
     conference.eventEmitter.emit(JitsiConferenceEvents.CONFERENCE_JOINED);
 
     return { id, keyHandler };

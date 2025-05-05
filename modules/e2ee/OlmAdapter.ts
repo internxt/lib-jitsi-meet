@@ -21,7 +21,6 @@ import { SessionData } from "./SessionData";
 
 export class OlmAdapter {
     private readonly _myId: string;
-    private _olmInitialized: boolean;
     private _mediaKey: MediaKey;
 
     private _publicKyberKeyBase64: string;
@@ -43,8 +42,6 @@ export class OlmAdapter {
         this._publicCurve25519Key = "";
         this._indenityKeyCommitment = "";
         this._olmDataMap = new Map<string, SessionData>();
-
-        this._olmInitialized = false;
     }
 
     async init() {
@@ -62,14 +59,9 @@ export class OlmAdapter {
                 this._publicKyberKeyBase64,
                 this._publicCurve25519Key,
             );
-            this._olmInitialized = true;
         } catch (error) {
             throw getError("ínit", error);
         }
-    }
-
-    isInitialized(): boolean {
-        return this._olmInitialized;
     }
 
     getMyIdentityKeysCommitment(): string {
