@@ -7,7 +7,7 @@ import {
     logError,
     logInfo,
 } from "./crypto-workers";
-import { KEYRING_SIZE, VIDEO_UNENCRYPTED_BYTES, IV_LENGTH } from "./Constants";
+import { KEYRING_SIZE, UNENCRYPTED_BYTES_NUMBER, IV_LENGTH } from "./Constants";
 
 let printEncStart = true;
 
@@ -106,7 +106,7 @@ export class Context {
      * This is fine as the SFU keeps having access to it for routing.
      *
      * The encrypted frame is formed as follows:
-     * 1) Leave the first (10, 3, 1) bytes unencrypted, depending on the frame type and kind.
+     * 1) Leave the first byte unencrypted
      * 2) Form the GCM IV for the frame as described above.
      * 3) Encrypt the rest of the frame using AES-GCM.
      * 4) Allocate space for the encrypted frame.
@@ -124,23 +124,11 @@ export class Context {
         try {
             const iv = crypto.getRandomValues(new Uint8Array(IV_LENGTH));
             // Thіs is not encrypted and contains the VP8 payload descriptor or the Opus TOC byte.
-            let unencrypted_bytes_number: number = 1; // for audio frame
-            if (encodedFrame instanceof RTCEncodedVideoFrame)
-                unencrypted_bytes_number =
-                    VIDEO_UNENCRYPTED_BYTES[
-                        encodedFrame.type as keyof typeof VIDEO_UNENCRYPTED_BYTES
-                    ];
             const frameHeader = new Uint8Array(
                 encodedFrame.data,
                 0,
-                unencrypted_bytes_number,
+                UNENCRYPTED_BYTES_NUMBER,
             );
-
-            // Frame trailer contains the R|IV_LENGTH and key index
-            const frameTrailer = new Uint8Array(2);
-
-            frameTrailer[0] = IV_LENGTH;
-            frameTrailer[1] = keyIndex;
 
             // Construct frame trailer. Similar to the frame header described in
             // https://tools.ietf.org/html/draft-omara-sframe-00#section-4.2
@@ -151,32 +139,29 @@ export class Context {
             // ---------+-------------------------+-+---------+----
             const data: Uint8Array = new Uint8Array(
                 encodedFrame.data,
-                unencrypted_bytes_number,
+                UNENCRYPTED_BYTES_NUMBER,
             );
             const additionalData = new Uint8Array(
                 encodedFrame.data,
                 0,
-                frameHeader.byteLength,
+                UNENCRYPTED_BYTES_NUMBER,
             );
             const cipherText = await encryptData(iv, additionalData, key, data);
 
             const newData = new ArrayBuffer(
-                frameHeader.byteLength +
-                    cipherText.byteLength +
-                    iv.byteLength +
-                    frameTrailer.byteLength,
+                UNENCRYPTED_BYTES_NUMBER + cipherText.byteLength + IV_LENGTH + 1,
             );
             const newUint8 = new Uint8Array(newData);
 
             newUint8.set(frameHeader); // copy first bytes.
-            newUint8.set(new Uint8Array(cipherText), frameHeader.byteLength); // add ciphertext.
+            newUint8.set(new Uint8Array(cipherText), UNENCRYPTED_BYTES_NUMBER); // add ciphertext.
             newUint8.set(
                 new Uint8Array(iv),
-                frameHeader.byteLength + cipherText.byteLength,
+                UNENCRYPTED_BYTES_NUMBER + cipherText.byteLength,
             ); // append IV.
             newUint8.set(
-                frameTrailer,
-                frameHeader.byteLength + cipherText.byteLength + iv.byteLength,
+                new Uint8Array([keyIndex]),
+                UNENCRYPTED_BYTES_NUMBER + cipherText.byteLength + IV_LENGTH,
             ); // append frame trailer.
             encodedFrame.data = newData;
             if (printEncStart) {
@@ -225,41 +210,24 @@ export class Context {
     ) {
         const encryptionKey = this.encryptionKey;
         try {
-            let ind = 1;
-            if (encodedFrame instanceof RTCEncodedVideoFrame)
-                ind =
-                    VIDEO_UNENCRYPTED_BYTES[
-                        encodedFrame.type as keyof typeof VIDEO_UNENCRYPTED_BYTES
-                    ];
-            const frameHeader = new Uint8Array(encodedFrame.data, 0, ind);
-            const frameTrailer = new Uint8Array(
-                encodedFrame.data,
-                encodedFrame.data.byteLength - 2,
-                2,
-            );
-
-            const ivLength = frameTrailer[0];
             const iv = new Uint8Array(
                 encodedFrame.data,
-                encodedFrame.data.byteLength -
-                    ivLength -
-                    frameTrailer.byteLength,
-                ivLength,
+                encodedFrame.data.byteLength - IV_LENGTH - 1,
+                IV_LENGTH,
             );
 
-            const cipherTextStart = frameHeader.byteLength;
             const cipherTextLength =
                 encodedFrame.data.byteLength -
-                (frameHeader.byteLength + ivLength + frameTrailer.byteLength);
+                (UNENCRYPTED_BYTES_NUMBER + IV_LENGTH + 1);
 
             const additionalData = new Uint8Array(
                 encodedFrame.data,
                 0,
-                frameHeader.byteLength,
+                UNENCRYPTED_BYTES_NUMBER,
             );
             const data = new Uint8Array(
                 encodedFrame.data,
-                cipherTextStart,
+                UNENCRYPTED_BYTES_NUMBER,
                 cipherTextLength,
             );
             const plainText = await decryptData(
@@ -270,14 +238,14 @@ export class Context {
             );
 
             const newData = new ArrayBuffer(
-                frameHeader.byteLength + plainText.byteLength,
+                UNENCRYPTED_BYTES_NUMBER + plainText.byteLength,
             );
             const newUint8 = new Uint8Array(newData);
 
             newUint8.set(
-                new Uint8Array(encodedFrame.data, 0, frameHeader.byteLength),
+                new Uint8Array(encodedFrame.data, 0, UNENCRYPTED_BYTES_NUMBER),
             );
-            newUint8.set(new Uint8Array(plainText), frameHeader.byteLength);
+            newUint8.set(new Uint8Array(plainText), UNENCRYPTED_BYTES_NUMBER);
 
             encodedFrame.data = newData;
 
