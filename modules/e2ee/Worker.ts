@@ -32,7 +32,7 @@ export function setupWorker(self: {
         private getCurrentSASMaterial(): string {
             return [...this.contexts.entries()]
                 .map(([pId, context]) => pId + (context.getHash() || ""))
-                .sort()
+                .sort((a, b) => a.localeCompare(b))
                 .join("");
         }
 
