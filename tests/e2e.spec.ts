@@ -7,7 +7,7 @@ import { ManagedKeyHandler } from "../modules/e2ee/ManagedKeyHandler";
 import {
     WorkerMock,
     XmppServerMock,
-    createMockManagedKeyHandler,
+    createManagedKeyHandler,
     delay,
     TEST_TIMEOUT,
 } from "./mocks.ts";
@@ -176,7 +176,7 @@ describe("Test E2E:", () => {
 
         for (let i = 0; i < participantCount; i++) {
             const { id, keyHandler } =
-                await createMockManagedKeyHandler(xmppServerMock);
+                await createManagedKeyHandler(xmppServerMock);
 
             const olmSpy = spy(keyHandler._olmAdapter);
             const e2eeSpy = spy(keyHandler.e2eeCtx);
@@ -270,7 +270,7 @@ describe("Test E2E:", () => {
             verifySasValues(xmppServerMock);
             for (let i = 0; i < joinedParticipantsNumber; i++) {
                 const { id, keyHandler } =
-                    await createMockManagedKeyHandler(xmppServerMock);
+                    await createManagedKeyHandler(xmppServerMock);
                 const olmSpy = spy(keyHandler._olmAdapter);
                 const e2eeSpy = spy(keyHandler.e2eeCtx);
                 const keyHandlerSpy = spy(keyHandler);
@@ -402,7 +402,7 @@ describe("Test E2E:", () => {
 
             for (let i = 0; i < joinedParticipantsNumber; i++) {
                 const { id, keyHandler } =
-                    await createMockManagedKeyHandler(xmppServerMock);
+                    await createManagedKeyHandler(xmppServerMock);
                 const olmSpy = spy(keyHandler._olmAdapter);
                 const e2eeSpy = spy(keyHandler.e2eeCtx);
                 const keyHandlerSpy = spy(keyHandler);
@@ -498,7 +498,7 @@ describe("Test E2E:", () => {
 
             for (let i = 0; i < joinedParticipantsNumber; i++) {
                 const { id, keyHandler } =
-                    await createMockManagedKeyHandler(xmppServerMock);
+                    await createManagedKeyHandler(xmppServerMock);
                 const olmSpy = spy(keyHandler._olmAdapter);
                 const e2eeSpy = spy(keyHandler.e2eeCtx);
                 const keyHandlerSpy = spy(keyHandler);
@@ -575,6 +575,76 @@ describe("Test E2E:", () => {
 
             verifyAllChannels(userData, 2);
             verifyParticipantNumber(xmppServerMock, participantCount);
+            verifySasValues(xmppServerMock);
+        },
+        MAX_TEST_TIME,
+    );
+
+    it(
+        "participants should sucessfully join and leave an e2e meeting one after another",
+        async () => {
+            const joinedParticipantsNumber = 4;
+            const leftParticipantsNumber = 2;
+            expect(leftParticipantsNumber).toBeLessThanOrEqual(joinedParticipantsNumber);
+            expect(joinedParticipantsNumber).toBeGreaterThan(0);
+            expect(joinedParticipantsNumber + leftParticipantsNumber).toBeLessThan(10);
+
+            const { xmppServerMock, userData } = await createGroupMeeting(1);
+
+            await xmppServerMock.enableE2E();
+
+            for (let i = 0; i < joinedParticipantsNumber; i++) {
+                const { id, keyHandler } =
+                    await createManagedKeyHandler(xmppServerMock);
+                const olmSpy = spy(keyHandler._olmAdapter);
+                const e2eeSpy = spy(keyHandler.e2eeCtx);
+                const keyHandlerSpy = spy(keyHandler);
+                userData.push({
+                    index: 1 + i,
+                    id,
+                    keyHandlerSpy,
+                    olmSpy,
+                    e2eeSpy,
+                });
+
+                xmppServerMock.userJoined(keyHandler);
+                await delay(WAIT_FOR_CHANNELS);
+            }
+            expect(userData.length).toBe(
+                1 + joinedParticipantsNumber,
+            );
+
+            // meeting participants should ratchet their key as many times as number of user joined after them
+            userData.forEach((user) => {
+                const x =
+                    joinedParticipantsNumber -
+                    user.index;
+                const times =
+                    x > joinedParticipantsNumber ? joinedParticipantsNumber : x;
+                verify(user.olmSpy.ratchetMyKeys()).times(times);
+            });
+
+            const userIds = xmppServerMock.getAllParticipantsIDs();
+            for (let i = 0; i < leftParticipantsNumber; i++) {
+                const id = userIds[i];
+                xmppServerMock.userLeft(id);
+                userData.shift();
+                await delay(WAIT_FOR_CHANNELS);
+            }
+
+           
+            // meeting participants should update their key as many times as number of left participants
+            // (plus the initial update that set their keys)
+            userData.forEach((user) => {
+                verify(user.olmSpy.updateMyKeys()).times(
+                    1 + leftParticipantsNumber,
+                );
+            });
+
+            verifyParticipantNumber(
+                xmppServerMock,
+                1 + joinedParticipantsNumber - leftParticipantsNumber,
+            );
             verifySasValues(xmppServerMock);
         },
         MAX_TEST_TIME,

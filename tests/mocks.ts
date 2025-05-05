@@ -8,7 +8,7 @@ import * as JitsiConferenceEvents from "../JitsiConferenceEvents";
 
 import { mock, instance, when, anything } from "ts-mockito";
 
-const WAIT_TO_AVID_SAME_ID = 100;
+const WAIT_TO_AVOID_SAME_ID = 100;
 export const TEST_TIMEOUT = 1000;
 
 export function delay(ms: number) {
@@ -136,7 +136,7 @@ export class XmppServerMock {
     }
 }
 
-export async function createMockManagedKeyHandler(
+export async function createManagedKeyHandler(
     xmppServerMock: XmppServerMock,
 ): Promise<{
     id: string;
@@ -192,7 +192,7 @@ export async function createMockManagedKeyHandler(
 
     const conference = instance(conferenceMock);
     const keyHandler = new ManagedKeyHandler(conference);
-    await delay(WAIT_TO_AVID_SAME_ID);
+    await delay(WAIT_TO_AVOID_SAME_ID);
     conference.eventEmitter.emit(JitsiConferenceEvents.CONFERENCE_JOINED);
 
     return { id, keyHandler };
