@@ -341,7 +341,7 @@ JitsiConference.prototype.constructor = JitsiConference;
 JitsiConference.resourceCreator = function() {
     const time = new Date().getTime();
 
-    return time.toString().slice(-8);
+    return time.toString(16).slice(-8);
 };
 
 /**
