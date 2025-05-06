@@ -8,9 +8,6 @@ import * as JitsiConferenceEvents from "../JitsiConferenceEvents";
 
 import { mock, instance, when, anything } from "ts-mockito";
 
-const WAIT_TO_AVOID_SAME_ID = 100;
-export const TEST_TIMEOUT = 1000;
-
 export function delay(ms: number) {
     return new Promise((resolve) => setTimeout(resolve, ms));
 }
@@ -78,10 +75,10 @@ export class XmppServerMock {
         return list;
     }
 
-    async enableE2E() {
+    enableE2E() {
         this.e2e = true;
         for (const [_, keyHandler] of this.listeners) {
-            await keyHandler.setEnabled(true);
+            keyHandler.setEnabled(true);
             expect(keyHandler.isEnabled()).toBe(true);
             expect(keyHandler.initizlized).toBe(true);
         }
@@ -95,21 +92,15 @@ export class XmppServerMock {
     }
 
     async userJoined(keyHandler: ManagedKeyHandler) {
-        if (this.e2e) {
-            keyHandler.setEnabled(true);
-        }
+
+        keyHandler.setEnabled(this.e2e);
+
         const pId = keyHandler.conference.myUserId();
         if (!this.listeners.has(pId)) {
-            const list: string[] = [];
-            this.listeners.forEach((existingHandler, id) => {
+            this.listeners.forEach((existingHandler, _id) => {
                 existingHandler._onParticipantJoined(pId);
-                list.push(id);
             });
             this.listeners.set(pId, keyHandler);
-
-            for (const id of list) {
-                keyHandler._onParticipantJoined(id);
-            }
 
             const participant = this.createMockParticipant(pId);
             this.participants.set(pId, participant);
@@ -136,8 +127,9 @@ export class XmppServerMock {
     }
 }
 
-export async function createManagedKeyHandler(
+export async function createInitializedManagedKeyHandler(
     xmppServerMock: XmppServerMock,
+    max_timeout: number,
 ): Promise<{
     id: string;
     keyHandler: ManagedKeyHandler;
@@ -164,7 +156,7 @@ export async function createManagedKeyHandler(
     when(eventEmitterMock.emit(anything())).thenCall((event) => {
         if (event === JitsiConferenceEvents.CONFERENCE_JOINED) {
             keyHandler._conferenceJoined = true;
-            keyHandler.max_wait = TEST_TIMEOUT;
+            keyHandler.max_wait = max_timeout;
         }
     });
 
@@ -192,7 +184,8 @@ export async function createManagedKeyHandler(
 
     const conference = instance(conferenceMock);
     const keyHandler = new ManagedKeyHandler(conference);
-    await delay(WAIT_TO_AVOID_SAME_ID);
+    await keyHandler.init();
+
     conference.eventEmitter.emit(JitsiConferenceEvents.CONFERENCE_JOINED);
 
     return { id, keyHandler };

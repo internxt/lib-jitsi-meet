@@ -7,15 +7,15 @@ import { ManagedKeyHandler } from "../modules/e2ee/ManagedKeyHandler";
 import {
     WorkerMock,
     XmppServerMock,
-    createManagedKeyHandler,
+    createInitializedManagedKeyHandler,
     delay,
-    TEST_TIMEOUT,
 } from "./mocks.ts";
 
 import initKyber from "@dashlane/pqc-kem-kyber512-browser/dist/pqc-kem-kyber512.js";
 import initOlm from "vodozemac-wasm/javascript/pkg/vodozemac.js";
 
-const WAIT_FOR_OLM_INIT = 30;
+const TEST_TIMEOUT = 1000;
+const WAIT_TO_AVOID_SAME_ID = 1;
 const WAIT_FOR_CHANNELS = 2 * TEST_TIMEOUT;
 const MAX_TEST_TIME = 10 * WAIT_FOR_CHANNELS;
 
@@ -62,7 +62,7 @@ describe("Test E2E:", () => {
             verify((contextSpy2 as any).updateSAS(anything())).called();
         },
         MAX_TEST_TIME,
-    );
+    ); 
 
     /**
      * Verifies that participant recived and processed e2e channel establishement request
@@ -175,9 +175,7 @@ describe("Test E2E:", () => {
         const userData: UserData[] = [];
 
         for (let i = 0; i < participantCount; i++) {
-            const { id, keyHandler } =
-                await createManagedKeyHandler(xmppServerMock);
-
+            const { id, keyHandler } = await createInitializedManagedKeyHandler(xmppServerMock, TEST_TIMEOUT);
             const olmSpy = spy(keyHandler._olmAdapter);
             const e2eeSpy = spy(keyHandler.e2eeCtx);
             const keyHandlerSpy = spy(keyHandler);
@@ -191,6 +189,7 @@ describe("Test E2E:", () => {
                 olmSpy,
                 e2eeSpy,
             });
+            await delay(WAIT_TO_AVOID_SAME_ID);
         }
         return { xmppServerMock, userData };
     }
@@ -199,7 +198,7 @@ describe("Test E2E:", () => {
      * Verifies that all participants established e2e channels between each other and got keys
      *
      */
-    function verifyAllChannels(userData: UserData[], times: number = 1) {
+    function verifyAllChannels(userData: UserData[], index: number = 0) {
         const n = userData.length;
         for (let i = 0; i < n; i++) {
             const user = userData[i];
@@ -215,9 +214,9 @@ describe("Test E2E:", () => {
                         pID,
                         anything(),
                         anything(),
-                        anything(),
+                        index,
                     ),
-                ).times(times);
+                ).once();
 
                 if (i > j) {
                     verifyRequestSent(olmSpy, pID);
@@ -238,7 +237,7 @@ describe("Test E2E:", () => {
                 await createGroupMeeting(participantCount);
             expect(userData.length).toBe(participantCount);
 
-            await xmppServerMock.enableE2E();
+            xmppServerMock.enableE2E();
 
             await delay(WAIT_FOR_CHANNELS);
 
@@ -247,7 +246,7 @@ describe("Test E2E:", () => {
             verifySasValues(xmppServerMock);
         },
         MAX_TEST_TIME,
-    );
+    ); 
 
     it(
         "participants should sucessfully join an ongoing e2e meeting",
@@ -262,15 +261,14 @@ describe("Test E2E:", () => {
             );
             expect(userData.length).toBe(initialParticipantCount);
 
-            await xmppServerMock.enableE2E();
+            xmppServerMock.enableE2E();
 
             await delay(WAIT_FOR_CHANNELS);
 
             verifyParticipantNumber(xmppServerMock, initialParticipantCount);
             verifySasValues(xmppServerMock);
             for (let i = 0; i < joinedParticipantsNumber; i++) {
-                const { id, keyHandler } =
-                    await createManagedKeyHandler(xmppServerMock);
+                const { id, keyHandler } = await createInitializedManagedKeyHandler(xmppServerMock, TEST_TIMEOUT);
                 const olmSpy = spy(keyHandler._olmAdapter);
                 const e2eeSpy = spy(keyHandler.e2eeCtx);
                 const keyHandlerSpy = spy(keyHandler);
@@ -283,7 +281,6 @@ describe("Test E2E:", () => {
                 });
 
                 xmppServerMock.userJoined(keyHandler);
-                await delay(WAIT_FOR_OLM_INIT);
             }
             expect(userData.length).toBe(
                 initialParticipantCount + joinedParticipantsNumber,
@@ -326,7 +323,7 @@ describe("Test E2E:", () => {
             verifySasValues(xmppServerMock);
         },
         MAX_TEST_TIME,
-    );
+    ); 
 
     it(
         "participants should sucessfully leave an ongoing e2e meeting",
@@ -343,7 +340,7 @@ describe("Test E2E:", () => {
             );
             expect(userData.length).toBe(initialParticipantCount);
 
-            await xmppServerMock.enableE2E();
+            xmppServerMock.enableE2E();
 
             await delay(WAIT_FOR_CHANNELS);
 
@@ -374,7 +371,7 @@ describe("Test E2E:", () => {
             verifySasValues(xmppServerMock);
         },
         MAX_TEST_TIME,
-    );
+    ); 
 
     it(
         "participants should sucessfully join and leave an ongoing e2e meeting",
@@ -393,7 +390,7 @@ describe("Test E2E:", () => {
             );
             expect(userData.length).toBe(initialParticipantCount);
 
-            await xmppServerMock.enableE2E();
+            xmppServerMock.enableE2E();
 
             await delay(WAIT_FOR_CHANNELS);
 
@@ -401,8 +398,7 @@ describe("Test E2E:", () => {
             verifySasValues(xmppServerMock);
 
             for (let i = 0; i < joinedParticipantsNumber; i++) {
-                const { id, keyHandler } =
-                    await createManagedKeyHandler(xmppServerMock);
+                const { id, keyHandler } = await createInitializedManagedKeyHandler(xmppServerMock, TEST_TIMEOUT);
                 const olmSpy = spy(keyHandler._olmAdapter);
                 const e2eeSpy = spy(keyHandler.e2eeCtx);
                 const keyHandlerSpy = spy(keyHandler);
@@ -415,7 +411,7 @@ describe("Test E2E:", () => {
                 });
 
                 xmppServerMock.userJoined(keyHandler);
-                await delay(WAIT_FOR_OLM_INIT);
+                await delay(WAIT_TO_AVOID_SAME_ID);
             }
             expect(userData.length).toBe(
                 initialParticipantCount + joinedParticipantsNumber,
@@ -478,7 +474,7 @@ describe("Test E2E:", () => {
             );
             expect(userData.length).toBe(initialParticipantCount);
 
-            await xmppServerMock.enableE2E();
+            xmppServerMock.enableE2E();
 
             await delay(WAIT_FOR_CHANNELS);
 
@@ -497,8 +493,7 @@ describe("Test E2E:", () => {
             );
 
             for (let i = 0; i < joinedParticipantsNumber; i++) {
-                const { id, keyHandler } =
-                    await createManagedKeyHandler(xmppServerMock);
+                const { id, keyHandler } = await createInitializedManagedKeyHandler(xmppServerMock, TEST_TIMEOUT);
                 const olmSpy = spy(keyHandler._olmAdapter);
                 const e2eeSpy = spy(keyHandler.e2eeCtx);
                 const keyHandlerSpy = spy(keyHandler);
@@ -511,7 +506,7 @@ describe("Test E2E:", () => {
                 });
 
                 xmppServerMock.userJoined(keyHandler);
-                await delay(WAIT_FOR_OLM_INIT);
+                await delay(WAIT_TO_AVOID_SAME_ID);
             }
 
             const remainingParticipantsCount =
@@ -557,7 +552,7 @@ describe("Test E2E:", () => {
                 await createGroupMeeting(participantCount);
             expect(userData.length).toBe(participantCount);
 
-            await xmppServerMock.enableE2E();
+            xmppServerMock.enableE2E();
 
             await delay(WAIT_FOR_CHANNELS);
 
@@ -565,15 +560,15 @@ describe("Test E2E:", () => {
             verifyParticipantNumber(xmppServerMock, participantCount);
             verifySasValues(xmppServerMock);
 
-            await xmppServerMock.diableE2E();
+            xmppServerMock.diableE2E();
 
             await delay(WAIT_FOR_CHANNELS);
 
-            await xmppServerMock.enableE2E();
+            xmppServerMock.enableE2E();
 
             await delay(WAIT_FOR_CHANNELS);
 
-            verifyAllChannels(userData, 2);
+            verifyAllChannels(userData, 1);
             verifyParticipantNumber(xmppServerMock, participantCount);
             verifySasValues(xmppServerMock);
         },
@@ -591,11 +586,11 @@ describe("Test E2E:", () => {
 
             const { xmppServerMock, userData } = await createGroupMeeting(1);
 
-            await xmppServerMock.enableE2E();
+            xmppServerMock.enableE2E();
+            await delay(WAIT_FOR_CHANNELS);
 
             for (let i = 0; i < joinedParticipantsNumber; i++) {
-                const { id, keyHandler } =
-                    await createManagedKeyHandler(xmppServerMock);
+                const { id, keyHandler } = await createInitializedManagedKeyHandler(xmppServerMock, TEST_TIMEOUT);
                 const olmSpy = spy(keyHandler._olmAdapter);
                 const e2eeSpy = spy(keyHandler.e2eeCtx);
                 const keyHandlerSpy = spy(keyHandler);
@@ -648,5 +643,5 @@ describe("Test E2E:", () => {
             verifySasValues(xmppServerMock);
         },
         MAX_TEST_TIME,
-    );
+    ); 
 });
