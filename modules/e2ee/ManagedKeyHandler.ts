@@ -472,7 +472,7 @@ export class ManagedKeyHandler extends Listenable {
                 }
                 case OLM_MESSAGE_TYPES.SESSION_ACK: {
                     const { ciphertext, pqCiphertext } = msg.data;
-
+                    const inPeopleInCall = this.conference.participants.size;
                     const { data, key } =
                         await this._olmAdapter.createSessionDoneMessage(
                             pId,
@@ -489,6 +489,7 @@ export class ManagedKeyHandler extends Listenable {
                             OLM_MESSAGE_TYPES.KEY_INFO,
                             data,
                             pId,
+                            inPeopleInCall,
                         );
                     }
                     const requestPromise = this._reqs.get(pId);
@@ -506,6 +507,7 @@ export class ManagedKeyHandler extends Listenable {
                     break;
                 }
                 case OLM_MESSAGE_TYPES.SESSION_DONE: {
+                    const inPeopleInCall = this.conference.participants.size;
                     const data =
                         await this._olmAdapter.processSessionDoneMessage(pId);
                     if (data) {
@@ -516,6 +518,7 @@ export class ManagedKeyHandler extends Listenable {
                             OLM_MESSAGE_TYPES.KEY_INFO,
                             data,
                             pId,
+                            inPeopleInCall,
                         );
                     }
                     logInfo(
@@ -525,12 +528,20 @@ export class ManagedKeyHandler extends Listenable {
                 }
                 case OLM_MESSAGE_TYPES.KEY_INFO: {
                     const { ciphertext, pqCiphertext } = msg.data;
+                    const n = msg.participants;
+                    const m = this.conference.participants.size;
                     const key = await this._olmAdapter.processKeyInfoMessage(
                         pId,
                         ciphertext,
                         pqCiphertext,
                     );
                     this.updateParticipantKey(pId, key);
+                    if (n > 0 && n < m) {
+                        logWarning(
+                            `Participant ${pId} had less people in the call when sent key info message. Ratcheting..`,
+                        );
+                        this.e2eeCtx.ratchetKeys(pId);
+                    }
                     break;
                 }
             }
@@ -570,12 +581,14 @@ export class ManagedKeyHandler extends Listenable {
         type: MessageType,
         data: ReplyMessage | "",
         participantId: string,
+        participants: number = 0,
     ) {
         const msg = {
             [JITSI_MEET_MUC_TYPE]: OLM_MESSAGE_TYPE,
             olm: {
                 type,
                 data,
+                participants,
             },
         };
         this.conference.sendMessage(msg, participantId);
