@@ -133,7 +133,7 @@ export async function createInitializedManagedKeyHandler(
     id: string;
     keyHandler: ManagedKeyHandler;
 }> {
-    const id = new Date().getTime().toString().slice(-8);
+    const id = new Date().getTime().toString(16).slice(-8);
 
     const conferenceMock = mock<JitsiConference>();
 
