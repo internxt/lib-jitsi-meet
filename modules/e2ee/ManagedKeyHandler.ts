@@ -126,6 +126,7 @@ export class ManagedKeyHandler extends Listenable {
     async init() {
         await this._olmAdapter.init();
         this.initizlized = true;
+        logInfo("Olm initialized");
     }
 
     /**

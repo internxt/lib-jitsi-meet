@@ -91,8 +91,7 @@ export class XmppServerMock {
         });
     }
 
-    async userJoined(keyHandler: ManagedKeyHandler) {
-
+    userJoined(keyHandler: ManagedKeyHandler) {
         keyHandler.setEnabled(this.e2e);
 
         const pId = keyHandler.conference.myUserId();
