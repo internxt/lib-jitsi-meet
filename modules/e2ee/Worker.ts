@@ -20,13 +20,18 @@ export function setupWorker(self: {
             }
         }
 
-        private getParticipantContext(participantId: string): Context {
-            let context = this.contexts.get(participantId);
-            if (!context) {
-                context = new Context(participantId);
-                this.contexts.set(participantId, context);
+        private createParticipantContext(participantId: string): Context {
+            if (this.contexts.has(participantId)) {
+                return null;
             }
+
+            const context = new Context(participantId);
+            this.contexts.set(participantId, context);
             return context;
+        }
+
+        private getParticipantContext(participantId: string): Context {
+            return this.contexts.get(participantId);
         }
 
         private getCurrentSASMaterial(): string {
@@ -68,6 +73,7 @@ export function setupWorker(self: {
                     const { readableStream, writableStream, participantId } =
                         event.data;
                     const context = this.getParticipantContext(participantId);
+                    if (!context) break;
                     this.handleTransform(
                         context,
                         operation,
@@ -80,6 +86,7 @@ export function setupWorker(self: {
                 case "setKey": {
                     const { participantId, olmKey, pqKey, index } = event.data;
                     const context = this.getParticipantContext(participantId);
+                    if (!context) break;
                     await context.setKey(olmKey, pqKey, index);
                     const sas = this.getCurrentSASMaterial();
                     self.postMessage({ operation: "updateSAS", sas });
@@ -88,7 +95,9 @@ export function setupWorker(self: {
 
                 case "setKeysCommitment": {
                     const { participantId, commitment } = event.data;
-                    const context = this.getParticipantContext(participantId);
+                    const context =
+                        this.createParticipantContext(participantId);
+                    if (!context) break;
                     await context.setKeyCommitment(commitment);
                     break;
                 }
@@ -96,6 +105,7 @@ export function setupWorker(self: {
                 case "ratchetKeys": {
                     const { participantId } = event.data;
                     const context = this.getParticipantContext(participantId);
+                    if (!context) break;
                     await context.ratchetKeys();
                     break;
                 }
@@ -121,6 +131,9 @@ export function setupWorker(self: {
             const transformer = event.transformer;
             const { operation, participantId } = transformer.options;
             const context = this.getParticipantContext(participantId);
+            if (!context) {
+                return;
+            }
             this.handleTransform(
                 context,
                 operation,

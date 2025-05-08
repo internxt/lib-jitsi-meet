@@ -149,7 +149,10 @@ export class Context {
             const cipherText = await encryptData(iv, additionalData, key, data);
 
             const newData = new ArrayBuffer(
-                UNENCRYPTED_BYTES_NUMBER + cipherText.byteLength + IV_LENGTH + 1,
+                UNENCRYPTED_BYTES_NUMBER +
+                    cipherText.byteLength +
+                    IV_LENGTH +
+                    1,
             );
             const newUint8 = new Uint8Array(newData);
 
