@@ -21,8 +21,30 @@ module.exports = (_env, argv) => {
             })
         }),
         {
+            module: {
+                rules: [
+                    {
+                        test: /\.css$/,
+                        use: [
+                            'style-loader',
+                            'css-loader'
+                        ]
+                    },
+                    {
+                        test: /\.(png|svg|jpg)$/,
+                        use: [
+                            'file-loader'
+                        ]
+                    },
+                    {
+                        test: /\.tsx?$/,
+                        use: 'ts-loader',
+                        exclude: /node_modules/
+                    }
+                ]
+            },
             entry: {
-                worker: './modules/e2ee/Worker.js'
+                worker: './modules/e2ee/Worker.ts'
             },
             mode,
             output: {
@@ -30,7 +52,10 @@ module.exports = (_env, argv) => {
                 path: path.join(process.cwd(), 'dist', 'umd')
             },
             optimization: {
-                minimize: false
+                minimize: mode === 'production'
+            },
+            resolve: {
+                extensions: [ '.ts' ]
             }
         }
     ];
