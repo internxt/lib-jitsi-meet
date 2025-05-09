@@ -341,7 +341,7 @@ JitsiConference.prototype.constructor = JitsiConference;
 JitsiConference.resourceCreator = function() {
     const time = new Date().getTime();
 
-    return time.toString().slice(-8);
+    return time.toString(16).slice(-8);
 };
 
 /**
@@ -566,8 +566,9 @@ JitsiConference.prototype._init = function(options = {}) {
  * @param replaceParticipant {boolean} whether the current join replaces
  * an existing participant with same jwt from the meeting.
  */
-JitsiConference.prototype.join = function(password, replaceParticipant = false) {
+JitsiConference.prototype.join = async function(password, replaceParticipant = false) {
     if (this.room) {
+        await this._e2eEncryption.init();
         this.room.join(password, replaceParticipant).then(() => this._maybeSetSITimeout());
     }
 };
@@ -3968,8 +3969,10 @@ JitsiConference.prototype.disableLobby = function() {
  * @param {string} email Optional email is used to present avatar to the moderator.
  * @returns {Promise<never>}
  */
-JitsiConference.prototype.joinLobby = function(displayName, email) {
+JitsiConference.prototype.joinLobby = async function(displayName, email) {
     if (this.room) {
+        await this._e2eEncryption.init();
+
         return this.room.getLobby().join(displayName, email);
     }
 
