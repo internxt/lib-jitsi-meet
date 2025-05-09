@@ -19,8 +19,42 @@ module.exports = function(config) {
             './modules/**/*.spec.js',
             './modules/**/*.spec.ts',
             './service/**/*.spec.ts',
-            './*.spec.ts'
+            './*.spec.ts',
+            {
+                pattern: 'node_modules/vodozemac-wasm/javascript/pkg/vodozemac_bg.wasm',
+                included: false,
+                served: true,
+                watched: false
+            },
+            {
+                pattern: 'node_modules/@dashlane/pqc-kem-kyber512-browser/dist/pqc-kem-kyber512.wasm',
+                included: false,
+                served: true,
+                watched: false
+            },
+            './tests/*.spec.js',
+            './tests/*.spec.ts'
         ],
+        proxies: {
+            '/libs/pqc-kem-kyber512.wasm': 'node_modules/@dashlane/pqc-kem-kyber512-browser/dist/pqc-kem-kyber512.wasm'
+        },
+        mime: {
+            'application/wasm': [ 'wasm' ]
+        },
+        experiments: {
+            asyncWebAssembly: true
+        },
+        module: {
+            rules: [
+                {
+                    test: /\.wasm$/,
+                    type: 'asset/resource' // emit as file, returns URL
+                }
+            ]
+        },
+        resolve: {
+            extensions: [ '.ts', '.js', '.wasm' ]
+        },
 
         // list of files to exclude
         exclude: [
@@ -64,6 +98,12 @@ module.exports = function(config) {
         // if true, Karma captures browsers, runs the tests and exits
         singleRun: true,
 
-        webpack: require('./webpack-shared-config')(false /* minimize */, false /* analyzeBundle */)
+        webpack: require('./webpack-shared-config')(false /* minimize */, false /* analyzeBundle */),
+
+        client: {
+            jasmine: {
+                random: false
+            }
+        }
     });
 };
