@@ -126,6 +126,7 @@ export class ManagedKeyHandler extends Listenable {
     async init() {
         await this._olmAdapter.init();
         this.initizlized = true;
+        logInfo("Olm initialized");
     }
 
     /**
@@ -336,7 +337,6 @@ export class ManagedKeyHandler extends Listenable {
 
     /**
      * Advances (using ratcheting) the current key when a new participant joins the conference.
-     * Sends a session-init to a new participant if their ID is bigger than ID of this user.
      *
      * @private
      */
@@ -471,7 +471,8 @@ export class ManagedKeyHandler extends Listenable {
                 }
                 case OLM_MESSAGE_TYPES.SESSION_ACK: {
                     const { ciphertext, pqCiphertext } = msg.data;
-
+                    const participantsNumber =
+                        this.conference.participants.size;
                     const { data, key } =
                         await this._olmAdapter.createSessionDoneMessage(
                             pId,
@@ -481,12 +482,10 @@ export class ManagedKeyHandler extends Listenable {
                     this.updateParticipantKey(pId, key);
                     this._sendMessage(OLM_MESSAGE_TYPES.SESSION_DONE, "", pId);
                     if (data) {
-                        logInfo(
-                            `Keys changes during session-init, sending new keys to ${pId}.`,
-                        );
+                        const newData = { ...data, participantsNumber };
                         this._sendMessage(
-                            OLM_MESSAGE_TYPES.KEY_INFO,
-                            data,
+                            OLM_MESSAGE_TYPES.KEY_UPDATED,
+                            newData,
                             pId,
                         );
                     }
@@ -505,21 +504,43 @@ export class ManagedKeyHandler extends Listenable {
                     break;
                 }
                 case OLM_MESSAGE_TYPES.SESSION_DONE: {
+                    const participantsNumber =
+                        this.conference.participants.size;
                     const data =
                         await this._olmAdapter.processSessionDoneMessage(pId);
                     if (data) {
-                        logInfo(
-                            `Keys changes during session-init, sending new keys to ${pId}.`,
-                        );
+                        const newData = { ...data, participantsNumber };
                         this._sendMessage(
-                            OLM_MESSAGE_TYPES.KEY_INFO,
-                            data,
+                            OLM_MESSAGE_TYPES.KEY_UPDATED,
+                            newData,
                             pId,
                         );
                     }
                     logInfo(
                         `Participant ${pId} established E2E channel with us.`,
                     );
+                    break;
+                }
+                case OLM_MESSAGE_TYPES.KEY_UPDATED: {
+                    logInfo(
+                        `Keys of participant ${pId} changes during session-init.`,
+                    );
+                    const { ciphertext, pqCiphertext, participantsNumber } =
+                        msg.data;
+                    const myParticipantsNumber =
+                        this.conference.participants.size;
+                    const key = await this._olmAdapter.processKeyInfoMessage(
+                        pId,
+                        ciphertext,
+                        pqCiphertext,
+                    );
+                    this.updateParticipantKey(pId, key);
+                    if (participantsNumber < myParticipantsNumber) {
+                        logWarning(
+                            `Participant ${pId} had fewer people on the call when creating the key info message. Ratcheting..`,
+                        );
+                        this.e2eeCtx.ratchetKeys(pId);
+                    }
                     break;
                 }
                 case OLM_MESSAGE_TYPES.KEY_INFO: {
