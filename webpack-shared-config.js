@@ -14,6 +14,9 @@ const commitHash = process.env.LIB_JITSI_MEET_COMMIT_HASH
 
 module.exports = (minimize, analyzeBundle) => {
     return {
+        experiments: {
+            topLevelAwait: true
+        },
         // The inline-source-map is used to allow debugging the unit tests with Karma
         devtool: minimize ? 'source-map' : 'inline-source-map',
         resolve: {
@@ -80,8 +83,8 @@ module.exports = (minimize, analyzeBundle) => {
         },
         performance: {
             hints: minimize ? 'error' : false,
-            maxAssetSize: 1.25 * 1024 * 1024,
-            maxEntrypointSize: 1.25 * 1024 * 1024
+            maxAssetSize: 1.60 * 1024 * 1024,
+            maxEntrypointSize: 1.60 * 1024 * 1024
         },
         plugins: [
             new IgnorePlugin({ resourceRegExp: /^(@xmldom\/xmldom|ws)$/ }),
