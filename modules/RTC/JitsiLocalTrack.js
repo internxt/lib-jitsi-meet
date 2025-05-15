@@ -46,7 +46,7 @@ export async function getWasmModule() {
 }
 
 const ort = require('onnxruntime-web');
-ort.env.wasm.wasmPaths = '/libs/dist/';
+ort.env.wasm.wasmPaths = '/libs/ONNX/';
 
 const logger = getLogger(__filename);
 export let encodingSession = null;
