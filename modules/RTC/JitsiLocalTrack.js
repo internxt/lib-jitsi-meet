@@ -24,7 +24,7 @@ import Statistics from '../statistics/statistics';
 
 import JitsiTrack from './JitsiTrack';
 import RTCUtils from './RTCUtils';
-import channels from './channels.js';
+import channels from '../../wasm/RTC/channels.js';
 let timer = false;
 let wasmChannels= null;
 /**
