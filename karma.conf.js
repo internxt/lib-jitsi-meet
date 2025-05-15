@@ -16,7 +16,7 @@ module.exports = function(config) {
         files: [
             {pattern: 'node_modules/onnxruntime-web/dist/*', watched: false, included: false, served: true, nocache: false},
             {pattern: 'models/RTC/*', watched: false, included: false, served: true, nocache: false},
-            {pattern: 'modules/RTC/*', watched: false, included: false, served: true, nocache: false},
+            {pattern: 'wasm/RTC/*', watched: false, included: false, served: true, nocache: false},
             'node_modules/core-js/index.js',
             'node_modules/jquery/dist/jquery.slim.min.js',
             './modules/**/*.spec.js',
@@ -44,7 +44,7 @@ module.exports = function(config) {
         reporters: [ 'progress' ],
 
         proxies: {
-            "/libs/" : "/base/modules/RTC/", 
+            "/libs/" : "/base/wasm/RTC/", 
             "/libs/dist/" : "/base/node_modules/onnxruntime-web/dist/",
             "/libs/models/" : "/base/models/RTC/",
           },
