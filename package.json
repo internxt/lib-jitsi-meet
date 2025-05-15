@@ -82,7 +82,8 @@
   "files": [
     "dist",
     "types",
-    "index.d.ts"
+    "index.d.ts",
+    "models"
   ],
   "license": "Apache-2.0"
 }
