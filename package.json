@@ -83,7 +83,8 @@
     "dist",
     "types",
     "index.d.ts",
-    "models"
+    "models",
+    "wasm"
   ],
   "license": "Apache-2.0"
 }
