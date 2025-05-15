@@ -1,6 +1,6 @@
 {
   "name": "lib-jitsi-meet",
-  "version": "0.0.0",
+  "version": "0.0.4-alpha",
   "description": "JS library for accessing Jitsi server side deployments",
   "repository": {
     "type": "git",
@@ -82,7 +82,8 @@
   "files": [
     "dist",
     "types",
-    "index.d.ts"
+    "index.d.ts",
+    "models"
   ],
   "license": "Apache-2.0"
 }

@@ -15,7 +15,7 @@ module.exports = function(config) {
         // list of files / patterns to load in the browser
         files: [
             {pattern: 'node_modules/onnxruntime-web/dist/*', watched: false, included: false, served: true, nocache: false},
-            {pattern: 'modules/RTC/models/*', watched: false, included: false, served: true, nocache: false},
+            {pattern: 'models/RTC/*', watched: false, included: false, served: true, nocache: false},
             {pattern: 'modules/RTC/*', watched: false, included: false, served: true, nocache: false},
             'node_modules/core-js/index.js',
             'node_modules/jquery/dist/jquery.slim.min.js',
@@ -46,7 +46,7 @@ module.exports = function(config) {
         proxies: {
             "/libs/" : "/base/modules/RTC/", 
             "/libs/dist/" : "/base/node_modules/onnxruntime-web/dist/",
-            "/libs/models/" : "/base/modules/RTC/models/",
+            "/libs/models/" : "/base/models/RTC/",
           },
 
         // web server port
