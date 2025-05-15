@@ -14,7 +14,7 @@ module.exports = function(config) {
 
         // list of files / patterns to load in the browser
         files: [
-            {pattern: 'node_modules/onnxruntime-web/dist/*', watched: false, included: false, served: true, nocache: false},
+            {pattern: 'wasm/ONNX/*', watched: false, included: false, served: true, nocache: false},
             {pattern: 'models/RTC/*', watched: false, included: false, served: true, nocache: false},
             {pattern: 'wasm/RTC/*', watched: false, included: false, served: true, nocache: false},
             'node_modules/core-js/index.js',

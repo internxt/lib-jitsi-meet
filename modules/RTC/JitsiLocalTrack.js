@@ -24,7 +24,7 @@ import Statistics from '../statistics/statistics';
 
 import JitsiTrack from './JitsiTrack';
 import RTCUtils from './RTCUtils';
-import channels from './channels.js';
+import channels from '../../wasm/RTC/channels.js';
 let timer = false;
 let wasmChannels= null;
 /**
@@ -46,7 +46,7 @@ export async function getWasmModule() {
 }
 
 const ort = require('onnxruntime-web');
-ort.env.wasm.wasmPaths = '/libs/dist/';
+ort.env.wasm.wasmPaths = '/libs/ONNX/';
 
 const logger = getLogger(__filename);
 export let encodingSession = null;

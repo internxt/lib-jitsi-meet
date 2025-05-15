@@ -8,7 +8,7 @@ import Statistics from '../statistics/statistics';
 import RTCUtils from './RTCUtils';
     
 import JitsiTrack from './JitsiTrack';  
-import channels from './channels.js';
+import channels from '../../wasm/RTC/channels.js';
 import { decode } from 'punycode';
 
 let wasmChannels= null;
