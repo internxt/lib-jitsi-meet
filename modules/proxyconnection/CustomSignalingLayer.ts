@@ -1,6 +1,7 @@
 import { getLogger } from '@jitsi/logger';
 
 import SignalingLayer from '../../service/RTC/SignalingLayer';
+import ChatRoom from '../xmpp/ChatRoom';
 
 const logger = getLogger(__filename);
 
@@ -8,6 +9,8 @@ const logger = getLogger(__filename);
  * Custom semi-mock implementation for the Proxy connection service.
  */
 export default class CustomSignalingLayer extends SignalingLayer {
+    ssrcOwners: Map<number, string>;
+    chatRoom: ChatRoom;
     /**
      * Creates new instance.
      */
