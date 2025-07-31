@@ -36,7 +36,6 @@ import SpeakerStatsCollector from './modules/statistics/SpeakerStatsCollector';
 import Statistics from './modules/statistics/statistics';
 import EventEmitter from './modules/util/EventEmitter';
 import { safeSubtract } from './modules/util/MathUtil';
-import RandomUtil from './modules/util/RandomUtil';
 import { getJitterDelay } from './modules/util/Retry';
 import ComponentsVersions from './modules/version/ComponentsVersions';
 import VideoSIPGW from './modules/videosipgw/VideoSIPGW';
@@ -332,40 +331,17 @@ export default function JitsiConference(options) {
 JitsiConference.prototype.constructor = JitsiConference;
 
 /**
- * Create a resource for the a jid. We use the room nickname (the resource part
- * of the occupant JID, see XEP-0045) as the endpoint ID in colibri. We require
+ * Create a resource for the a jid. We require
  * endpoint IDs to be 8 hex digits because in some cases they get serialized
  * into a 32bit field.
  *
- * @param {string} jid - The id set onto the XMPP connection.
- * @param {boolean} isAuthenticatedUser - Whether or not the user has connected
- * to the XMPP service with a password.
  * @returns {string}
  * @static
  */
-JitsiConference.resourceCreator = function(jid, isAuthenticatedUser) {
-    let mucNickname;
+JitsiConference.resourceCreator = function() {
+    const time = new Date().getTime();
 
-    if (isAuthenticatedUser) {
-        // For authenticated users generate a random ID.
-        mucNickname = RandomUtil.randomHexString(8).toLowerCase();
-    } else {
-        // We try to use the first part of the node (which for anonymous users
-        // on prosody is a UUID) to match the previous behavior (and maybe make
-        // debugging easier).
-        mucNickname = Strophe.getNodeFromJid(jid)?.substr(0, 8)
-            .toLowerCase();
-
-        // But if this doesn't have the required format we just generate a new
-        // random nickname.
-        const re = /[0-9a-f]{8}/g;
-
-        if (!mucNickname || !re.test(mucNickname)) {
-            mucNickname = RandomUtil.randomHexString(8).toLowerCase();
-        }
-    }
-
-    return mucNickname;
+    return time.toString(16).slice(-8);
 };
 
 /**
@@ -590,8 +566,9 @@ JitsiConference.prototype._init = function(options = {}) {
  * @param replaceParticipant {boolean} whether the current join replaces
  * an existing participant with same jwt from the meeting.
  */
-JitsiConference.prototype.join = function(password, replaceParticipant = false) {
+JitsiConference.prototype.join = async function(password, replaceParticipant = false) {
     if (this.room) {
+        await this._e2eEncryption.init();
         this.room.join(password, replaceParticipant).then(() => this._maybeSetSITimeout());
     }
 };
@@ -3926,42 +3903,8 @@ JitsiConference.prototype.toggleE2EE = function(enabled) {
  * @param {Number} [keyInfo.index] - the index of the encryption key.
  * @returns {void}
  */
-JitsiConference.prototype.setMediaEncryptionKey = function(keyInfo) {
-    this._e2eEncryption.setEncryptionKey(keyInfo);
-};
-
-/**
- * Starts the participant verification process.
- *
- * @param {string} participantId The participant which will be marked as verified.
- * @returns {void}
- */
-JitsiConference.prototype.startVerification = function(participantId) {
-    const participant = this.getParticipantById(participantId);
-
-    if (!participant) {
-        return;
-    }
-
-    this._e2eEncryption.startVerification(participant);
-};
-
-/**
- * Marks the given participant as verified. After this is done, MAC verification will
- * be performed and an event will be emitted with the result.
- *
- * @param {string} participantId The participant which will be marked as verified.
- * @param {boolean} isVerified - whether the verification was succesfull.
- * @returns {void}
- */
-JitsiConference.prototype.markParticipantVerified = function(participantId, isVerified) {
-    const participant = this.getParticipantById(participantId);
-
-    if (!participant) {
-        return;
-    }
-
-    this._e2eEncryption.markParticipantVerified(participant, isVerified);
+JitsiConference.prototype.setMediaEncryptionKey = function(olmKey, pqKey, index) {
+    this._e2eEncryption.setEncryptionKey(olmKey, pqKey, index);
 };
 
 /**
@@ -4026,8 +3969,10 @@ JitsiConference.prototype.disableLobby = function() {
  * @param {string} email Optional email is used to present avatar to the moderator.
  * @returns {Promise<never>}
  */
-JitsiConference.prototype.joinLobby = function(displayName, email) {
+JitsiConference.prototype.joinLobby = async function(displayName, email) {
     if (this.room) {
+        await this._e2eEncryption.init();
+
         return this.room.getLobby().join(displayName, email);
     }
 

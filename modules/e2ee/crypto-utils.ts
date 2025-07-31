@@ -1,0 +1,166 @@
+import kemBuilder from "@dashlane/pqc-kem-kyber512-browser";
+import * as base64js from "base64-js";
+import { encryptData, decryptData } from "./crypto-workers";
+import { IV_LENGTH, MEDIA_KEY_LEN, AUX } from "./Constants";
+
+export function getError(method: string, error: any): Error {
+    const errorMessage = `E2E: Function ${method} failed: ${error}`;
+    return new Error(errorMessage);
+}
+
+/**
+ * Generates Kyber key pair.
+ *
+ * @returns {Promise<{string, Uint8Array}>} A tuple containing public Kyber key in Base64 and private kyber key.
+ */
+export async function generateKyberKeys(): Promise<{
+    publicKeyBase64: string;
+    privateKey: Uint8Array;
+}> {
+    try {
+        const kem = await kemBuilder();
+        const { publicKey, privateKey } = await kem.keypair();
+        const publicKeyBase64 = base64js.fromByteArray(publicKey);
+        return { publicKeyBase64, privateKey };
+    } catch (error) {
+        return Promise.reject(getError("generateKyberKeys", error));
+    }
+}
+
+/**
+ * Performs encapsulation.
+ * Returns a shared secret and teh corresponding ciphertext.
+ *
+ * @param {Uint8Array} publicKyberKeyBase64 - The public kyber key in Base64.
+ * @returns {Promise<{ sharedSecret: Uint8Array, ciphertextBase64: Uint8Array }>} Tuple containing a shared secret and a ciphertext.
+ */
+export async function encapsulateSecret(publicKyberKeyBase64: string): Promise<{
+    encapsulatedBase64: string;
+    sharedSecret: Uint8Array;
+}> {
+    try {
+        if (!publicKyberKeyBase64?.length) {
+            throw Error(`No public key`);
+        }
+        const kem = await kemBuilder();
+        const participantEncapsulationKey: Uint8Array =
+            base64js.toByteArray(publicKyberKeyBase64);
+        const { ciphertext, sharedSecret } = await kem.encapsulate(
+            participantEncapsulationKey,
+        );
+        const kyberCiphertext = base64js.fromByteArray(ciphertext);
+
+        return { encapsulatedBase64: kyberCiphertext, sharedSecret };
+    } catch (error) {
+        return Promise.reject(getError("encapsulateSecret", error));
+    }
+}
+
+/**
+ * Performs decapsulation.
+ * Returns a shared secret.
+ *
+ * @param {Uint8Array} ciphertextBase64 - The ciphertext.
+ * @param {Uint8Array} privateKey - The private key.
+ * @returns {Promise<Uint8Array>} Shared secret.
+ */
+export async function decapsulateSecret(
+    ciphertextBase64: string,
+    privateKey: Uint8Array,
+): Promise<Uint8Array> {
+    try {
+        if (!ciphertextBase64?.length) {
+            throw new Error(`No ciphertext`);
+        }
+        if (!privateKey?.length) {
+            throw new Error(`No private key`);
+        }
+
+        const kem = await kemBuilder();
+        const pqCiphertext: Uint8Array = base64js.toByteArray(ciphertextBase64);
+        const { sharedSecret } = await kem.decapsulate(
+            pqCiphertext,
+            privateKey,
+        );
+
+        return sharedSecret;
+    } catch (error) {
+        return Promise.reject(getError("decapsulateSecret", error));
+    }
+}
+
+/**
+ * Decrypts message.
+ *
+ * @param {string} ciphertextBase64 - The ciphertext.
+ * @param {string} ivBase64 - The IV.
+ * @param {CryptoKey} key - The key.
+ * @returns {Uint8Array} Decrypted message.
+ */
+export async function decryptKeyInfoPQ(
+    ciphertextBase64: string,
+    key: CryptoKey,
+): Promise<Uint8Array> {
+    try {
+        if (!ciphertextBase64?.length) {
+            throw new Error("No ciphertext");
+        }
+        if (!key) {
+            throw new Error("No key");
+        }
+
+        const ciphertext = base64js.toByteArray(ciphertextBase64);
+        const iv = ciphertext.slice(0, IV_LENGTH);
+        const cipher = ciphertext.slice(IV_LENGTH);
+        const plaintext = await decryptData(iv, AUX, key, cipher);
+
+        return new Uint8Array(plaintext);
+    } catch (error) {
+        return Promise.reject(getError("decryptKeyInfoPQ", error));
+    }
+}
+
+/**
+ * Encrypts the message.
+ *
+ * @param {Uint8Array} key - The key.
+ * @param {Uint8Array} plaintext - The message.
+ * @returns {string} Ciphertext.
+ */
+export async function encryptKeyInfoPQ(
+    key: CryptoKey,
+    plaintext: Uint8Array,
+): Promise<string> {
+    try {
+        if (!key) {
+            throw new Error("No key");
+        }
+        if (!plaintext?.length) {
+            throw new Error("No message");
+        }
+
+        const iv = crypto.getRandomValues(new Uint8Array(IV_LENGTH));
+        const ciphertext = new Uint8Array(
+            await encryptData(iv, AUX, key, plaintext),
+        );
+
+        const result = new Uint8Array(IV_LENGTH + ciphertext.length);
+        result.set(iv, 0);
+        result.set(ciphertext, IV_LENGTH);
+
+        const resultBase64 = base64js.fromByteArray(result);
+
+        return resultBase64;
+    } catch (error) {
+        return Promise.reject(getError("encryptKeyInfoPQ", error));
+    }
+}
+
+/**
+ * Generates a new random key.
+ *
+ * @returns {Uint8Array} Key of KEY_LEN bits.
+ */
+export function generateKey(): Uint8Array {
+    return crypto.getRandomValues(new Uint8Array(MEDIA_KEY_LEN));
+}
