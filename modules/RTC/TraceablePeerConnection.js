@@ -869,7 +869,7 @@ TraceablePeerConnection.prototype.getSsrcByTrackId = function(id) {
 TraceablePeerConnection.prototype._remoteTrackAdded = function(stream, track, transceiver = null) {
     const streamId = stream.id;
     const mediaType = track.kind;
-    
+
     // Do not create remote tracks for 'mixed' JVB SSRCs (used by JVB for RTCP termination).
     if (!this.isP2P && !RTCUtils.isUserStreamById(streamId)) {
         return;
@@ -1272,7 +1272,7 @@ TraceablePeerConnection.prototype._isSharingScreen = function() {
     return Boolean(tracks.find(track => track.videoType === VideoType.DESKTOP));
 };
 
-/**  
+/**
  * Add {@link JitsiLocalTrack} to this TPC.
  * @param {JitsiLocalTrack} track
  * @param {boolean} isInitiator indicates if the endpoint is the offerer.
@@ -1280,25 +1280,25 @@ TraceablePeerConnection.prototype._isSharingScreen = function() {
  */
 TraceablePeerConnection.prototype.addTrack = async function(track, isInitiator = false) {
     const rtcId = track.rtcId;
+
     if (this.localTracks.has(rtcId)) {
         throw new Error(`${track} is already in ${this}`);
     }
 
     logger.info(`${this} adding ${track}`);
-    let webrtcStream  = null;
+    let webrtcStream = null;
     let mediaStreamTrack = null;
+
     if (track.type === MediaType.VIDEO) {
         if (track.videoType === VideoType.CAMERA) {
-            try{
+            try {
                 webrtcStream = track.getOriginalStream();
                 mediaStreamTrack = track.getTrack();
-            }
-            catch(error){
-                logger.info("Problems adding encoded streams at TraceablePeerConnection:",error);
+            } catch (error) {
+                logger.info('Problems adding encoded streams at TraceablePeerConnection:', error);
             }
         }
-    }
-    else{
+    } else {
         webrtcStream = track.getOriginalStream();
         mediaStreamTrack = track.getTrack();
     }

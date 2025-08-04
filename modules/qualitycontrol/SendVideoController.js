@@ -3,7 +3,7 @@ import { getLogger } from '@jitsi/logger';
 import MediaSessionEvents from '../xmpp/MediaSessionEvents';
 
 const logger = getLogger(__filename);
-const MAX_LOCAL_RESOLUTION =  420;
+const MAX_LOCAL_RESOLUTION = 420;
 
 /**
  * The class manages send video constraints across media sessions({@link JingleSessionPC}) which belong to
