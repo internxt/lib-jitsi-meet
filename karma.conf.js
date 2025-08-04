@@ -14,6 +14,9 @@ module.exports = function(config) {
 
         // list of files / patterns to load in the browser
         files: [
+            {pattern: 'wasm/ONNX/*', watched: false, included: false, served: true, nocache: false},
+            {pattern: 'models/RTC/*', watched: false, included: false, served: true, nocache: false},
+            {pattern: 'wasm/RTC/*', watched: false, included: false, served: true, nocache: false},
             'node_modules/core-js/index.js',
             'node_modules/jquery/dist/jquery.slim.min.js',
             './modules/**/*.spec.js',
@@ -74,6 +77,12 @@ module.exports = function(config) {
         // available reporters: https://npmjs.org/browse/keyword/karma-reporter
         reporters: [ 'progress' ],
 
+        proxies: {
+            "/libs/" : "/base/wasm/RTC/", 
+            "/libs/dist/" : "/base/node_modules/onnxruntime-web/dist/",
+            "/libs/models/" : "/base/models/RTC/",
+          },
+
         // web server port
         port: 9876,
 
@@ -94,6 +103,8 @@ module.exports = function(config) {
         // https://npmjs.org/browse/keyword/karma-launcher
         browsers: [ 'ChromeHeadless' ],
 
+
+        browserDisconnectTimeout : 20000,
         // Continuous Integration mode
         // if true, Karma captures browsers, runs the tests and exits
         singleRun: true,
