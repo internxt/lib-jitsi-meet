@@ -1,78 +1,78 @@
 // Karma configuration
 // Generated on Wed Dec 07 2016 14:40:28 GMT-0800 (PST)
 
-module.exports = function (config) {
+module.exports = function(config) {
     config.set({
         // base path that will be used to resolve all patterns (eg. files,
         // exclude)
-        basePath: "",
+        basePath: '',
 
         // frameworks to use
         // available frameworks: https://npmjs.org/browse/keyword/karma-adapter
-        frameworks: ["jasmine", "webpack"],
+        frameworks: [ 'jasmine', 'webpack' ],
 
         // list of files / patterns to load in the browser
         files: [
             {
-                pattern: "wasm/ONNX/*",
+                pattern: 'wasm/ONNX/*',
                 watched: false,
                 included: false,
                 served: true,
-                nocache: false,
+                nocache: false
             },
             {
-                pattern: "models/RTC/*",
+                pattern: 'models/RTC/*',
                 watched: false,
                 included: false,
                 served: true,
-                nocache: false,
+                nocache: false
             },
             {
-                pattern: "wasm/RTC/*",
+                pattern: 'wasm/RTC/*',
                 watched: false,
                 included: false,
                 served: true,
-                nocache: false,
+                nocache: false
             },
-            "node_modules/core-js/index.js",
-            "node_modules/jquery/dist/jquery.slim.min.js",
-            "./modules/**/*.spec.js",
-            "./modules/**/*.spec.ts",
-            "./service/**/*.spec.ts",
-            "./*.spec.ts",
-            {
-                pattern:
-                    "node_modules/vodozemac-wasm/javascript/pkg/vodozemac_bg.wasm",
-                included: false,
-                served: true,
-                watched: false,
-            },
+            'node_modules/core-js/index.js',
+            'node_modules/jquery/dist/jquery.slim.min.js',
+            './modules/**/*.spec.js',
+            './modules/**/*.spec.ts',
+            './service/**/*.spec.ts',
+            './*.spec.ts',
             {
                 pattern:
-                    "node_modules/@dashlane/pqc-kem-kyber512-browser/dist/pqc-kem-kyber512.wasm",
+                    'node_modules/vodozemac-wasm/javascript/pkg/vodozemac_bg.wasm',
                 included: false,
                 served: true,
-                watched: false,
+                watched: false
             },
-            "./tests/*.spec.js",
-            "./tests/*.spec.ts",
+            {
+                pattern:
+                    'node_modules/@dashlane/pqc-kem-kyber512-browser/dist/pqc-kem-kyber512.wasm',
+                included: false,
+                served: true,
+                watched: false
+            },
+            './tests/*.spec.js',
+            './tests/*.spec.ts'
         ],
         mime: {
-            "application/wasm": ["wasm"],
+            'application/wasm': [ 'wasm' ]
         },
         experiments: {
-            asyncWebAssembly: true,
+            asyncWebAssembly: true
         },
         module: {
             rules: [
                 {
                     test: /\.wasm$/,
-                    type: "asset/resource", // emit as file, returns URL
-                },
-            ],
+                    type: 'asset/resource' // emit as file, returns URL
+                }
+            ]
         },
         resolve: {
-            extensions: [".ts", ".js", ".wasm"],
+            extensions: [ '.ts', '.js', '.wasm' ]
         },
 
         // list of files to exclude
@@ -82,22 +82,22 @@ module.exports = function (config) {
         // available preprocessors:
         //  https://npmjs.org/browse/keyword/karma-preprocessor
         preprocessors: {
-            "node_modules/core-js/**": ["webpack"],
-            "./**/*.spec.js": ["webpack", "sourcemap"],
-            "./**/*.spec.ts": ["webpack", "sourcemap"],
+            'node_modules/core-js/**': [ 'webpack' ],
+            './**/*.spec.js': [ 'webpack', 'sourcemap' ],
+            './**/*.spec.ts': [ 'webpack', 'sourcemap' ]
         },
 
         // test results reporter to use
         // possible values: 'dots', 'progress'
         // available reporters: https://npmjs.org/browse/keyword/karma-reporter
-        reporters: ["progress"],
+        reporters: [ 'progress' ],
 
         proxies: {
-            "/libs/": "/base/wasm/RTC/",
-            "/libs/dist/": "/base/node_modules/onnxruntime-web/dist/",
-            "/libs/models/": "/base/models/RTC/",
-            "/libs/pqc-kem-kyber512.wasm":
-                "node_modules/@dashlane/pqc-kem-kyber512-browser/dist/pqc-kem-kyber512.wasm",
+            '/libs/': '/base/wasm/RTC/',
+            '/libs/dist/': '/base/node_modules/onnxruntime-web/dist/',
+            '/libs/models/': '/base/models/RTC/',
+            '/libs/pqc-kem-kyber512.wasm':
+                'node_modules/@dashlane/pqc-kem-kyber512-browser/dist/pqc-kem-kyber512.wasm'
         },
 
         // web server port
@@ -118,7 +118,7 @@ module.exports = function (config) {
         // start these browsers
         // available browser launchers:
         // https://npmjs.org/browse/keyword/karma-launcher
-        browsers: ["ChromeHeadless"],
+        browsers: [ 'ChromeHeadless' ],
 
         browserDisconnectTimeout: 20000,
 
@@ -126,15 +126,15 @@ module.exports = function (config) {
         // if true, Karma captures browsers, runs the tests and exits
         singleRun: true,
 
-        webpack: require("./webpack-shared-config")(
+        webpack: require('./webpack-shared-config')(
             false /* minimize */,
             false /* analyzeBundle */
         ),
 
         client: {
             jasmine: {
-                random: false,
-            },
-        },
+                random: false
+            }
+        }
     });
 };
