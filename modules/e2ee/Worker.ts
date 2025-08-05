@@ -6,7 +6,7 @@ export function setupWorker(self: {
     onmessage: ((event: MessageEvent) => void) | null;
     onrtctransform?: (event: any) => void;
     RTCTransformEvent?: any;
-}) {
+}): void {
     class E2EEWorker {
         private readonly contexts: Map<string, Context>;
 
@@ -45,7 +45,7 @@ export function setupWorker(self: {
             context: Context,
             operation: string,
             readableStream: ReadableStream,
-            writableStream: WritableStream,
+            writableStream: WritableStream
         ): void {
             if (operation !== "encode" && operation !== "decode") {
                 logError(`Invalid operation: ${operation}`);
@@ -78,7 +78,7 @@ export function setupWorker(self: {
                         context,
                         operation,
                         readableStream,
-                        writableStream,
+                        writableStream
                     );
                     break;
                 }
@@ -138,12 +138,12 @@ export function setupWorker(self: {
                 context,
                 operation,
                 transformer.readable,
-                transformer.writable,
+                transformer.writable
             );
         }
     }
 
-    return new E2EEWorker(self);
+    new E2EEWorker(self);
 }
 
 setupWorker(self);

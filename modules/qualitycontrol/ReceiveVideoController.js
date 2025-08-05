@@ -6,6 +6,8 @@ import { ASSUMED_BANDWIDTH_BPS, LAST_N_UNLIMITED } from '../../service/RTC/Stand
 
 const logger = getLogger(__filename);
 const MAX_HEIGHT = 420;
+
+
 /**
  * This class manages the receive video contraints for a given {@link JitsiConference}. These constraints are
  * determined by the application based on how the remote video streams need to be displayed. This class is responsible

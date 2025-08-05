@@ -17,6 +17,7 @@ module.exports = (minimize, analyzeBundle) => {
         experiments: {
             topLevelAwait: true
         },
+
         // The inline-source-map is used to allow debugging the unit tests with Karma
         devtool: minimize ? 'source-map' : 'inline-source-map',
         resolve: {
