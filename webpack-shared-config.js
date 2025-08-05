@@ -17,13 +17,18 @@ module.exports = (minimize, analyzeBundle) => {
         experiments: {
             topLevelAwait: true
         },
+
         // The inline-source-map is used to allow debugging the unit tests with Karma
         devtool: minimize ? 'source-map' : 'inline-source-map',
         resolve: {
             fallback: {
                 'module': false, // Explicitly handle `module` resolution
                 'fs': false,
-                'path': false
+                'path': false,
+                'crypto': require.resolve('crypto-browserify'),
+                'stream': require.resolve('stream-browserify'),
+                'buffer': require.resolve('buffer/'),
+                'vm': require.resolve('vm-browserify')
             },
             extensions: [ '.json', '.ts', '.js', '.wasm' ]
         },
