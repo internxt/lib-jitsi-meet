@@ -87,40 +87,6 @@ export async function ratchetKey(keyBytes: Uint8Array): Promise<Uint8Array> {
     }
 }
 
-/**
- * Symmetrically encrypts the given data
- *
- * @param {Uint8Array} iv - The IV vector.
- * @param {Uint8Array} additionalData - The additional data.
- * @param {CryptoKey} key - The encryption key/
- * @param {Uint8Array} data - The data to be encrypted.
- * @returns {Promise<ArrayBuffer>} Resulting ciphertext.
- */
-export async function encryptData(
-    additionalData: Uint8Array,
-    key: CryptoKey,
-    data: Uint8Array,
-): Promise<{iv: Uint8Array, ciphertext: Uint8Array}> {
-    return await symmetric.encryptSymmetrically(key, data, additionalData.toString());
-}
-
-/**
- * Symmetrically decrypts the given data
- *
- * @param {Uint8Array} iv - The IV vector.
- * @param {Uint8Array} additionalData - The additional data.
- * @param {CryptoKey} key - The encryption key/
- * @param {ArrayBuffer} data - The data to be encrypted.
- * @returns {Promise<ArrayBuffer>} Resulting ciphertext.
- */
-export async function decryptData(
-    iv: Uint8Array,
-    additionalData: Uint8Array,
-    key: CryptoKey,
-    data: Uint8Array,
-): Promise<Uint8Array> {
-    return await symmetric.decryptSymmetrically(key, {iv, ciphertext: data}, additionalData.toString());
-}
 
 export async function commitToMediaKeyShares(
     participantID: string,

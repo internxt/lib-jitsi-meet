@@ -1,14 +1,13 @@
 import {
     deriveEncryptionKey,
     ratchetKey,
-    encryptData,
-    decryptData,
     hashKeysOfParticipant,
     logError,
     logInfo,
 } from "./crypto-workers";
 import { KEYRING_SIZE, UNENCRYPTED_BYTES_NUMBER, IV_LENGTH } from "./Constants";
 import { MediaKey } from "./Types";
+import { symmetric } from 'internxt-crypto';
 
 let printEncStart = true;
 
@@ -138,7 +137,7 @@ export class Context {
                 0,
                 UNENCRYPTED_BYTES_NUMBER,
             );
-            const {iv, ciphertext: cipherText} = await encryptData(additionalData, key, data);
+            const {iv, ciphertext: cipherText} = await symmetric.encryptSymmetrically(key, data, additionalData.toString());
 
             const newData = new ArrayBuffer(
                 UNENCRYPTED_BYTES_NUMBER +
@@ -225,12 +224,7 @@ export class Context {
                 UNENCRYPTED_BYTES_NUMBER,
                 cipherTextLength,
             );
-            const plainText = await decryptData(
-                iv,
-                additionalData,
-                encryptionKey,
-                data,
-            );
+            const plainText = await  symmetric.decryptSymmetrically(encryptionKey, {iv, ciphertext: data}, additionalData.toString());
 
             const newData = new ArrayBuffer(
                 UNENCRYPTED_BYTES_NUMBER + plainText.byteLength,
