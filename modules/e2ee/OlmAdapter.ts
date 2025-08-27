@@ -3,7 +3,6 @@ import {
     generateKyberKeys,
     encapsulateSecret,
     decapsulateSecret,
-    generateKey,
     getError,
 } from "./crypto-utils";
 import { ratchetKey, commitToIdentityKeys } from "./crypto-workers";
@@ -17,7 +16,7 @@ import {
 } from "./Types";
 
 import { SessionData } from "./SessionData";
-import { MediaKeys } from "internxt-crypto";
+import { MediaKeys, symmetric } from "internxt-crypto";
 
 export class OlmAdapter {
     private readonly _myId: string;
@@ -108,8 +107,8 @@ export class OlmAdapter {
     updateMyKeys(): MediaKeys {
         try {
             const newMediaKey = {
-                olmKey: generateKey(),
-                pqKey: generateKey(),
+                olmKey: symmetric.genSymmetricKey(),
+                pqKey: symmetric.genSymmetricKey(),
                 index: this._mediaKey.index + 1,
                 userID: this._mediaKey.userID,
             };

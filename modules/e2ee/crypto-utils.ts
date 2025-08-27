@@ -1,5 +1,5 @@
 import kemBuilder from "@dashlane/pqc-kem-kyber512-browser";
-import { utils, symmetric } from 'internxt-crypto';
+import { utils } from 'internxt-crypto';
 
 export function getError(method: string, error: any): Error {
     const errorMessage = `E2E: Function ${method} failed: ${error}`;
@@ -85,70 +85,4 @@ export async function decapsulateSecret(
     } catch (error) {
         return Promise.reject(getError("decapsulateSecret", error));
     }
-}
-
-/**
- * Decrypts message.
- *
- * @param {string} ciphertextBase64 - The ciphertext.
- * @param {string} ivBase64 - The IV.
- * @param {CryptoKey} key - The key.
- * @returns {Uint8Array} Decrypted message.
- */
-export async function decryptKeyInfoPQ(
-    ciphertextBase64: string,
-    key: CryptoKey,
-): Promise<Uint8Array> {
-    try {
-        if (!ciphertextBase64?.length) {
-            throw new Error("No ciphertext");
-        }
-        if (!key) {
-            throw new Error("No key");
-        }
-
-        const ciphertext = symmetric.base64ToCiphertext(ciphertextBase64);
-        const plaintext = await symmetric.decryptSymmetrically(key, ciphertext, "KeyInfoPQ");
-
-        return plaintext;
-    } catch (error) {
-        return Promise.reject(getError("decryptKeyInfoPQ", error));
-    }
-}
-
-/**
- * Encrypts the message.
- *
- * @param {Uint8Array} key - The key.
- * @param {Uint8Array} plaintext - The message.
- * @returns {string} Ciphertext.
- */
-export async function encryptKeyInfoPQ(
-    key: CryptoKey,
-    plaintext: Uint8Array,
-): Promise<string> {
-    try {
-        if (!key) {
-            throw new Error("No key");
-        }
-        if (!plaintext?.length) {
-            throw new Error("No message");
-        }
-
-        const result = await symmetric.encryptSymmetrically(key, plaintext, "KeyInfoPQ");
-        const resultBase64 = symmetric.ciphertextToBase64(result);
-
-        return resultBase64;
-    } catch (error) {
-        return Promise.reject(getError("encryptKeyInfoPQ", error));
-    }
-}
-
-/**
- * Generates a new symmetric key.
- *
- * @returns {Uint8Array} The generted key.
- */
-export function generateKey(): Uint8Array {
-    return symmetric.genSymmetricKey();
 }

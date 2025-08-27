@@ -1,26 +1,11 @@
 import {
     SAS_LEN,
     RATCHET_CONTEXT,
-    DERIVE_CONTEXT,
     IDENTITY_KEYS_PREFIX,
     KEY_HASH_PREFIX,
 } from "./Constants";
 import { emojiMapping } from "./SAS";
 import { hash, deriveKey, MediaKeys, keystoreCrypto } from 'internxt-crypto';
-
-/**
- * Derives an AES encryption key from two keys.
- *
- * @param {Uint8Array} key1 - The first key.
- * @param {Uint8Array} key2 - The second key.
- * @returns {Promise<CryptoKey>} Derived key.
- */
-export async function deriveEncryptionKey(
-    key1: Uint8Array,
-    key2: Uint8Array,
-): Promise<CryptoKey> {
-    return await deriveKey.deriveSymmetricCryptoKeyFromTwoKeys(key1, key2, DERIVE_CONTEXT);
-}
 
 /**
  * Ratchets a key.
@@ -30,13 +15,6 @@ export async function deriveEncryptionKey(
  */
 export async function ratchetKey(keyBytes: Uint8Array): Promise<Uint8Array> {
     return await deriveKey.deriveSymmetricKeyFromContext(RATCHET_CONTEXT, keyBytes);
-}
-
-
-export async function commitToMediaKeyShares(
-    key: MediaKeys,
-): Promise<string> {
-    return hash.comitToMediaKey(key);
 }
 
 export async function hashKeysOfParticipant(

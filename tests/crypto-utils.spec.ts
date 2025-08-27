@@ -2,12 +2,8 @@ import {
     generateKyberKeys,
     encapsulateSecret,
     decapsulateSecret,
-    decryptKeyInfoPQ,
-    encryptKeyInfoPQ,
-    generateKey,
 } from "../modules/e2ee/crypto-utils";
-
-import { deriveEncryptionKey } from "../modules/e2ee/crypto-workers";
+import { deriveKey } from 'internxt-crypto';
 import initKyber from "@dashlane/pqc-kem-kyber512-browser/dist/pqc-kem-kyber512.js";
 
 describe("Test Kyber KEM", () => {
@@ -69,34 +65,16 @@ describe("Test Kyber KEM", () => {
             privateKey2,
         );
 
-        const key2 = await deriveEncryptionKey(secret2, decapsulatedSecret2);
+        const key2 = await deriveKey.deriveSymmetricCryptoKeyFromTwoKeys(secret2, decapsulatedSecret2);
 
         // pq_session_ack user 1 derives key1
         const decapsulatedSecret1 = await decapsulateSecret(
             ciphertext2,
             privateKey1,
         );
-        const key1 = await deriveEncryptionKey(decapsulatedSecret1, secret1);
+        const key1 = await deriveKey.deriveSymmetricCryptoKeyFromTwoKeys(decapsulatedSecret1, secret1);
 
         expect(key1).toEqual(key2);
     });
 
-    it("key encryption and decryption should work", async () => {
-        const keyBytes = generateKey();
-        const key = await crypto.subtle.importKey(
-            "raw",
-            keyBytes,
-            {
-                name: "AES-GCM",
-                length: 256,
-            },
-            false,
-            ["encrypt", "decrypt"],
-        );
-        const message = generateKey();
-        const ciphertextBase64 = await encryptKeyInfoPQ(key, message);
-        const decryptedMessage = await decryptKeyInfoPQ(ciphertextBase64, key);
-
-        expect(decryptedMessage).toEqual(message);
-    });
 });

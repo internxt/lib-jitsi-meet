@@ -9,12 +9,9 @@ import {
 } from "./Types";
 
 import {
-    encryptKeyInfoPQ,
-    decryptKeyInfoPQ,
     encapsulateSecret,
 } from "./crypto-utils";
-import { deriveEncryptionKey, commitToMediaKeyShares } from "./crypto-workers";
-import { MediaKeys } from "internxt-crypto";
+import { MediaKeys, symmetric, hash, deriveKey } from "internxt-crypto";
 
 export class SessionData {
     private status: ProtocolStatus;
@@ -80,7 +77,7 @@ export class SessionData {
             );
     }
     async validateCommitment(key: MediaKeys) {
-        const commitment = await commitToMediaKeyShares(key);
+        const commitment = await hash.comitToMediaKey(key);
         if (this.commitment !== commitment)
             throw new Error(`Keys do not match the commitment.`);
     }
@@ -110,15 +107,13 @@ export class SessionData {
     }
 
     async keyCommitment(id: string): Promise<string> {
-        return commitToMediaKeyShares(this.keyToSend);
+        return hash.comitToMediaKey(this.keyToSend);
     }
 
     async createKeyInfoMessage(key: MediaKeys): Promise<KeyInfo> {
         const ciphertext = this.encryptGivenKeyInfo(key.olmKey, key.index);
-        const pqCiphertext = await encryptKeyInfoPQ(
-            this.pqSessionKey,
-            key.pqKey,
-        );
+        const result = await symmetric.encryptSymmetrically(this.pqSessionKey, key.pqKey, "KeyInfoPQ");
+        const pqCiphertext = symmetric.ciphertextToBase64(result);
         const data: KeyInfo = {
             ciphertext,
             pqCiphertext,
@@ -138,10 +133,8 @@ export class SessionData {
             this.keyToSend.olmKey,
             this.keyToSend.index,
         );
-        const pqCiphertext = await encryptKeyInfoPQ(
-            this.pqSessionKey,
-            this.keyToSend.pqKey,
-        );
+        const result = await symmetric.encryptSymmetrically(this.pqSessionKey,  this.keyToSend.pqKey, "KeyInfoPQ");
+        const pqCiphertext = symmetric.ciphertextToBase64(result);
         return { ciphertext, pqCiphertext };
     }
 
@@ -153,7 +146,8 @@ export class SessionData {
         const result = this.session.decrypt(NORMAL_MESSAGE, ciphertext);
         const index = result[result.length - 1];
         const key = result.slice(0, -1);
-        const pqKey = await decryptKeyInfoPQ(pqCiphertext, this.pqSessionKey);
+        const pqCipher = symmetric.base64ToCiphertext(pqCiphertext);
+        const pqKey = await symmetric.decryptSymmetrically(this.pqSessionKey, pqCipher, "KeyInfoPQ");
         const mediaKey = {
             olmKey: key,
             pqKey,
@@ -173,6 +167,6 @@ export class SessionData {
 
     async deriveSharedPQkey(key1: Uint8Array, key2?: Uint8Array) {
         const secret = key2 || this.kemSecret;
-        this.pqSessionKey = await deriveEncryptionKey(key1, secret);
+        this.pqSessionKey = await deriveKey.deriveSymmetricCryptoKeyFromTwoKeys(key1, secret);
     }
 }

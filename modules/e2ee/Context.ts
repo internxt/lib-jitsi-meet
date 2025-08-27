@@ -1,12 +1,11 @@
 import {
-    deriveEncryptionKey,
     ratchetKey,
     hashKeysOfParticipant,
     logError,
     logInfo,
 } from "./crypto-workers";
 import { KEYRING_SIZE, UNENCRYPTED_BYTES_NUMBER, IV_LENGTH } from "./Constants";
-import { symmetric, MediaKeys } from 'internxt-crypto';
+import { symmetric, MediaKeys, deriveKey } from 'internxt-crypto';
 
 let printEncStart = true;
 
@@ -54,7 +53,7 @@ export class Context {
      */
     async setKey(olmKey: Uint8Array, pqKey: Uint8Array, index: number) {
         this.key = {olmKey, pqKey, index:  index % KEYRING_SIZE, userID: this.id};
-        this.encryptionKey = await deriveEncryptionKey(this.key.olmKey, pqKey);
+        this.encryptionKey = await deriveKey.deriveSymmetricCryptoKeyFromTwoKeys(this.key.olmKey, pqKey);
         this.hash = await hashKeysOfParticipant(
             this.key,
             this.commitment,
