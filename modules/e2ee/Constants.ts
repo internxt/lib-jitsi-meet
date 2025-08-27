@@ -1,8 +1,5 @@
 export const REQ_TIMEOUT = 20 * 1000;
 export const IV_LENGTH = 16;
-export const AUX = Uint8Array.from([
-    80, 81, 32, 75, 101, 121, 32, 73, 110, 102, 111,
-]); // "PQ Key Info"
 export const AES = "AES-GCM";
 export const AES_KEY_LEN = 256;
 export const MEDIA_KEY_LEN = AES_KEY_LEN/8;

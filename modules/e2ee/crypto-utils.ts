@@ -1,7 +1,5 @@
 import kemBuilder from "@dashlane/pqc-kem-kyber512-browser";
-import { utils } from 'internxt-crypto';
-import { encryptData, decryptData } from "./crypto-workers";
-import { IV_LENGTH, MEDIA_KEY_LEN, AUX } from "./Constants";
+import { utils, symmetric } from 'internxt-crypto';
 
 export function getError(method: string, error: any): Error {
     const errorMessage = `E2E: Function ${method} failed: ${error}`;
@@ -109,12 +107,10 @@ export async function decryptKeyInfoPQ(
             throw new Error("No key");
         }
 
-        const ciphertext = utils.base64ToUint8Array(ciphertextBase64);
-        const iv = ciphertext.slice(0, IV_LENGTH);
-        const cipher = ciphertext.slice(IV_LENGTH);
-        const plaintext = await decryptData(iv, AUX, key, cipher);
+        const ciphertext = symmetric.base64ToCiphertext(ciphertextBase64);
+        const plaintext = await symmetric.decryptSymmetrically(key, ciphertext, "KeyInfoPQ");
 
-        return new Uint8Array(plaintext);
+        return plaintext;
     } catch (error) {
         return Promise.reject(getError("decryptKeyInfoPQ", error));
     }
@@ -139,16 +135,8 @@ export async function encryptKeyInfoPQ(
             throw new Error("No message");
         }
 
-        const iv = crypto.getRandomValues(new Uint8Array(IV_LENGTH));
-        const ciphertext = new Uint8Array(
-            await encryptData(iv, AUX, key, plaintext),
-        );
-
-        const result = new Uint8Array(IV_LENGTH + ciphertext.length);
-        result.set(iv, 0);
-        result.set(ciphertext, IV_LENGTH);
-
-        const resultBase64 = utils.uint8ArrayToBase64(result);
+        const result = await symmetric.encryptSymmetrically(key, plaintext, "KeyInfoPQ");
+        const resultBase64 = symmetric.ciphertextToBase64(result);
 
         return resultBase64;
     } catch (error) {
@@ -157,10 +145,10 @@ export async function encryptKeyInfoPQ(
 }
 
 /**
- * Generates a new random key.
+ * Generates a new symmetric key.
  *
- * @returns {Uint8Array} Key of KEY_LEN bits.
+ * @returns {Uint8Array} The generted key.
  */
 export function generateKey(): Uint8Array {
-    return crypto.getRandomValues(new Uint8Array(MEDIA_KEY_LEN));
+    return symmetric.genSymmetricKey();
 }

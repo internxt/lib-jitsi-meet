@@ -122,7 +122,6 @@ export class Context {
         const key: CryptoKey = this.encryptionKey;
         const keyIndex = this.index;
         try {
-            const iv = crypto.getRandomValues(new Uint8Array(IV_LENGTH));
             // Thіs is not encrypted and contains the VP8 payload descriptor or the Opus TOC byte.
             const frameHeader = new Uint8Array(
                 encodedFrame.data,
@@ -146,7 +145,7 @@ export class Context {
                 0,
                 UNENCRYPTED_BYTES_NUMBER,
             );
-            const cipherText = await encryptData(iv, additionalData, key, data);
+            const {iv, ciphertext: cipherText} = await encryptData(additionalData, key, data);
 
             const newData = new ArrayBuffer(
                 UNENCRYPTED_BYTES_NUMBER +

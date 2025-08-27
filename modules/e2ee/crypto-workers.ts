@@ -1,6 +1,5 @@
 import { createBLAKE3 } from "hash-wasm";
 import {
-    AES,
     AES_KEY_LEN,
     HASH_LEN,
     SAS_LEN,
@@ -12,6 +11,7 @@ import {
 } from "./Constants";
 import { emojiMapping } from "./SAS";
 import { MediaKey } from "./Types";
+import { symmetric } from 'internxt-crypto';
 
 /**
  * Computes hash.
@@ -67,16 +67,7 @@ export async function deriveEncryptionKey(
         hasher.update(key2);
         const keyBytes = hasher.digest("binary");
 
-        return crypto.subtle.importKey(
-            "raw",
-            keyBytes,
-            {
-                name: AES,
-                length: AES_KEY_LEN,
-            },
-            false,
-            ["encrypt", "decrypt"],
-        );
+        return await symmetric.importSymmetricCryptoKey(keyBytes);
     } catch (error) {
         return Promise.reject(
             new Error(`E2E: Key derivation failed: ${error}`),
@@ -110,21 +101,12 @@ export async function ratchetKey(keyBytes: Uint8Array): Promise<Uint8Array> {
  * @param {Uint8Array} data - The data to be encrypted.
  * @returns {Promise<ArrayBuffer>} Resulting ciphertext.
  */
-export function encryptData(
-    iv: Uint8Array,
+export async function encryptData(
     additionalData: Uint8Array,
     key: CryptoKey,
     data: Uint8Array,
-): Promise<ArrayBuffer> {
-    return crypto.subtle.encrypt(
-        {
-            name: AES,
-            iv,
-            additionalData,
-        },
-        key,
-        data,
-    );
+): Promise<{iv: Uint8Array, ciphertext: Uint8Array}> {
+    return await symmetric.encryptSymmetrically(key, data, additionalData.toString());
 }
 
 /**
@@ -136,21 +118,13 @@ export function encryptData(
  * @param {ArrayBuffer} data - The data to be encrypted.
  * @returns {Promise<ArrayBuffer>} Resulting ciphertext.
  */
-export function decryptData(
+export async function decryptData(
     iv: Uint8Array,
     additionalData: Uint8Array,
     key: CryptoKey,
     data: Uint8Array,
-): Promise<ArrayBuffer> {
-    return crypto.subtle.decrypt(
-        {
-            name: AES,
-            iv,
-            additionalData,
-        },
-        key,
-        data,
-    );
+): Promise<Uint8Array> {
+    return await symmetric.decryptSymmetrically(key, {iv, ciphertext: data}, additionalData.toString());
 }
 
 export async function commitToMediaKeyShares(
