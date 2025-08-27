@@ -6,8 +6,7 @@ import {
     logInfo,
 } from "./crypto-workers";
 import { KEYRING_SIZE, UNENCRYPTED_BYTES_NUMBER, IV_LENGTH } from "./Constants";
-import { MediaKey } from "./Types";
-import { symmetric } from 'internxt-crypto';
+import { symmetric, MediaKeys } from 'internxt-crypto';
 
 let printEncStart = true;
 
@@ -17,13 +16,13 @@ let printEncStart = true;
 export class Context {
     private readonly id: string;
     private encryptionKey: CryptoKey;
-    private key: MediaKey;
+    private key: MediaKeys;
     private hash: string;
     private commitment: string;
 
     constructor(id: string) {
         this.encryptionKey = null as any;
-        this.key = { olmKey: new Uint8Array(), pqKey: new Uint8Array(), index: -1};
+        this.key = { olmKey: new Uint8Array(), pqKey: new Uint8Array(), index: -1, userID: id};
         this.id = id;
         this.commitment = "";
         this.hash = "";
@@ -51,13 +50,12 @@ export class Context {
      * Derives the encryption key and sets participant key.
      * @param {Uint8Array} olmKey The olm key.
      * @param {Uint8Array} pqKey The pq key.
-     * @param {number} index The keys index.
+     * @param {number} index The keys index.s
      */
     async setKey(olmKey: Uint8Array, pqKey: Uint8Array, index: number) {
-        this.key = {olmKey, pqKey, index:  index % KEYRING_SIZE};
+        this.key = {olmKey, pqKey, index:  index % KEYRING_SIZE, userID: this.id};
         this.encryptionKey = await deriveEncryptionKey(this.key.olmKey, pqKey);
         this.hash = await hashKeysOfParticipant(
-            this.id,
             this.key,
             this.commitment,
         );

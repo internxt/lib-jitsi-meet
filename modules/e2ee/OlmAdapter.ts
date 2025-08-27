@@ -14,14 +14,14 @@ import {
     SessionAck,
     PQsessionInit,
     SessionInit,
-    MediaKey,
 } from "./Types";
 
 import { SessionData } from "./SessionData";
+import { MediaKeys } from "internxt-crypto";
 
 export class OlmAdapter {
     private readonly _myId: string;
-    private _mediaKey: MediaKey;
+    private _mediaKey: MediaKeys;
 
     private _publicKyberKeyBase64: string;
     private _privateKyberKey: Uint8Array;
@@ -36,6 +36,7 @@ export class OlmAdapter {
             olmKey: new Uint8Array(),
             pqKey: new Uint8Array(),
             index: -1,
+            userID: id,
         };
         this._publicKyberKeyBase64 = "";
         this._privateKyberKey = new Uint8Array();
@@ -80,12 +81,13 @@ export class OlmAdapter {
         }
     }
 
-    async ratchetMyKeys(): Promise<MediaKey> {
+    async ratchetMyKeys(): Promise<MediaKeys> {
         try {
             const newMediaKey = {
                 olmKey: await ratchetKey(this._mediaKey.olmKey),
                 pqKey: await ratchetKey(this._mediaKey.pqKey),
                 index: this._mediaKey.index + 1,
+                userID: this._mediaKey.userID,
             };
             this._mediaKey = newMediaKey;
             return newMediaKey;
@@ -103,12 +105,13 @@ export class OlmAdapter {
         }
     }
 
-    updateMyKeys(): MediaKey {
+    updateMyKeys(): MediaKeys {
         try {
             const newMediaKey = {
                 olmKey: generateKey(),
                 pqKey: generateKey(),
                 index: this._mediaKey.index + 1,
+                userID: this._mediaKey.userID,
             };
             this._mediaKey = newMediaKey;
             return newMediaKey;
@@ -259,7 +262,7 @@ export class OlmAdapter {
         pqCiphertext: string,
     ): Promise<{
         data: SessionAck;
-        key: MediaKey;
+        key: MediaKeys;
     }> {
         try {
             const olmData = this._getParticipantOlmData(pId);
@@ -271,8 +274,8 @@ export class OlmAdapter {
             );
 
             await olmData.deriveSharedPQkey(decapsulatedSecret);
-            const key = await olmData.decryptKeys(ciphertext, pqCiphertext);
-            await olmData.validateCommitment(pId, key);
+            const key = await olmData.decryptKeys(pId, ciphertext, pqCiphertext);
+            await olmData.validateCommitment(key);
 
             const {
                 ciphertext: olmCiphertext,
@@ -297,14 +300,14 @@ export class OlmAdapter {
         pqCiphertext: string,
     ): Promise<{
         data: KeyInfo | undefined;
-        key: MediaKey;
+        key: MediaKeys;
     }> {
         try {
             const olmData = this._getParticipantOlmData(pId);
             olmData.validateStatus(PROTOCOL_STATUS.WAITING_SESSION_ACK);
 
-            const key = await olmData.decryptKeys(ciphertext, pqCiphertext);
-            await olmData.validateCommitment(pId, key);
+            const key = await olmData.decryptKeys(pId, ciphertext, pqCiphertext);
+            await olmData.validateCommitment(key);
 
             let data = undefined;
             if (olmData.indexChanged(this._mediaKey)) {
@@ -339,7 +342,7 @@ export class OlmAdapter {
         pId: string,
         ciphertext: string,
         pqCiphertext: string,
-    ): Promise<MediaKey> {
+    ): Promise<MediaKeys> {
         try {
             const olmData = this._getParticipantOlmData(pId);
 
@@ -347,7 +350,7 @@ export class OlmAdapter {
                 throw new Error(`Session init is not done yet`);
             }
 
-            return olmData.decryptKeys(ciphertext, pqCiphertext);
+            return olmData.decryptKeys(pId, ciphertext, pqCiphertext);
         } catch (error) {
             throw getError("processKeyInfoMessage", error);
         }

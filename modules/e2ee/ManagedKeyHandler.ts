@@ -29,8 +29,8 @@ import {
     CustomRTCRtpReceiver,
     CustomRTCRtpSender,
     ReplyMessage,
-    MediaKey,
 } from "./Types";
+import { MediaKeys } from "internxt-crypto";
 
 function timeout<T>(ms: number): Promise<T> {
     return new Promise((_, reject) =>
@@ -575,7 +575,7 @@ export class ManagedKeyHandler extends Listenable {
      * @param {string} id - The participant ID.
      * @param {MediaKey} key - The new key of the participant.
      */
-    updateParticipantKey(id: string, key: MediaKey) {
+    updateParticipantKey(id: string, key: MediaKeys) {
         this.e2eeCtx.setKey(id, key.olmKey, key.pqKey, key.index);
     }
 

@@ -1,73 +1,25 @@
-import { createBLAKE3 } from "hash-wasm";
 import {
-    AES_KEY_LEN,
-    HASH_LEN,
     SAS_LEN,
     RATCHET_CONTEXT,
     DERIVE_CONTEXT,
-    MEDIA_KEY_COMMITMENT_PREFIX,
     IDENTITY_KEYS_PREFIX,
     KEY_HASH_PREFIX,
 } from "./Constants";
 import { emojiMapping } from "./SAS";
-import { MediaKey } from "./Types";
-import { symmetric, deriveKey } from 'internxt-crypto';
-
-/**
- * Computes hash.
- *
- * @param {string} context - The context value.
- * @param {string} participantID - The string value.
- * @param {Uint8Array} key1 - The first key.
- * @param {Uint8Array} key2 - The second key.
- * @param {number} index - The index.
- * @returns {Promise<string>} Computed hash.
- */
-async function computeHash(
-    context: string,
-    participantID: string,
-    key1: Uint8Array | string,
-    key2: Uint8Array | string,
-    index: number = -1,
-    keyCommitment: string = "NoKeyCommitment",
-): Promise<string> {
-    try {
-        const hasher = await createBLAKE3(HASH_LEN);
-        hasher.init();
-        hasher.update(context);
-        hasher.update(participantID);
-        hasher.update(key1);
-        hasher.update(key2);
-        hasher.update("index=" + index);
-        hasher.update(keyCommitment);
-
-        return hasher.digest();
-    } catch (error) {
-        return Promise.reject(
-            new Error(`E2E: Hash computation failed: ${error}`),
-        );
-    }
-}
+import { hash, deriveKey, MediaKeys, keystoreCrypto } from 'internxt-crypto';
 
 /**
  * Derives an AES encryption key from two keys.
  *
  * @param {Uint8Array} key1 - The first key.
  * @param {Uint8Array} key2 - The second key.
- * @returns {Promise<{ encryptionKey: CryptoKey; hash: Uint8Array }>} Derived key and hash.
+ * @returns {Promise<CryptoKey>} Derived key.
  */
 export async function deriveEncryptionKey(
     key1: Uint8Array,
     key2: Uint8Array,
 ): Promise<CryptoKey> {
-    try {
-        const keyBytes = await deriveKey.deriveSymmetricKeyFromTwoKeys(key1, key2, DERIVE_CONTEXT);
-        return await symmetric.importSymmetricCryptoKey(keyBytes);
-    } catch (error) {
-        return Promise.reject(
-            new Error(`E2E: Key derivation failed: ${error}`),
-        );
-    }
+    return await deriveKey.deriveSymmetricCryptoKeyFromTwoKeys(key1, key2, DERIVE_CONTEXT);
 }
 
 /**
@@ -77,42 +29,25 @@ export async function deriveEncryptionKey(
  * @returns {Promise<Uint8Array>} Ratched key.
  */
 export async function ratchetKey(keyBytes: Uint8Array): Promise<Uint8Array> {
-    try {
-        const hasher = await createBLAKE3(AES_KEY_LEN, keyBytes);
-        hasher.init();
-        hasher.update(RATCHET_CONTEXT);
-        return hasher.digest("binary");
-    } catch (error) {
-        return Promise.reject(new Error(`E2E: Ratchet failed: ${error}`));
-    }
+    return await deriveKey.deriveSymmetricKeyFromContext(RATCHET_CONTEXT, keyBytes);
 }
 
 
 export async function commitToMediaKeyShares(
-    participantID: string,
-    key: MediaKey,
+    key: MediaKeys,
 ): Promise<string> {
-    return computeHash(
-        MEDIA_KEY_COMMITMENT_PREFIX,
-        participantID,
-        key.olmKey,
-        key.pqKey,
-        key.index,
-    );
+    return hash.comitToMediaKey(key);
 }
 
 export async function hashKeysOfParticipant(
-    participantID: string,
-    key: MediaKey,
+    key: MediaKeys,
     keyCommitment: string,
 ): Promise<string> {
-    return computeHash(
+    const keyBase64 = await keystoreCrypto.mediaKeysToBase64(key);
+    return hash.hashData([
         KEY_HASH_PREFIX,
-        participantID,
-        key.olmKey,
-        key.pqKey,
-        key.index,
-        keyCommitment,
+        keyBase64,
+        keyCommitment]
     );
 }
 
@@ -128,12 +63,11 @@ export async function commitToIdentityKeys(
     publicKyberKey: string,
     publicKey: string,
 ): Promise<string> {
-    return computeHash(
+    return await hash.hashData([
         IDENTITY_KEYS_PREFIX,
         participantID,
         publicKyberKey,
-        publicKey,
-    );
+        publicKey]);
 }
 /**
  * Generates a SAS composed of emojies.
@@ -143,10 +77,7 @@ export async function commitToIdentityKeys(
  * @returns {Promise<string[][]>} The SAS emojies.
  */
 export async function generateEmojiSas(data: string): Promise<string[][]> {
-    const hasher = await createBLAKE3(SAS_LEN);
-    hasher.init();
-    hasher.update(data);
-    const sasBytes = hasher.digest("binary");
+    const sasBytes =  await hash.getBitsFromString(SAS_LEN, data);
     // Just like base64.
     const emojis = [
         sasBytes[0] >> 2,

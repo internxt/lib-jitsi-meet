@@ -5,7 +5,6 @@ import {
     ProtocolStatus,
     NORMAL_MESSAGE,
     KeyInfo,
-    MediaKey,
     PREKEY_MESSAGE,
 } from "./Types";
 
@@ -15,22 +14,23 @@ import {
     encapsulateSecret,
 } from "./crypto-utils";
 import { deriveEncryptionKey, commitToMediaKeyShares } from "./crypto-workers";
+import { MediaKeys } from "internxt-crypto";
 
 export class SessionData {
     private status: ProtocolStatus;
     private commitment: string;
-    private keyToSend: MediaKey;
+    private keyToSend: MediaKeys;
     private session: Session;
     private pqSessionKey: CryptoKey;
     private kemSecret: Uint8Array;
 
-    constructor(key: MediaKey) {
+    constructor(key: MediaKeys) {
         this.status = PROTOCOL_STATUS.READY_TO_START;
         this.session = null as any;
         this.pqSessionKey = null as any;
         this.keyToSend = key;
     }
-    indexChanged(key: MediaKey): boolean {
+    indexChanged(key: MediaKeys): boolean {
         return this.keyToSend.index !== key.index;
     }
 
@@ -79,8 +79,8 @@ export class SessionData {
                 `Protocol status is ${this.status} but expected ${status}.`,
             );
     }
-    async validateCommitment(id: string, key: MediaKey) {
-        const commitment = await commitToMediaKeyShares(id, key);
+    async validateCommitment(key: MediaKeys) {
+        const commitment = await commitToMediaKeyShares(key);
         if (this.commitment !== commitment)
             throw new Error(`Keys do not match the commitment.`);
     }
@@ -105,14 +105,15 @@ export class SessionData {
             olmKey: new Uint8Array(),
             pqKey: new Uint8Array(),
             index: -1,
+            userID: '',
         };
     }
 
     async keyCommitment(id: string): Promise<string> {
-        return commitToMediaKeyShares(id, this.keyToSend);
+        return commitToMediaKeyShares(this.keyToSend);
     }
 
-    async createKeyInfoMessage(key: MediaKey): Promise<KeyInfo> {
+    async createKeyInfoMessage(key: MediaKeys): Promise<KeyInfo> {
         const ciphertext = this.encryptGivenKeyInfo(key.olmKey, key.index);
         const pqCiphertext = await encryptKeyInfoPQ(
             this.pqSessionKey,
@@ -145,9 +146,10 @@ export class SessionData {
     }
 
     async decryptKeys(
+        pId: string,
         ciphertext: string,
         pqCiphertext: string,
-    ): Promise<MediaKey> {
+    ): Promise<MediaKeys> {
         const result = this.session.decrypt(NORMAL_MESSAGE, ciphertext);
         const index = result[result.length - 1];
         const key = result.slice(0, -1);
@@ -156,6 +158,7 @@ export class SessionData {
             olmKey: key,
             pqKey,
             index,
+            userID: pId
         };
         return mediaKey;
     }

@@ -48,12 +48,6 @@ export interface CustomRTCRtpSender extends RTCRtpSender {
     transform: RTCRtpScriptTransform;
 }
 
-export type MediaKey = {
-    olmKey: Uint8Array;
-    pqKey: Uint8Array;
-    index: number;
-};
-
 export type ReplyMessage =
     | KeyInfo
     | SessionInit
