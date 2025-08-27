@@ -1,5 +1,5 @@
 import kemBuilder from "@dashlane/pqc-kem-kyber512-browser";
-import * as base64js from "base64-js";
+import { utils } from 'internxt-crypto';
 import { encryptData, decryptData } from "./crypto-workers";
 import { IV_LENGTH, MEDIA_KEY_LEN, AUX } from "./Constants";
 
@@ -20,7 +20,7 @@ export async function generateKyberKeys(): Promise<{
     try {
         const kem = await kemBuilder();
         const { publicKey, privateKey } = await kem.keypair();
-        const publicKeyBase64 = base64js.fromByteArray(publicKey);
+        const publicKeyBase64 = utils.uint8ArrayToBase64(publicKey);
         return { publicKeyBase64, privateKey };
     } catch (error) {
         return Promise.reject(getError("generateKyberKeys", error));
@@ -44,11 +44,11 @@ export async function encapsulateSecret(publicKyberKeyBase64: string): Promise<{
         }
         const kem = await kemBuilder();
         const participantEncapsulationKey: Uint8Array =
-            base64js.toByteArray(publicKyberKeyBase64);
+            utils.base64ToUint8Array(publicKyberKeyBase64);
         const { ciphertext, sharedSecret } = await kem.encapsulate(
             participantEncapsulationKey,
         );
-        const kyberCiphertext = base64js.fromByteArray(ciphertext);
+        const kyberCiphertext = utils.uint8ArrayToBase64(ciphertext);
 
         return { encapsulatedBase64: kyberCiphertext, sharedSecret };
     } catch (error) {
@@ -77,7 +77,7 @@ export async function decapsulateSecret(
         }
 
         const kem = await kemBuilder();
-        const pqCiphertext: Uint8Array = base64js.toByteArray(ciphertextBase64);
+        const pqCiphertext: Uint8Array = utils.base64ToUint8Array(ciphertextBase64);
         const { sharedSecret } = await kem.decapsulate(
             pqCiphertext,
             privateKey,
@@ -109,7 +109,7 @@ export async function decryptKeyInfoPQ(
             throw new Error("No key");
         }
 
-        const ciphertext = base64js.toByteArray(ciphertextBase64);
+        const ciphertext = utils.base64ToUint8Array(ciphertextBase64);
         const iv = ciphertext.slice(0, IV_LENGTH);
         const cipher = ciphertext.slice(IV_LENGTH);
         const plaintext = await decryptData(iv, AUX, key, cipher);
@@ -148,7 +148,7 @@ export async function encryptKeyInfoPQ(
         result.set(iv, 0);
         result.set(ciphertext, IV_LENGTH);
 
-        const resultBase64 = base64js.fromByteArray(result);
+        const resultBase64 = utils.uint8ArrayToBase64(result);
 
         return resultBase64;
     } catch (error) {
