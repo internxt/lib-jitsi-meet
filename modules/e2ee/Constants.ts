@@ -1,6 +1,5 @@
 export const REQ_TIMEOUT = 20 * 1000;
 export const IV_LENGTH = 16;
-export const AES = "AES-GCM";
 export const AES_KEY_LEN = 256;
 export const MEDIA_KEY_LEN = AES_KEY_LEN/8;
 export const HASH_LEN = 256;

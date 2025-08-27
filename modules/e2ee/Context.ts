@@ -8,6 +8,7 @@ import {
     logInfo,
 } from "./crypto-workers";
 import { KEYRING_SIZE, UNENCRYPTED_BYTES_NUMBER, IV_LENGTH } from "./Constants";
+import { MediaKey } from "./Types";
 
 let printEncStart = true;
 
@@ -17,27 +18,23 @@ let printEncStart = true;
 export class Context {
     private readonly id: string;
     private encryptionKey: CryptoKey;
-    private olmKey: Uint8Array;
-    private pqKey: Uint8Array;
-    private index: number;
+    private key: MediaKey;
     private hash: string;
     private commitment: string;
 
     constructor(id: string) {
         this.encryptionKey = null as any;
-        this.olmKey = new Uint8Array();
-        this.pqKey = new Uint8Array();
+        this.key = { olmKey: new Uint8Array(), pqKey: new Uint8Array(), index: -1};
         this.id = id;
         this.commitment = "";
         this.hash = "";
-        this.index = -1;
     }
 
     async ratchetKeys() {
-        const currentIndex = this.index;
+        const currentIndex = this.key.index;
         if (currentIndex >= 0) {
-            const newMaterialOlm = await ratchetKey(this.olmKey);
-            const newMaterialPQ = await ratchetKey(this.pqKey);
+            const newMaterialOlm = await ratchetKey(this.key.olmKey);
+            const newMaterialPQ = await ratchetKey(this.key.pqKey);
             logInfo(`Ratchet keys of participant ${this.id}`);
             this.setKey(newMaterialOlm, newMaterialPQ, currentIndex + 1);
         }
@@ -58,19 +55,15 @@ export class Context {
      * @param {number} index The keys index.
      */
     async setKey(olmKey: Uint8Array, pqKey: Uint8Array, index: number) {
-        this.olmKey = olmKey;
-        this.pqKey = pqKey;
-        this.encryptionKey = await deriveEncryptionKey(this.olmKey, pqKey);
-        this.index = index % KEYRING_SIZE;
+        this.key = {olmKey, pqKey, index:  index % KEYRING_SIZE};
+        this.encryptionKey = await deriveEncryptionKey(this.key.olmKey, pqKey);
         this.hash = await hashKeysOfParticipant(
             this.id,
-            this.olmKey,
-            this.pqKey,
-            this.index,
+            this.key,
             this.commitment,
         );
         logInfo(
-            `Set keys for ${this.id}, index is ${this.index} and hash is ${this.hash}`,
+            `Set keys for ${this.id}, index is ${this.key.index} and hash is ${this.hash}`,
         );
     }
 
@@ -85,7 +78,7 @@ export class Context {
         encodedFrame: RTCEncodedVideoFrame | RTCEncodedAudioFrame,
         controller: TransformStreamDefaultController,
     ) {
-        if (this.index >= 0) {
+        if (this.key.index >= 0) {
             const encryptedFrame = await this._encryptFrame(encodedFrame);
 
             if (encryptedFrame) {
@@ -120,7 +113,7 @@ export class Context {
         encodedFrame: RTCEncodedVideoFrame | RTCEncodedAudioFrame,
     ) {
         const key: CryptoKey = this.encryptionKey;
-        const keyIndex = this.index;
+        const keyIndex = this.key.index;
         try {
             // Thіs is not encrypted and contains the VP8 payload descriptor or the Opus TOC byte.
             const frameHeader = new Uint8Array(
@@ -191,7 +184,7 @@ export class Context {
     ) {
         const data = new Uint8Array(encodedFrame.data);
         const keyIndex = data[encodedFrame.data.byteLength - 1];
-        if (keyIndex === this.index) {
+        if (keyIndex === this.key.index) {
             const decodedFrame = await this._decryptFrame(encodedFrame);
 
             if (decodedFrame) {

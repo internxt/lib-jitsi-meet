@@ -11,7 +11,7 @@ import {
 } from "./Constants";
 import { emojiMapping } from "./SAS";
 import { MediaKey } from "./Types";
-import { symmetric } from 'internxt-crypto';
+import { symmetric, deriveKey } from 'internxt-crypto';
 
 /**
  * Computes hash.
@@ -61,12 +61,7 @@ export async function deriveEncryptionKey(
     key2: Uint8Array,
 ): Promise<CryptoKey> {
     try {
-        const hasher = await createBLAKE3(HASH_LEN, key1);
-        hasher.init();
-        hasher.update(DERIVE_CONTEXT);
-        hasher.update(key2);
-        const keyBytes = hasher.digest("binary");
-
+        const keyBytes = await deriveKey.deriveSymmetricKeyFromTwoKeys(key1, key2, DERIVE_CONTEXT);
         return await symmetric.importSymmetricCryptoKey(keyBytes);
     } catch (error) {
         return Promise.reject(
@@ -142,17 +137,15 @@ export async function commitToMediaKeyShares(
 
 export async function hashKeysOfParticipant(
     participantID: string,
-    keyOlm: Uint8Array,
-    keyPQ: Uint8Array,
-    index: number,
+    key: MediaKey,
     keyCommitment: string,
 ): Promise<string> {
     return computeHash(
         KEY_HASH_PREFIX,
         participantID,
-        keyOlm,
-        keyPQ,
-        index,
+        key.olmKey,
+        key.pqKey,
+        key.index,
         keyCommitment,
     );
 }
