@@ -1,5 +1,5 @@
 import initVodozemac, { Account } from "vodozemac-wasm";
-import { ratchetKey, commitToIdentityKeys } from "./crypto-workers";
+import { ratchetKey } from "./crypto-workers";
 import {
     PROTOCOL_STATUS,
     KeyInfo,
@@ -25,7 +25,6 @@ export class OlmAdapter {
     private _privateKyberKey: Uint8Array;
     private _olmAccount: Account;
     private _publicCurve25519Key: string;
-    private _indenityKeyCommitment: string;
     private readonly _olmDataMap: Map<string, SessionData>;
 
     constructor(id: string) {
@@ -39,7 +38,6 @@ export class OlmAdapter {
         this._publicKyberKeyBase64 = "";
         this._privateKyberKey = new Uint8Array();
         this._publicCurve25519Key = "";
-        this._indenityKeyCommitment = "";
         this._olmDataMap = new Map<string, SessionData>();
     }
 
@@ -52,20 +50,15 @@ export class OlmAdapter {
         }
     }
 
-    async getMyIdentityKeysCommitment(): Promise<string> {
-        this._olmAccount = new Account();
+    async genMyPublicKeys(): Promise<{pkKyber: string, pk: string}> {
+            this._olmAccount = new Account();
             this._publicCurve25519Key = this._olmAccount.curve25519_key;
 
-            const { publicKey, secretKey } = pq.kyber512.generateKyberKeys();
+            const { publicKey, secretKey } = pq.generateKyberKeys();
             const publicKeyBase64 = utils.uint8ArrayToBase64(publicKey);
             this._publicKyberKeyBase64 = publicKeyBase64;
             this._privateKyberKey = secretKey;
-            this._indenityKeyCommitment = await commitToIdentityKeys(
-                this._myId,
-                this._publicKyberKeyBase64,
-                this._publicCurve25519Key,
-            );
-        return this._indenityKeyCommitment;
+        return {pkKyber: publicKeyBase64, pk: this._publicCurve25519Key};
     }
 
     generateOneTimeKeys(size: number): string[] {
@@ -167,16 +160,10 @@ export class OlmAdapter {
         publicKey: string,
         publicKyberKey: string,
         commitment: string,
-    ): Promise<{ data: PQsessionInit; keyCommitment: string }> {
+    ): Promise<PQsessionInit> {
         try {
             const olmData = this._getParticipantOlmData(pId);
             olmData.validateStatus(PROTOCOL_STATUS.READY_TO_START);
-
-            const keyCommitment = await commitToIdentityKeys(
-                pId,
-                publicKyberKey,
-                publicKey,
-            );
 
             olmData.createOutboundOLMchannel(
                 this._olmAccount,
@@ -187,7 +174,7 @@ export class OlmAdapter {
 
             const encapsulatedBase64 =
                  olmData.encapsulate(publicKyberKey);
-            const commitmentToKeys = await olmData.keyCommitment(this._myId);
+            const commitmentToKeys = await olmData.keyCommitment();
 
             const ciphertext = olmData.encryptKeyCommitment(commitmentToKeys);
 
@@ -199,7 +186,7 @@ export class OlmAdapter {
             };
 
             olmData.setStatus(PROTOCOL_STATUS.WAITING_PQ_SESSION_ACK);
-            return { data, keyCommitment };
+            return data;
         } catch (error) {
             throw getError("createPQsessionInitMessage", error);
         }
@@ -211,16 +198,10 @@ export class OlmAdapter {
         publicKey: string,
         publicKyberKey: string,
         ciphertext: string,
-    ): Promise<{ data: PQsessionAck; keyCommitment: string }> {
+    ): Promise<PQsessionAck> {
         try {
             const olmData = this._getParticipantOlmData(pId);
             olmData.validateStatus(PROTOCOL_STATUS.WAITING_PQ_SESSION_INIT);
-
-            const keyCommitment = await commitToIdentityKeys(
-                pId,
-                publicKyberKey,
-                publicKey,
-            );
 
             olmData.createInboundOLMchannel(
                 this._olmAccount,
@@ -229,14 +210,14 @@ export class OlmAdapter {
             );
 
             const decapsArray = utils.base64ToUint8Array(encapsKyber);
-             const decapsulatedSecret = pq.kyber512.decapsulateKyber(
+             const decapsulatedSecret = pq.decapsulateKyber(
             decapsArray,
             this._privateKyberKey,
         );
 
              const publicKeyArray = utils.base64ToUint8Array(publicKyberKey);
         const { cipherText, sharedSecret } =
-            pq.kyber512.encapsulateKyber(publicKeyArray);
+            pq.encapsulateKyber(publicKeyArray);
         const encapsulatedBase64 = utils.uint8ArrayToBase64(cipherText);
 
             await olmData.deriveSharedPQkey(sharedSecret, decapsulatedSecret);
@@ -251,7 +232,7 @@ export class OlmAdapter {
             };
 
             olmData.setStatus(PROTOCOL_STATUS.WAITING_SESSION_ACK);
-            return { data, keyCommitment };
+            return data;
         } catch (error) {
             throw getError("createPQsessionAckMessage", error);
         }
@@ -271,7 +252,7 @@ export class OlmAdapter {
             olmData.validateStatus(PROTOCOL_STATUS.WAITING_PQ_SESSION_ACK);
 
              const decapsArray = utils.base64ToUint8Array(encapsKyber);
-             const decapsulatedSecret = pq.kyber512.decapsulateKyber(
+             const decapsulatedSecret = pq.decapsulateKyber(
             decapsArray,
             this._privateKyberKey,
         );
@@ -367,7 +348,7 @@ export class OlmAdapter {
             const olmData = this._getParticipantOlmData(pId);
             olmData.validateStatus(PROTOCOL_STATUS.READY_TO_START);
 
-            const commitment = await olmData.keyCommitment(this._myId);
+            const commitment = await olmData.keyCommitment();
             const data: SessionInit = {
                 otKey,
                 publicKey: this._publicCurve25519Key,

@@ -39,8 +39,8 @@ describe("Test E2E:", () => {
         async () => {
             const context1 = new E2EEContext();
             const context2 = new E2EEContext();
-            context1.setKeysCommitment("participant1", "commitment1");
-            context2.setKeysCommitment("participant2", "commitment2");
+            context1.setKeysCommitment("participant1", "pk1", "pkKyber1");
+            context2.setKeysCommitment("participant2", "pk2", "pkKyber2");
 
             const contextSpy1 = spy(context1);
             const contextSpy2 = spy(context2);

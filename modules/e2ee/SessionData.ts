@@ -56,10 +56,9 @@ export class SessionData {
     encapsulate(publicKyberKey: string): string {
         const publicKey = utils.base64ToUint8Array(publicKyberKey);
         const { cipherText, sharedSecret } =
-            pq.kyber512.encapsulateKyber(publicKey);
+            pq.encapsulateKyber(publicKey);
         this.kemSecret = sharedSecret;
-        const encapsulatedBase64 = utils.uint8ArrayToBase64(cipherText);
-        return encapsulatedBase64;
+        return utils.uint8ArrayToBase64(cipherText);
     }
 
     isDone(): boolean {
@@ -89,7 +88,6 @@ export class SessionData {
         this.status = PROTOCOL_STATUS.TERMINATED;
         if (this.session) {
             this.session.free();
-            this.session = undefined;
         }
     }
 
@@ -105,7 +103,7 @@ export class SessionData {
         };
     }
 
-    async keyCommitment(id: string): Promise<string> {
+    async keyCommitment(): Promise<string> {
         return hash.comitToMediaKey(this.keyToSend);
     }
 
@@ -113,11 +111,10 @@ export class SessionData {
         const ciphertext = this.encryptGivenKeyInfo(key.olmKey, key.index);
         const result = await symmetric.encryptSymmetrically(this.pqSessionKey, key.pqKey, "KeyInfoPQ");
         const pqCiphertext = symmetric.ciphertextToBase64(result);
-        const data: KeyInfo = {
+        return {
             ciphertext,
             pqCiphertext,
         };
-        return data;
     }
 
     encryptKeyCommitment(commitmentToKeys: string): string {

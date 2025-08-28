@@ -1,11 +1,8 @@
 import {
-    SAS_LEN,
     RATCHET_CONTEXT,
-    IDENTITY_KEYS_PREFIX,
-    KEY_HASH_PREFIX,
 } from "./Constants";
 import { emojiMapping } from "./SAS";
-import { hash, deriveKey, MediaKeys } from 'internxt-crypto';
+import { hash, deriveKey } from 'internxt-crypto';
 
 /**
  * Ratchets a key.
@@ -17,24 +14,7 @@ export async function ratchetKey(keyBytes: Uint8Array): Promise<Uint8Array> {
     return await deriveKey.deriveSymmetricKeyFromContext(RATCHET_CONTEXT, keyBytes);
 }
 
-/**
- * Computes commitment to two strings.
- *
- * @param {string} value1 - The first value.
- * @param {string} value2 - The second value.
- * @returns {Promise<string>} Computed commitment.
- */
-export async function commitToIdentityKeys(
-    participantID: string,
-    publicKyberKey: string,
-    publicKey: string,
-): Promise<string> {
-    return await hash.hashData([
-        IDENTITY_KEYS_PREFIX,
-        participantID,
-        publicKyberKey,
-        publicKey]);
-}
+
 /**
  * Generates a SAS composed of emojies.
  * Borrowed from the Matrix JS SDK.
@@ -43,7 +23,7 @@ export async function commitToIdentityKeys(
  * @returns {Promise<string[][]>} The SAS emojies.
  */
 export async function generateEmojiSas(data: string): Promise<string[][]> {
-    const sasBytes =  await hash.getBitsFromString(SAS_LEN, data);
+    const sasBytes =  await hash.getBitsFromString(48, data);
     // Just like base64.
     const emojis = [
         sasBytes[0] >> 2,

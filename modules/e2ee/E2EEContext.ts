@@ -144,10 +144,11 @@ export default class E2EEcontext extends Listenable {
         });
     }
 
-    setKeysCommitment(participantId: string, commitment: string) {
+    setKeysCommitment(participantId: string, pk: string, pkKyber: string) {
         this._worker.postMessage({
             operation: "setKeysCommitment",
-            commitment,
+            pk,
+            pkKyber,
             participantId,
         });
     }

@@ -94,11 +94,11 @@ export function setupWorker(self: {
                 }
 
                 case "setKeysCommitment": {
-                    const { participantId, commitment } = event.data;
+                    const { participantId, pk, pkKyber } = event.data;
                     const context =
                         this.createParticipantContext(participantId);
                     if (!context) break;
-                    await context.setKeyCommitment(commitment);
+                    await context.setKeyCommitment(pk, pkKyber);
                     break;
                 }
 

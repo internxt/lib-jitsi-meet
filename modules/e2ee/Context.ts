@@ -36,8 +36,8 @@ export class Context {
         }
     }
 
-    async setKeyCommitment(commitment: string) {
-        this.commitment = commitment;
+    async setKeyCommitment(pk: string, pkKyber: string) {
+        this.commitment = await hash.hashData(["identity keys", this.id, pk, pkKyber]);
     }
 
     getHash() {
@@ -55,6 +55,7 @@ export class Context {
         this.encryptionKey = await deriveKey.deriveSymmetricCryptoKeyFromTwoKeys(this.key.olmKey, pqKey);
          const keyBase64 = await hash.comitToMediaKey(this.key);
     this.hash = await hash.hashData([
+        "participant keys",
         keyBase64,
         this.commitment]
     );

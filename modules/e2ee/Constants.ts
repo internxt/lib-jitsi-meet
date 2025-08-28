@@ -14,11 +14,6 @@ export const KEYRING_SIZE = 16;
 //   https://tools.ietf.org/html/rfc6716#section-3.1
 export const UNENCRYPTED_BYTES_NUMBER = 1;
 
-export const SAS_LEN = 48;
 
 export const RATCHET_CONTEXT =
     "LIB-JITSI-MEET; E2E with Kyber; 2025-04-04; Ratchet AES Encryption Key";
-export const KEY_HASH_PREFIX =
-    "LIB-JITSI-MEET; E2E with Kyber; 2025-04-04; Hash current encryption keys of the participant";
-export const IDENTITY_KEYS_PREFIX =
-    "LIB-JITSI-MEET; E2E with Kyber; 2025-04-04; Hash identity keys of the participant";

@@ -192,15 +192,19 @@ export class ManagedKeyHandler extends Listenable {
         }
     }
 
+    updateMyKeys(){
+        const { olmKey, pqKey, index } = this._olmAdapter.updateMyKeys();
+        this.setKey(olmKey, pqKey, index);
+    }
+
     /**
      * Enables End-To-End encryption.
      */
     async enableE2E() {
         const localParticipantId = this.conference.myUserId();
-        const keyCommitment = await this._olmAdapter.getMyIdentityKeysCommitment();
-        this.e2eeCtx.setKeysCommitment(localParticipantId, keyCommitment);
-        const { olmKey, pqKey, index } = this._olmAdapter.updateMyKeys();
-        this.setKey(olmKey, pqKey, index);
+        const {pkKyber, pk} = await this._olmAdapter.genMyPublicKeys();
+        this.e2eeCtx.setKeysCommitment(localParticipantId, pk, pkKyber);
+        this.updateMyKeys();
 
         const participants = this.conference.getParticipants();
         const list = participants.filter(
@@ -371,8 +375,7 @@ export class ManagedKeyHandler extends Listenable {
             }
             await this.initSessions;
             this.e2eeCtx.cleanup(id);
-            const { olmKey, pqKey, index } = this._olmAdapter.updateMyKeys();
-            this.setKey(olmKey, pqKey, index);
+            this.updateMyKeys();
             const participants = this.conference.getParticipants();
             for (const participant of participants) {
                 const pId = participant.getId();
@@ -415,7 +418,7 @@ export class ManagedKeyHandler extends Listenable {
                 case OLM_MESSAGE_TYPES.SESSION_INIT: {
                     const { otKey, publicKey, publicKyberKey, commitment } =
                         msg.data;
-                    const { data, keyCommitment } =
+                    const  data  =
                         await this._olmAdapter.createPQsessionInitMessage(
                             pId,
                             otKey,
@@ -423,7 +426,7 @@ export class ManagedKeyHandler extends Listenable {
                             publicKyberKey,
                             commitment,
                         );
-                    this.e2eeCtx.setKeysCommitment(pId, keyCommitment);
+                    this.e2eeCtx.setKeysCommitment(pId, publicKey, publicKyberKey);
                     this._sendMessage(
                         OLM_MESSAGE_TYPES.PQ_SESSION_INIT,
                         data,
@@ -439,7 +442,7 @@ export class ManagedKeyHandler extends Listenable {
                         publicKyberKey,
                         ciphertext,
                     } = msg.data;
-                    const { data, keyCommitment } =
+                    const data  =
                         await this._olmAdapter.createPQsessionAckMessage(
                             pId,
                             encapsKyber,
@@ -447,7 +450,8 @@ export class ManagedKeyHandler extends Listenable {
                             publicKyberKey,
                             ciphertext,
                         );
-                    this.e2eeCtx.setKeysCommitment(pId, keyCommitment);
+                    this.e2eeCtx.setKeysCommitment(pId,  publicKey,
+                        publicKyberKey);
                     this._sendMessage(
                         OLM_MESSAGE_TYPES.PQ_SESSION_ACK,
                         data,
