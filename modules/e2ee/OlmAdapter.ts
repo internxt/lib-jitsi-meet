@@ -17,7 +17,6 @@ function getError(method: string, error: any): Error {
 }
 
 export class OlmAdapter {
-    private readonly _myId: string;
     private _mediaKey: MediaKeys;
 
     private _publicKyberKeyBase64: string;
@@ -27,7 +26,6 @@ export class OlmAdapter {
     private readonly _olmDataMap: Map<string, SessionData>;
 
     constructor(id: string) {
-        this._myId = id;
         this._mediaKey = {
             olmKey: new Uint8Array(),
             pqKey: new Uint8Array(),
