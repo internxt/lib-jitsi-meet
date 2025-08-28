@@ -1,5 +1,5 @@
 import {
-    ratchetKey,
+    ratchetMediaKey,
     logError,
     logInfo,
 } from "./crypto-workers";
@@ -27,12 +27,10 @@ export class Context {
     }
 
     async ratchetKeys() {
-        const currentIndex = this.key.index;
-        if (currentIndex >= 0) {
-            const newMaterialOlm = await ratchetKey(this.key.olmKey);
-            const newMaterialPQ = await ratchetKey(this.key.pqKey);
+        if (this.key.index >= 0) {
+            const {pqKey, olmKey, index} = await ratchetMediaKey(this.key);
             logInfo(`Ratchet keys of participant ${this.id}`);
-            this.setKey(newMaterialOlm, newMaterialPQ, currentIndex + 1);
+            this.setKey(olmKey, pqKey, index);
         }
     }
 

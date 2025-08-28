@@ -2,16 +2,20 @@ import {
     RATCHET_CONTEXT,
 } from "./Constants";
 import { emojiMapping } from "./SAS";
-import { hash, deriveKey } from 'internxt-crypto';
+import { hash, deriveKey, MediaKeys } from 'internxt-crypto';
 
 /**
  * Ratchets a key.
  *
- * @param {Uint8Array} keyBytes - The input key.
- * @returns {Promise<Uint8Array>} Ratched key.
+ * @param {MediaKeys} key - The input key.
+ * @returns {Promise<MediaKeys>} Ratched key.
  */
-export async function ratchetKey(keyBytes: Uint8Array): Promise<Uint8Array> {
-    return await deriveKey.deriveSymmetricKeyFromContext(RATCHET_CONTEXT, keyBytes);
+export async function ratchetMediaKey(key: MediaKeys): Promise<MediaKeys> {
+    const olmKey = await deriveKey.deriveSymmetricKeyFromContext(RATCHET_CONTEXT, key.olmKey);
+    const pqKey =  await deriveKey.deriveSymmetricKeyFromContext(RATCHET_CONTEXT, key.pqKey);
+    const index = key.index + 1;
+    const userID = key.userID;
+    return {olmKey, pqKey, index, userID};
 }
 
 

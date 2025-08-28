@@ -1,6 +1,6 @@
 /* eslint-disable no-bitwise */
 import { Context } from "../modules/e2ee/Context";
-import { ratchetKey } from "../modules/e2ee/crypto-workers";
+import { ratchetMediaKey } from "../modules/e2ee/crypto-workers";
 
 const audioBytes = [0xde, 0xad, 0xbe, 0xef];
 const videoBytes = [
@@ -146,11 +146,10 @@ describe("E2EE Context", () => {
 
             const encodeFunction = async () => {
                 // Ratchet the key for both
-                const newKey = await ratchetKey(key);
-                const newPQkey = await ratchetKey(pqKey);
+                const newKey = await ratchetMediaKey({olmKey: key, pqKey, index: 0, userID: 'id'});
 
-                await sender.setKey(newKey, newPQkey, 1);
-                await receiver.setKey(newKey, newPQkey, 1);
+                await sender.setKey(newKey.olmKey, newKey.pqKey, newKey.index);
+                await receiver.setKey(newKey.olmKey, newKey.pqKey, newKey.index);
                 sender.encodeFunction(makeAudioFrame(), sendController);
             };
 

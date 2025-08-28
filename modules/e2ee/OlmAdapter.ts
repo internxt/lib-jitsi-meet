@@ -1,5 +1,5 @@
 import initVodozemac, { Account } from "vodozemac-wasm";
-import { ratchetKey } from "./crypto-workers";
+import { ratchetMediaKey } from "./crypto-workers";
 import {
     PROTOCOL_STATUS,
     KeyInfo,
@@ -75,12 +75,7 @@ export class OlmAdapter {
 
     async ratchetMyKeys(): Promise<MediaKeys> {
         try {
-            const newMediaKey = {
-                olmKey: await ratchetKey(this._mediaKey.olmKey),
-                pqKey: await ratchetKey(this._mediaKey.pqKey),
-                index: this._mediaKey.index + 1,
-                userID: this._mediaKey.userID,
-            };
+            const newMediaKey = await ratchetMediaKey(this._mediaKey);
             this._mediaKey = newMediaKey;
             return newMediaKey;
         } catch (error) {
@@ -117,7 +112,7 @@ export class OlmAdapter {
     ): Promise<KeyInfo | undefined> {
         try {
             const olmData = this._getParticipantOlmData(pId);
-            let data = undefined;
+            let data: KeyInfo | undefined = undefined;
 
             if (olmData.isDone()) {
                 data = await olmData.createKeyInfoMessage(this._mediaKey);
@@ -150,7 +145,6 @@ export class OlmAdapter {
     async clearMySession() {
         if (this._olmAccount) {
             this._olmAccount.free();
-            this._olmAccount = undefined;
         }
     }
 
@@ -293,7 +287,7 @@ export class OlmAdapter {
             const key = await olmData.decryptKeys(pId, ciphertext, pqCiphertext);
             await olmData.validateCommitment(key);
 
-            let data = undefined;
+            let data: KeyInfo | undefined = undefined;
             if (olmData.indexChanged(this._mediaKey)) {
                 data = await olmData.createKeyInfoMessage(this._mediaKey);
             }
@@ -310,7 +304,7 @@ export class OlmAdapter {
             const olmData = this._getParticipantOlmData(pId);
             olmData.validateStatus(PROTOCOL_STATUS.WAITING_DONE);
 
-            let data = undefined;
+            let data: KeyInfo | undefined = undefined;
             if (olmData.indexChanged(this._mediaKey)) {
                 data = await olmData.createKeyInfoMessage(this._mediaKey);
             }
