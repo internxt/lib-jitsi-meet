@@ -197,7 +197,7 @@ export class ManagedKeyHandler extends Listenable {
      */
     async enableE2E() {
         const localParticipantId = this.conference.myUserId();
-        const keyCommitment = this._olmAdapter.getMyIdentityKeysCommitment();
+        const keyCommitment = await this._olmAdapter.getMyIdentityKeysCommitment();
         this.e2eeCtx.setKeysCommitment(localParticipantId, keyCommitment);
         const { olmKey, pqKey, index } = this._olmAdapter.updateMyKeys();
         this.setKey(olmKey, pqKey, index);

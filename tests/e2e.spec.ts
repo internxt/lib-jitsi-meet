@@ -11,7 +11,6 @@ import {
     delay,
 } from "./mocks.ts";
 
-import initKyber from "@dashlane/pqc-kem-kyber512-browser/dist/pqc-kem-kyber512.js";
 import initOlm from "vodozemac-wasm/javascript/pkg/vodozemac.js";
 
 const TEST_TIMEOUT = 1000;
@@ -29,9 +28,6 @@ type UserData = {
 
 describe("Test E2E:", () => {
     beforeEach(async () => {
-        const kyberPath =
-            "/base/node_modules/@dashlane/pqc-kem-kyber512-browser/dist/pqc-kem-kyber512.wasm";
-        await initKyber(kyberPath);
         const wasmPath =
             "/base/node_modules/vodozemac-wasm/javascript/pkg/vodozemac_bg.wasm";
         await initOlm(wasmPath);

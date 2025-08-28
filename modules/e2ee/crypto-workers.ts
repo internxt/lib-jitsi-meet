@@ -5,7 +5,7 @@ import {
     KEY_HASH_PREFIX,
 } from "./Constants";
 import { emojiMapping } from "./SAS";
-import { hash, deriveKey, MediaKeys, keystoreCrypto } from 'internxt-crypto';
+import { hash, deriveKey, MediaKeys } from 'internxt-crypto';
 
 /**
  * Ratchets a key.
@@ -15,18 +15,6 @@ import { hash, deriveKey, MediaKeys, keystoreCrypto } from 'internxt-crypto';
  */
 export async function ratchetKey(keyBytes: Uint8Array): Promise<Uint8Array> {
     return await deriveKey.deriveSymmetricKeyFromContext(RATCHET_CONTEXT, keyBytes);
-}
-
-export async function hashKeysOfParticipant(
-    key: MediaKeys,
-    keyCommitment: string,
-): Promise<string> {
-    const keyBase64 = await keystoreCrypto.mediaKeysToBase64(key);
-    return hash.hashData([
-        KEY_HASH_PREFIX,
-        keyBase64,
-        keyCommitment]
-    );
 }
 
 /**

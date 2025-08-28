@@ -56,15 +56,6 @@ module.exports = (minimize, analyzeBundle) => {
                 }
             },
             {
-            // Fix pqc-kem-kyber512-browser dependency webpack.config.kem.babel.js
-                loader: 'string-replace-loader',
-                options: {
-                    search: 'import.meta.url',
-                    replace: '\'/libs/\'',
-                    flags: 'g'
-                },
-                test: /pqc-kem-kyber512-browser/
-            }, {
                 // Transpile ES2015 (aka ES6) to ES5.
 
                 loader: 'babel-loader',

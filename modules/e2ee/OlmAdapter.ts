@@ -1,8 +1,4 @@
 import initVodozemac, { Account } from "vodozemac-wasm";
-import {
-    generateKyberKeys,
-    getError,
-} from "./crypto-utils";
 import { ratchetKey, commitToIdentityKeys } from "./crypto-workers";
 import {
     PROTOCOL_STATUS,
@@ -15,6 +11,11 @@ import {
 
 import { SessionData } from "./SessionData";
 import { MediaKeys, symmetric, utils, pq } from "internxt-crypto";
+
+function getError(method: string, error: any): Error {
+    const errorMessage = `E2E: Function ${method} failed: ${error}`;
+    return new Error(errorMessage);
+}
 
 export class OlmAdapter {
     private readonly _myId: string;
@@ -45,24 +46,25 @@ export class OlmAdapter {
     async init() {
         try {
             await initVodozemac();
+            await new Promise(resolve => setTimeout(resolve, 50));
+        } catch (error) {
+            throw getError("init", error);
+        }
+    }
 
-            this._olmAccount = new Account();
+    async getMyIdentityKeysCommitment(): Promise<string> {
+        this._olmAccount = new Account();
             this._publicCurve25519Key = this._olmAccount.curve25519_key;
 
-            const { publicKeyBase64, privateKey } = await generateKyberKeys();
+            const { publicKey, secretKey } = pq.kyber512.generateKyberKeys();
+            const publicKeyBase64 = utils.uint8ArrayToBase64(publicKey);
             this._publicKyberKeyBase64 = publicKeyBase64;
-            this._privateKyberKey = privateKey;
+            this._privateKyberKey = secretKey;
             this._indenityKeyCommitment = await commitToIdentityKeys(
                 this._myId,
                 this._publicKyberKeyBase64,
                 this._publicCurve25519Key,
             );
-        } catch (error) {
-            throw getError("ínit", error);
-        }
-    }
-
-    getMyIdentityKeysCommitment(): string {
         return this._indenityKeyCommitment;
     }
 
