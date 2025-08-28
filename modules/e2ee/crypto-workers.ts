@@ -1,8 +1,9 @@
-import {
-    RATCHET_CONTEXT,
-} from "./Constants";
 import { emojiMapping } from "./SAS";
 import { hash, deriveKey, MediaKeys } from 'internxt-crypto';
+
+export const RATCHET_CONTEXT =
+    "LIB-JITSI-MEET; E2E with Kyber; 2025-04-04; Ratchet AES Encryption Key";
+
 
 /**
  * Ratchets a key.

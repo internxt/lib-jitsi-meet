@@ -3,8 +3,21 @@ import {
     logError,
     logInfo,
 } from "./crypto-workers";
-import { KEYRING_SIZE, UNENCRYPTED_BYTES_NUMBER, IV_LENGTH } from "./Constants";
 import { symmetric, MediaKeys, deriveKey, hash } from 'internxt-crypto';
+
+// We copy the first bytes of the VP8 payload unencrypted.
+// This allows the bridge to continue detecting keyframes (only one byte needed in the JVB)
+//    https://tools.ietf.org/html/rfc6386#section-9.1
+//
+// For audio (where frame.type is not set) we do not encrypt the opus TOC byte:
+//   https://tools.ietf.org/html/rfc6716#section-3.1
+const UNENCRYPTED_BYTES_NUMBER = 1;
+
+// We use a ringbuffer of keys so we can change them and still decode packets that were
+// encrypted with an old key. We use a size of 16 which corresponds to the four bits
+// in the frame trailer.
+export const KEYRING_SIZE = 16;
+const IV_LENGTH = 16;
 
 let printEncStart = true;
 
@@ -46,17 +59,13 @@ export class Context {
      * Derives the encryption key and sets participant key.
      * @param {Uint8Array} olmKey The olm key.
      * @param {Uint8Array} pqKey The pq key.
-     * @param {number} index The keys index.s
+     * @param {number} index The keys index.
      */
     async setKey(olmKey: Uint8Array, pqKey: Uint8Array, index: number) {
-        this.key = {olmKey, pqKey, index:  index % KEYRING_SIZE, userID: this.id};
+        this.key = {olmKey, pqKey, index:  index, userID: this.id};
         this.encryptionKey = await deriveKey.deriveSymmetricCryptoKeyFromTwoKeys(this.key.olmKey, pqKey);
-         const keyBase64 = await hash.comitToMediaKey(this.key);
-    this.hash = await hash.hashData([
-        "participant keys",
-        keyBase64,
-        this.commitment]
-    );
+        const keyBase64 = await hash.comitToMediaKey(this.key);
+        this.hash = await hash.hashData(["participant keys", keyBase64, this.commitment]);
         logInfo(
             `Set keys for ${this.id}, index is ${this.key.index} and hash is ${this.hash}`,
         );
@@ -108,7 +117,7 @@ export class Context {
         encodedFrame: RTCEncodedVideoFrame | RTCEncodedAudioFrame,
     ) {
         const key: CryptoKey = this.encryptionKey;
-        const keyIndex = this.key.index;
+        const keyIndex = this.key.index %KEYRING_SIZE;
         try {
             // Thіs is not encrypted and contains the VP8 payload descriptor or the Opus TOC byte.
             const frameHeader = new Uint8Array(
@@ -215,12 +224,12 @@ export class Context {
                 0,
                 UNENCRYPTED_BYTES_NUMBER,
             );
-            const data = new Uint8Array(
+            const ciphertext = new Uint8Array(
                 encodedFrame.data,
                 UNENCRYPTED_BYTES_NUMBER,
                 cipherTextLength,
             );
-            const plainText = await  symmetric.decryptSymmetrically(encryptionKey, {iv, ciphertext: data}, additionalData.toString());
+            const plainText = await  symmetric.decryptSymmetrically(encryptionKey, {iv, ciphertext}, additionalData.toString());
 
             const newData = new ArrayBuffer(
                 UNENCRYPTED_BYTES_NUMBER + plainText.byteLength,

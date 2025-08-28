@@ -21,7 +21,6 @@ import {
 } from "./crypto-workers";
 
 import { JITSI_MEET_MUC_TYPE, FEATURE_E2EE } from "../xmpp/xmpp";
-import { REQ_TIMEOUT } from "./Constants";
 import {
     OLM_MESSAGE_TYPE,
     OLM_MESSAGE_TYPES,
@@ -31,6 +30,8 @@ import {
     ReplyMessage,
 } from "./Types";
 import { MediaKeys } from "internxt-crypto";
+
+export const REQ_TIMEOUT = 20 * 1000;
 
 function timeout<T>(ms: number): Promise<T> {
     return new Promise((_, reject) =>
