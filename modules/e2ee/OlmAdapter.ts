@@ -1,5 +1,4 @@
 import initVodozemac, { Account } from "vodozemac-wasm";
-import { ratchetMediaKey } from "./crypto-workers";
 import {
     PROTOCOL_STATUS,
     KeyInfo,
@@ -10,7 +9,7 @@ import {
 } from "./Types";
 
 import { SessionData } from "./SessionData";
-import { MediaKeys, symmetric, utils, pq } from "internxt-crypto";
+import { MediaKeys, symmetric, utils, pq, deriveKey } from "internxt-crypto";
 
 function getError(method: string, error: any): Error {
     const errorMessage = `E2E: Function ${method} failed: ${error}`;
@@ -75,7 +74,7 @@ export class OlmAdapter {
 
     async ratchetMyKeys(): Promise<MediaKeys> {
         try {
-            const newMediaKey = await ratchetMediaKey(this._mediaKey);
+            const newMediaKey = await deriveKey.ratchetMediaKey(this._mediaKey);
             this._mediaKey = newMediaKey;
             return newMediaKey;
         } catch (error) {

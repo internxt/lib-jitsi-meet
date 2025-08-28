@@ -1,23 +1,5 @@
 import { emojiMapping } from "./SAS";
-import { hash, deriveKey, MediaKeys } from 'internxt-crypto';
-
-export const RATCHET_CONTEXT =
-    "LIB-JITSI-MEET; E2E with Kyber; 2025-04-04; Ratchet AES Encryption Key";
-
-
-/**
- * Ratchets a key.
- *
- * @param {MediaKeys} key - The input key.
- * @returns {Promise<MediaKeys>} Ratched key.
- */
-export async function ratchetMediaKey(key: MediaKeys): Promise<MediaKeys> {
-    const olmKey = await deriveKey.deriveSymmetricKeyFromContext(RATCHET_CONTEXT, key.olmKey);
-    const pqKey =  await deriveKey.deriveSymmetricKeyFromContext(RATCHET_CONTEXT, key.pqKey);
-    const index = key.index + 1;
-    const userID = key.userID;
-    return {olmKey, pqKey, index, userID};
-}
+import { hash } from 'internxt-crypto';
 
 
 /**

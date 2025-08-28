@@ -87,7 +87,7 @@ export function setupWorker(self: {
                     const { participantId, olmKey, pqKey, index } = event.data;
                     const context = this.getParticipantContext(participantId);
                     if (!context) break;
-                    await context.setKey(olmKey, pqKey, index);
+                    await context.setKey({olmKey, pqKey, index, userID: participantId});
                     const sas = this.getCurrentSASMaterial();
                     self.postMessage({ operation: "updateSAS", sas });
                     break;

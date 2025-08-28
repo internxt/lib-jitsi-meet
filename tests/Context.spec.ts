@@ -1,6 +1,6 @@
 /* eslint-disable no-bitwise */
 import { Context } from "../modules/e2ee/Context";
-import { ratchetMediaKey } from "../modules/e2ee/crypto-workers";
+import {  deriveKey } from 'internxt-crypto';
 
 const audioBytes = [0xde, 0xad, 0xbe, 0xef];
 const videoBytes = [
@@ -38,7 +38,7 @@ describe("E2EE Context", () => {
     let sendController;
     let receiver;
     let receiveController;
-    const key = new Uint8Array([
+    const olmKey = new Uint8Array([
         1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
         0, 0, 0, 0, 0, 0, 0, 0,
     ]);
@@ -47,6 +47,7 @@ describe("E2EE Context", () => {
         2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
         0, 0, 0, 0, 0, 0, 0, 0,
     ]);
+    const key = {olmKey, pqKey, index: 0, userID: "id"};
 
     beforeEach(() => {
         sender = new Context("sender");
@@ -55,8 +56,8 @@ describe("E2EE Context", () => {
 
     describe("encode function", () => {
         beforeEach(async () => {
-            await sender.setKey(key, pqKey, 0);
-            await receiver.setKey(key, pqKey, 0);
+            await sender.setKey(key);
+            await receiver.setKey(key);
         });
 
         it("with an audio frame", (done) => {
@@ -94,8 +95,8 @@ describe("E2EE Context", () => {
 
     describe("end-to-end test", () => {
         beforeEach(async () => {
-            await sender.setKey(key, pqKey, 0);
-            await receiver.setKey(key, pqKey, 0);
+            await sender.setKey(key);
+            await receiver.setKey(key);
             sendController = {
                 enqueue: async (encodedFrame) => {
                     await receiver.decodeFunction(
@@ -146,10 +147,10 @@ describe("E2EE Context", () => {
 
             const encodeFunction = async () => {
                 // Ratchet the key for both
-                const newKey = await ratchetMediaKey({olmKey: key, pqKey, index: 0, userID: 'id'});
+                const newKey = await deriveKey.ratchetMediaKey({olmKey: olmKey, pqKey, index: 0, userID: 'id'});
 
-                await sender.setKey(newKey.olmKey, newKey.pqKey, newKey.index);
-                await receiver.setKey(newKey.olmKey, newKey.pqKey, newKey.index);
+                await sender.setKey(newKey);
+                await receiver.setKey(newKey);
                 sender.encodeFunction(makeAudioFrame(), sendController);
             };
 

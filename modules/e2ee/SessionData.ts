@@ -9,6 +9,7 @@ import {
 } from "./Types";
 
 import { MediaKeys, symmetric, hash, deriveKey, utils, pq } from "internxt-crypto";
+const AUX = 'KeyInfoPQ';
 
 export class SessionData {
     private status: ProtocolStatus;
@@ -109,8 +110,8 @@ export class SessionData {
 
     async createKeyInfoMessage(key: MediaKeys): Promise<KeyInfo> {
         const ciphertext = this.encryptGivenKeyInfo(key.olmKey, key.index);
-        const result = await symmetric.encryptSymmetrically(this.pqSessionKey, key.pqKey, "KeyInfoPQ");
-        const pqCiphertext = symmetric.ciphertextToBase64(result);
+        const result = await symmetric.encryptSymmetrically(this.pqSessionKey, key.pqKey, AUX);
+        const pqCiphertext = utils.ciphertextToBase64(result);
         return {
             ciphertext,
             pqCiphertext,
@@ -129,8 +130,8 @@ export class SessionData {
             this.keyToSend.olmKey,
             this.keyToSend.index,
         );
-        const result = await symmetric.encryptSymmetrically(this.pqSessionKey,  this.keyToSend.pqKey, "KeyInfoPQ");
-        const pqCiphertext = symmetric.ciphertextToBase64(result);
+        const result = await symmetric.encryptSymmetrically(this.pqSessionKey,  this.keyToSend.pqKey, AUX);
+        const pqCiphertext = utils.ciphertextToBase64(result);
         return { ciphertext, pqCiphertext };
     }
 
@@ -142,8 +143,8 @@ export class SessionData {
         const result = this.session.decrypt(NORMAL_MESSAGE, ciphertext);
         const index = result[result.length - 1];
         const key = result.slice(0, -1);
-        const pqCipher = symmetric.base64ToCiphertext(pqCiphertext);
-        const pqKey = await symmetric.decryptSymmetrically(this.pqSessionKey, pqCipher, "KeyInfoPQ");
+        const pqCipher = utils.base64ToCiphertext(pqCiphertext);
+        const pqKey = await symmetric.decryptSymmetrically(this.pqSessionKey, pqCipher, AUX);
         const mediaKey = {
             olmKey: key,
             pqKey,

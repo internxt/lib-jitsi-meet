@@ -1,9 +1,8 @@
 import {
-    ratchetMediaKey,
     logError,
     logInfo,
 } from "./crypto-workers";
-import { symmetric, MediaKeys, deriveKey, hash } from 'internxt-crypto';
+import { symmetric, MediaKeys, deriveKey, hash, utils } from 'internxt-crypto';
 
 // We copy the first bytes of the VP8 payload unencrypted.
 // This allows the bridge to continue detecting keyframes (only one byte needed in the JVB)
@@ -41,9 +40,9 @@ export class Context {
 
     async ratchetKeys() {
         if (this.key.index >= 0) {
-            const {pqKey, olmKey, index} = await ratchetMediaKey(this.key);
+            const key = await deriveKey.ratchetMediaKey(this.key);
             logInfo(`Ratchet keys of participant ${this.id}`);
-            this.setKey(olmKey, pqKey, index);
+            this.setKey(key);
         }
     }
 
@@ -57,15 +56,13 @@ export class Context {
 
     /**
      * Derives the encryption key and sets participant key.
-     * @param {Uint8Array} olmKey The olm key.
-     * @param {Uint8Array} pqKey The pq key.
-     * @param {number} index The keys index.
+     * @param {MediaKeys} key The new key.
      */
-    async setKey(olmKey: Uint8Array, pqKey: Uint8Array, index: number) {
-        this.key = {olmKey, pqKey, index:  index, userID: this.id};
-        this.encryptionKey = await deriveKey.deriveSymmetricCryptoKeyFromTwoKeys(this.key.olmKey, pqKey);
-        const keyBase64 = await hash.comitToMediaKey(this.key);
-        this.hash = await hash.hashData(["participant keys", keyBase64, this.commitment]);
+    async setKey(key: MediaKeys) {
+        this.key = key;
+        this.encryptionKey = await deriveKey.deriveSymmetricCryptoKeyFromTwoKeys(this.key.olmKey, this.key.pqKey);
+        const keyBase64 = utils.mediaKeysToBase64(this.key);
+        this.hash = await hash.hashData([keyBase64, this.commitment]);
         logInfo(
             `Set keys for ${this.id}, index is ${this.key.index} and hash is ${this.hash}`,
         );
