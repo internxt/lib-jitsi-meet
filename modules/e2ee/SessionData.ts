@@ -8,10 +8,7 @@ import {
     PREKEY_MESSAGE,
 } from "./Types";
 
-import {
-    encapsulateSecret,
-} from "./crypto-utils";
-import { MediaKeys, symmetric, hash, deriveKey } from "internxt-crypto";
+import { MediaKeys, symmetric, hash, deriveKey, utils, pq } from "internxt-crypto";
 
 export class SessionData {
     private status: ProtocolStatus;
@@ -56,10 +53,12 @@ export class SessionData {
         this.session = account.create_outbound_session(publicKey, otKey);
     }
 
-    async encapsulate(publicKyberKey: string): Promise<string> {
-        const { encapsulatedBase64, sharedSecret } =
-            await encapsulateSecret(publicKyberKey);
+    encapsulate(publicKyberKey: string): string {
+        const publicKey = utils.base64ToUint8Array(publicKyberKey);
+        const { cipherText, sharedSecret } =
+            pq.kyber512.encapsulateKyber(publicKey);
         this.kemSecret = sharedSecret;
+        const encapsulatedBase64 = utils.uint8ArrayToBase64(cipherText);
         return encapsulatedBase64;
     }
 

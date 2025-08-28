@@ -1,8 +1,6 @@
 import initVodozemac, { Account } from "vodozemac-wasm";
 import {
     generateKyberKeys,
-    encapsulateSecret,
-    decapsulateSecret,
     getError,
 } from "./crypto-utils";
 import { ratchetKey, commitToIdentityKeys } from "./crypto-workers";
@@ -16,7 +14,7 @@ import {
 } from "./Types";
 
 import { SessionData } from "./SessionData";
-import { MediaKeys, symmetric } from "internxt-crypto";
+import { MediaKeys, symmetric, utils, pq } from "internxt-crypto";
 
 export class OlmAdapter {
     private readonly _myId: string;
@@ -186,7 +184,7 @@ export class OlmAdapter {
             );
 
             const encapsulatedBase64 =
-                await olmData.encapsulate(publicKyberKey);
+                 olmData.encapsulate(publicKyberKey);
             const commitmentToKeys = await olmData.keyCommitment(this._myId);
 
             const ciphertext = olmData.encryptKeyCommitment(commitmentToKeys);
@@ -228,13 +226,16 @@ export class OlmAdapter {
                 ciphertext,
             );
 
-            const decapsulatedSecret = await decapsulateSecret(
-                encapsKyber,
-                this._privateKyberKey,
-            );
+            const decapsArray = utils.base64ToUint8Array(encapsKyber);
+             const decapsulatedSecret = pq.kyber512.decapsulateKyber(
+            decapsArray,
+            this._privateKyberKey,
+        );
 
-            const { encapsulatedBase64, sharedSecret } =
-                await encapsulateSecret(publicKyberKey);
+             const publicKeyArray = utils.base64ToUint8Array(publicKyberKey);
+        const { cipherText, sharedSecret } =
+            pq.kyber512.encapsulateKyber(publicKeyArray);
+        const encapsulatedBase64 = utils.uint8ArrayToBase64(cipherText);
 
             await olmData.deriveSharedPQkey(sharedSecret, decapsulatedSecret);
 
@@ -267,10 +268,11 @@ export class OlmAdapter {
             const olmData = this._getParticipantOlmData(pId);
             olmData.validateStatus(PROTOCOL_STATUS.WAITING_PQ_SESSION_ACK);
 
-            const decapsulatedSecret = await decapsulateSecret(
-                encapsKyber,
-                this._privateKyberKey,
-            );
+             const decapsArray = utils.base64ToUint8Array(encapsKyber);
+             const decapsulatedSecret = pq.kyber512.decapsulateKyber(
+            decapsArray,
+            this._privateKyberKey,
+        );
 
             await olmData.deriveSharedPQkey(decapsulatedSecret);
             const key = await olmData.decryptKeys(pId, ciphertext, pqCiphertext);

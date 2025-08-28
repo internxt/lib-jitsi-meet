@@ -28,16 +28,13 @@ type UserData = {
 };
 
 describe("Test E2E:", () => {
-    beforeAll(async () => {
+    beforeEach(async () => {
         const kyberPath =
             "/base/node_modules/@dashlane/pqc-kem-kyber512-browser/dist/pqc-kem-kyber512.wasm";
         await initKyber(kyberPath);
         const wasmPath =
             "/base/node_modules/vodozemac-wasm/javascript/pkg/vodozemac_bg.wasm";
         await initOlm(wasmPath);
-    });
-
-    beforeEach(() => {
         (window as any).Worker = WorkerMock;
     });
 
