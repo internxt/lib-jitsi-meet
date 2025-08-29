@@ -52,9 +52,7 @@ export type ReplyMessage =
     | KeyInfo
     | SessionInit
     | PQsessionInit
-    | PQsessionAck
-    | SessionAck
-    | SessionError;
+    | PQsessionAck;
 
 export type KeyInfo = {
     ciphertext: string;
@@ -80,11 +78,3 @@ export type PQsessionInit = {
     ciphertext: string;
 };
 
-export type SessionAck = {
-    ciphertext: string;
-    pqCiphertext: string;
-};
-
-export type SessionError = {
-    error: string;
-};

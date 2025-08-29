@@ -223,6 +223,7 @@ export class ManagedKeyHandler extends Listenable {
                 const pId = participant.getId();
                 try {
                     const lastKey = keys.pop();
+                    if(!lastKey) throw new Error('No one time keys');
                     const data =
                         await this._olmAdapter.createSessionInitMessage(
                             pId,
@@ -262,10 +263,7 @@ export class ManagedKeyHandler extends Listenable {
      */
     async disableE2E() {
         this.e2eeCtx.cleanupAll();
-        const participants = this.conference.getParticipants();
-        for (const participant of participants) {
-            this._olmAdapter.clearParticipantSession(participant.getId());
-        }
+        this.clearAllSessions();
     }
 
     /**
@@ -391,11 +389,15 @@ export class ManagedKeyHandler extends Listenable {
         }
     }
 
-    async _onConferenceLeft() {
+    clearAllSessions(){
         const participants = this.conference.getParticipants();
         for (const participant of participants) {
             this._olmAdapter.clearParticipantSession(participant.getId());
         }
+    }
+
+    _onConferenceLeft() {
+        this.clearAllSessions();
         this._olmAdapter.clearMySession();
     }
 
@@ -451,8 +453,7 @@ export class ManagedKeyHandler extends Listenable {
                             publicKyberKey,
                             ciphertext,
                         );
-                    this.e2eeCtx.setKeysCommitment(pId,  publicKey,
-                        publicKyberKey);
+                    this.e2eeCtx.setKeysCommitment(pId, publicKey, publicKyberKey);
                     this._sendMessage(
                         OLM_MESSAGE_TYPES.PQ_SESSION_ACK,
                         data,

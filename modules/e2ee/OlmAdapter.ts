@@ -3,7 +3,6 @@ import {
     PROTOCOL_STATUS,
     KeyInfo,
     PQsessionAck,
-    SessionAck,
     PQsessionInit,
     SessionInit,
 } from "./Types";
@@ -12,8 +11,7 @@ import { SessionData } from "./SessionData";
 import { MediaKeys, symmetric, utils, pq, deriveKey } from "internxt-crypto";
 
 function getError(method: string, error: any): Error {
-    const errorMessage = `E2E: Function ${method} failed: ${error}`;
-    return new Error(errorMessage);
+    return new Error(`E2E: Function ${method} failed: ${error}`);
 }
 
 export class OlmAdapter {
@@ -48,6 +46,7 @@ export class OlmAdapter {
     }
 
     async genMyPublicKeys(): Promise<{pkKyber: string, pk: string}> {
+        try {
             this._olmAccount = new Account();
             this._publicCurve25519Key = this._olmAccount.curve25519_key;
 
@@ -56,6 +55,9 @@ export class OlmAdapter {
             this._publicKyberKeyBase64 = publicKeyBase64;
             this._privateKyberKey = secretKey;
         return {pkKyber: publicKeyBase64, pk: this._publicCurve25519Key};
+        } catch (error) {
+            throw getError("genMyPublicKeys", error);
+        }
     }
 
     generateOneTimeKeys(size: number): string[] {
@@ -235,7 +237,7 @@ export class OlmAdapter {
         ciphertext: string,
         pqCiphertext: string,
     ): Promise<{
-        data: SessionAck;
+        data: KeyInfo;
         key: MediaKeys;
     }> {
         try {
@@ -257,7 +259,7 @@ export class OlmAdapter {
                 pqCiphertext: pqCiphertextBase64,
             } = await olmData.encryptKeys();
 
-            const data: SessionAck = {
+            const data: KeyInfo = {
                 ciphertext: olmCiphertext,
                 pqCiphertext: pqCiphertextBase64,
             };

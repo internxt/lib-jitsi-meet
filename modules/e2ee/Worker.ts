@@ -20,9 +20,9 @@ export function setupWorker(self: {
             }
         }
 
-        private createParticipantContext(participantId: string): Context {
+        private createParticipantContext(participantId: string): Context|undefined {
             if (this.contexts.has(participantId)) {
-                return null;
+                return undefined;
             }
 
             const context = new Context(participantId);
@@ -30,7 +30,7 @@ export function setupWorker(self: {
             return context;
         }
 
-        private getParticipantContext(participantId: string): Context {
+        private getParticipantContext(participantId: string): Context|undefined {
             return this.contexts.get(participantId);
         }
 

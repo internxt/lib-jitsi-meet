@@ -139,7 +139,8 @@ export class Context {
                 0,
                 UNENCRYPTED_BYTES_NUMBER,
             );
-            const {iv, ciphertext: cipherText} = await symmetric.encryptSymmetrically(key, data, additionalData.toString());
+            const freeField = [encodedFrame.getMetadata().synchronizationSource, encodedFrame.timestamp].toString();
+            const {iv, ciphertext: cipherText} = await symmetric.encryptSymmetrically(key, data, additionalData.toString(), freeField);
 
             const newData = new ArrayBuffer(
                 UNENCRYPTED_BYTES_NUMBER +
@@ -150,11 +151,8 @@ export class Context {
             const newUint8 = new Uint8Array(newData);
 
             newUint8.set(frameHeader); // copy first bytes.
-            newUint8.set(new Uint8Array(cipherText), UNENCRYPTED_BYTES_NUMBER); // add ciphertext.
-            newUint8.set(
-                new Uint8Array(iv),
-                UNENCRYPTED_BYTES_NUMBER + cipherText.byteLength,
-            ); // append IV.
+            newUint8.set(cipherText, UNENCRYPTED_BYTES_NUMBER); // add ciphertext.
+            newUint8.set(iv, UNENCRYPTED_BYTES_NUMBER + cipherText.byteLength); // append IV.
             newUint8.set(
                 new Uint8Array([keyIndex]),
                 UNENCRYPTED_BYTES_NUMBER + cipherText.byteLength + IV_LENGTH,
