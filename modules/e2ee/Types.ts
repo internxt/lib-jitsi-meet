@@ -7,6 +7,7 @@ export const OLM_MESSAGE_TYPES = {
     ERROR: "error",
     KEY_INFO: "key-info",
     KEY_UPDATED: "key-updated",
+    KEY_UPDATED_ACK: "key-updated-ack",
     SESSION_ACK: "session-ack",
     PQ_SESSION_ACK: "pq-session-ack",
     SESSION_INIT: "session-init",

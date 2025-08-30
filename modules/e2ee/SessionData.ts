@@ -82,7 +82,8 @@ export class SessionData {
     }
 
     setStatus(status: ProtocolStatus) {
-        this.status = status;
+        if(this.status=== PROTOCOL_STATUS.TERMINATED)  throw new Error(`Terminated while processing.`);
+        else this.status = status;
     }
 
     clearSession() {

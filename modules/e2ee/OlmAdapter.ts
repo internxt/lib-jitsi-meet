@@ -37,15 +37,10 @@ export class OlmAdapter {
     }
 
     async init() {
-        try {
-            await initVodozemac();
-            await new Promise(resolve => setTimeout(resolve, 50));
-        } catch (error) {
-            throw getError("init", error);
-        }
+        await initVodozemac();
     }
 
-    async genMyPublicKeys(): Promise<{pkKyber: string, pk: string}> {
+    genMyPublicKeys(): {pkKyber: string, pk: string} {
         try {
             this._olmAccount = new Account();
             this._publicCurve25519Key = this._olmAccount.curve25519_key;
@@ -82,12 +77,12 @@ export class OlmAdapter {
         }
     }
 
-    checkIfShouldRatchetParticipantKey(pId: string): boolean {
+    isSessionDone(pId: string): boolean {
         try {
             const olmData = this._getParticipantOlmData(pId);
             return olmData.isDone();
         } catch (error) {
-            throw getError("checkIfShouldRatchetParticipantKey", error);
+            throw getError("isSessionDone", error);
         }
     }
 
@@ -106,27 +101,27 @@ export class OlmAdapter {
         }
     }
 
-    async checkIfShouldSendKeyInfoToParticipant(
+    async encryptCurrentKey(
         pId: string,
-    ): Promise<KeyInfo | undefined> {
+    ): Promise<KeyInfo> {
         try {
             const olmData = this._getParticipantOlmData(pId);
-            let data: KeyInfo | undefined = undefined;
-
-            if (olmData.isDone()) {
-                data = await olmData.createKeyInfoMessage(this._mediaKey);
-            }
+            olmData.validateStatus(PROTOCOL_STATUS.DONE);
+            let data = await olmData.createKeyInfoMessage(this._mediaKey);
             return data;
         } catch (error) {
-            throw getError("checkIfShouldSendKeyInfoToParticipant", error);
+            throw getError("encryptCurrentKey", error);
         }
+    }
+
+    deleteParticipantSession(pId: string) {
+        this._olmDataMap.delete(pId);
     }
 
     clearParticipantSession(pId: string) {
         try {
             const olmData = this._getParticipantOlmData(pId);
             olmData.clearSession();
-            this._olmDataMap.delete(pId);
         } catch (error) {
             throw getError("clearParticipantSession", error);
         }
@@ -276,7 +271,7 @@ export class OlmAdapter {
         ciphertext: string,
         pqCiphertext: string,
     ): Promise<{
-        data: KeyInfo | undefined;
+        keyChanged: boolean;
         key: MediaKeys;
     }> {
         try {
@@ -286,36 +281,29 @@ export class OlmAdapter {
             const key = await olmData.decryptKeys(pId, ciphertext, pqCiphertext);
             await olmData.validateCommitment(key);
 
-            let data: KeyInfo | undefined = undefined;
-            if (olmData.indexChanged(this._mediaKey)) {
-                data = await olmData.createKeyInfoMessage(this._mediaKey);
-            }
+            const keyChanged = olmData.indexChanged(this._mediaKey);
             olmData.setDone();
 
-            return { data, key };
+            return { keyChanged, key };
         } catch (error) {
             throw getError("createSessionDoneMessage", error);
         }
     }
 
-    async processSessionDoneMessage(pId: string): Promise<KeyInfo | undefined> {
+
+     processSessionDoneMessage(pId: string): boolean {
         try {
             const olmData = this._getParticipantOlmData(pId);
             olmData.validateStatus(PROTOCOL_STATUS.WAITING_DONE);
-
-            let data: KeyInfo | undefined = undefined;
-            if (olmData.indexChanged(this._mediaKey)) {
-                data = await olmData.createKeyInfoMessage(this._mediaKey);
-            }
+            const keyChanged = olmData.indexChanged(this._mediaKey);
             olmData.setDone();
-
-            return data;
+            return keyChanged;
         } catch (error) {
             throw getError("processSessionDoneMessage", error);
         }
     }
 
-    async processKeyInfoMessage(
+    async decryptKey(
         pId: string,
         ciphertext: string,
         pqCiphertext: string,
@@ -329,7 +317,7 @@ export class OlmAdapter {
 
             return olmData.decryptKeys(pId, ciphertext, pqCiphertext);
         } catch (error) {
-            throw getError("processKeyInfoMessage", error);
+            throw getError("decryptKey", error);
         }
     }
 
