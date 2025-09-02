@@ -1,4 +1,4 @@
-import { symmetric, MediaKeys, deriveKey, hash, utils } from 'internxt-crypto';
+import { symmetric, MediaKeys, deriveKey, hash, utils, IV_LEN_BYTES } from 'internxt-crypto';
 
 // We copy the first bytes of the VP8 payload unencrypted.
 // This allows the bridge to continue detecting keyframes (only one byte needed in the JVB)
@@ -12,7 +12,6 @@ const UNENCRYPTED_BYTES_NUMBER = 1;
 // encrypted with an old key. We use a size of 16 which corresponds to the four bits
 // in the frame trailer.
 export const KEYRING_SIZE = 16;
-const IV_LENGTH = 16;
 
 let printEncStart = true;
 
@@ -137,7 +136,7 @@ export class Context {
             const newData = new ArrayBuffer(
                 UNENCRYPTED_BYTES_NUMBER +
                     cipherText.byteLength +
-                    IV_LENGTH +
+                    IV_LEN_BYTES +
                     1,
             );
             const newUint8 = new Uint8Array(newData);
@@ -147,7 +146,7 @@ export class Context {
             newUint8.set(iv, UNENCRYPTED_BYTES_NUMBER + cipherText.byteLength); // append IV.
             newUint8.set(
                 new Uint8Array([keyIndex]),
-                UNENCRYPTED_BYTES_NUMBER + cipherText.byteLength + IV_LENGTH,
+                UNENCRYPTED_BYTES_NUMBER + cipherText.byteLength + IV_LEN_BYTES,
             ); // append frame trailer.
             encodedFrame.data = newData;
             if (printEncStart) {
@@ -198,13 +197,13 @@ export class Context {
         try {
             const iv = new Uint8Array(
                 encodedFrame.data,
-                encodedFrame.data.byteLength - IV_LENGTH - 1,
-                IV_LENGTH,
+                encodedFrame.data.byteLength - IV_LEN_BYTES - 1,
+                IV_LEN_BYTES,
             );
 
             const cipherTextLength =
                 encodedFrame.data.byteLength -
-                (UNENCRYPTED_BYTES_NUMBER + IV_LENGTH + 1);
+                (UNENCRYPTED_BYTES_NUMBER + IV_LEN_BYTES + 1);
 
             const additionalData = new Uint8Array(
                 encodedFrame.data,
