@@ -17,10 +17,10 @@ function getError(method: string, error: any): Error {
 export class OlmAdapter {
     private _mediaKey: MediaKeys;
 
-    private _publicKyberKeyBase64: string;
-    private _privateKyberKey: Uint8Array;
+    private _publicKyberKeyBase64: string = "";
+    private _privateKyberKey: Uint8Array = new Uint8Array();
     private _olmAccount: Account;
-    private _publicCurve25519Key: string;
+    private _publicCurve25519Key: string = "";
     private readonly _olmDataMap: Map<string, SessionData>;
 
     constructor(id: string) {
@@ -30,9 +30,6 @@ export class OlmAdapter {
             index: -1,
             userID: id,
         };
-        this._publicKyberKeyBase64 = "";
-        this._privateKyberKey = new Uint8Array();
-        this._publicCurve25519Key = "";
         this._olmDataMap = new Map<string, SessionData>();
     }
 
@@ -69,9 +66,8 @@ export class OlmAdapter {
 
     async ratchetMyKeys(): Promise<MediaKeys> {
         try {
-            const newMediaKey = await deriveKey.ratchetMediaKey(this._mediaKey);
-            this._mediaKey = newMediaKey;
-            return newMediaKey;
+            this._mediaKey = await deriveKey.ratchetMediaKey(this._mediaKey);
+            return this._mediaKey;
         } catch (error) {
             throw getError("ratchetMyKeys", error);
         }
@@ -128,18 +124,14 @@ export class OlmAdapter {
     }
 
     private _getParticipantOlmData(pId: string): SessionData {
-        let result = this._olmDataMap.get(pId);
-        if (!result) {
-            result = new SessionData(this._mediaKey);
-            this._olmDataMap.set(pId, result);
+        if (!this._olmDataMap.has(pId)) {
+            this._olmDataMap.set(pId, new SessionData(this._mediaKey));
         }
-        return result;
+        return this._olmDataMap.get(pId);
     }
 
     async clearMySession() {
-        if (this._olmAccount) {
-            this._olmAccount.free();
-        }
+       this._olmAccount?.free();
     }
 
     async createPQsessionInitMessage(
@@ -163,18 +155,15 @@ export class OlmAdapter {
             const encapsulatedBase64 =
                  olmData.encapsulate(publicKyberKey);
             const commitmentToKeys = await olmData.keyCommitment();
-
             const ciphertext = olmData.encryptKeyCommitment(commitmentToKeys);
+            olmData.setStatus(PROTOCOL_STATUS.WAITING_PQ_SESSION_ACK);
 
-            const data: PQsessionInit = {
+            return {
                 encapsKyber: encapsulatedBase64,
                 publicKey: this._publicCurve25519Key,
                 publicKyberKey: this._publicKyberKeyBase64,
                 ciphertext: ciphertext,
             };
-
-            olmData.setStatus(PROTOCOL_STATUS.WAITING_PQ_SESSION_ACK);
-            return data;
         } catch (error) {
             throw getError("createPQsessionInitMessage", error);
         }
@@ -213,14 +202,12 @@ export class OlmAdapter {
             const { ciphertext: olmEncKeyInfo, pqCiphertext: pqEncKeyInfo } =
                 await olmData.encryptKeys();
 
-            const data: PQsessionAck = {
+            olmData.setStatus(PROTOCOL_STATUS.WAITING_SESSION_ACK);
+            return {
                 encapsKyber: encapsulatedBase64,
                 ciphertext: olmEncKeyInfo,
                 pqCiphertext: pqEncKeyInfo,
             };
-
-            olmData.setStatus(PROTOCOL_STATUS.WAITING_SESSION_ACK);
-            return data;
         } catch (error) {
             throw getError("createPQsessionAckMessage", error);
         }
@@ -328,17 +315,15 @@ export class OlmAdapter {
         try {
             const olmData = this._getParticipantOlmData(pId);
             olmData.validateStatus(PROTOCOL_STATUS.READY_TO_START);
-
             const commitment = await olmData.keyCommitment();
-            const data: SessionInit = {
+            olmData.setStatus(PROTOCOL_STATUS.WAITING_PQ_SESSION_INIT);
+
+            return {
                 otKey,
                 publicKey: this._publicCurve25519Key,
                 publicKyberKey: this._publicKyberKeyBase64,
                 commitment,
             };
-            olmData.setStatus(PROTOCOL_STATUS.WAITING_PQ_SESSION_INIT);
-
-            return data;
         } catch (error) {
             throw getError("createSessionInitMessage", error);
         }

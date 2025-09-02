@@ -15,14 +15,12 @@ export class SessionData {
     private status: ProtocolStatus;
     private commitment: string;
     private keyToSend: MediaKeys;
-    private session: Session;
-    private pqSessionKey: CryptoKey;
+    private session?: Session;  
+    private pqSessionKey?: CryptoKey;
     private kemSecret: Uint8Array;
 
     constructor(key: MediaKeys) {
         this.status = PROTOCOL_STATUS.READY_TO_START;
-        this.session = null as any;
-        this.pqSessionKey = null as any;
         this.keyToSend = key;
     }
     indexChanged(key: MediaKeys): boolean {
@@ -82,15 +80,15 @@ export class SessionData {
     }
 
     setStatus(status: ProtocolStatus) {
-        if(this.status=== PROTOCOL_STATUS.TERMINATED)  throw new Error(`Terminated while processing.`);
-        else this.status = status;
+        if (this.status === PROTOCOL_STATUS.TERMINATED) {
+            throw new Error(`Terminated while processing.`);
+        }
+        this.status = status;
     }
 
     clearSession() {
         this.status = PROTOCOL_STATUS.TERMINATED;
-        if (this.session) {
-            this.session.free();
-        }
+        this.session?.free();
     }
 
     setDone() {

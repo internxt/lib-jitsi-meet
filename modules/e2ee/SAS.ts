@@ -24,18 +24,6 @@ export async function generateEmojiSas(data: string): Promise<string[][]> {
     return emojis.map((num) => emojiMapping[num]);
 }
 
-export function logInfo(message: string) {
-    console.info(`E2E: ${message}`);
-}
-
-export function logWarning(message: string) {
-    console.warn(`E2E: ${message}`);
-}
-
-export function logError(message: string) {
-    console.error(`E2E: ${message}`);
-}
-
  export const emojiMapping = [
     ["🐶", "dog"],
     ["🐱", "cat"],
