@@ -58,7 +58,7 @@ export class XmppServerMock {
     }
 
     getSas(id: string): string[] {
-        return this.sasMap.get(id);
+        return this.sasMap.get(id) ??[];
     }
 
     getAllParticipantsIDs(): string[] {
@@ -80,7 +80,7 @@ export class XmppServerMock {
         for (const [_, keyHandler] of this.listeners) {
             keyHandler.setEnabled(true);
             expect(keyHandler.isEnabled()).toBe(true);
-            expect(keyHandler.initizlized).toBe(true);
+            expect(keyHandler.initialized).toBe(true);
         }
     }
 
