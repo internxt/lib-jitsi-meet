@@ -49,11 +49,7 @@ export interface CustomRTCRtpSender extends RTCRtpSender {
     transform: RTCRtpScriptTransform;
 }
 
-export type ReplyMessage =
-    | KeyInfo
-    | SessionInit
-    | PQsessionInit
-    | PQsessionAck;
+export type ReplyMessage = KeyInfo | SessionInit | PQsessionInit | PQsessionAck;
 
 export type KeyInfo = {
     ciphertext: string;
@@ -80,6 +76,6 @@ export type PQsessionInit = {
 };
 
 export type ParticipantEvent = {
-    type: 'join' | 'leave';
+    type: "join" | "leave";
     id: string;
-}
+};

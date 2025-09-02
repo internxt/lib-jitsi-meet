@@ -1,5 +1,4 @@
-import { hash } from 'internxt-crypto';
-
+import { hash } from "internxt-crypto";
 
 /**
  * Generates a SAS composed of emojies.
@@ -9,7 +8,7 @@ import { hash } from 'internxt-crypto';
  * @returns {Promise<string[][]>} The SAS emojies.
  */
 export async function generateEmojiSas(data: string): Promise<string[][]> {
-    const sasBytes =  await hash.getBitsFromString(48, data);
+    const sasBytes = await hash.getBitsFromString(48, data);
     // Just like base64.
     const emojis = [
         sasBytes[0] >> 2,
@@ -24,7 +23,7 @@ export async function generateEmojiSas(data: string): Promise<string[][]> {
     return emojis.map((num) => emojiMapping[num]);
 }
 
- export const emojiMapping = [
+export const emojiMapping = [
     ["🐶", "dog"],
     ["🐱", "cat"],
     ["🦁", "lion"],

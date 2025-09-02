@@ -37,7 +37,7 @@ export class OlmAdapter {
         await initVodozemac();
     }
 
-    genMyPublicKeys(): {pkKyber: string, pk: string} {
+    genMyPublicKeys(): { pkKyber: string; pk: string } {
         try {
             this._olmAccount = new Account();
             this._publicCurve25519Key = this._olmAccount.curve25519_key;
@@ -46,7 +46,7 @@ export class OlmAdapter {
             const publicKeyBase64 = utils.uint8ArrayToBase64(publicKey);
             this._publicKyberKeyBase64 = publicKeyBase64;
             this._privateKyberKey = secretKey;
-        return {pkKyber: publicKeyBase64, pk: this._publicCurve25519Key};
+            return { pkKyber: publicKeyBase64, pk: this._publicCurve25519Key };
         } catch (error) {
             throw getError("genMyPublicKeys", error);
         }
@@ -97,9 +97,7 @@ export class OlmAdapter {
         }
     }
 
-    async encryptCurrentKey(
-        pId: string,
-    ): Promise<KeyInfo> {
+    async encryptCurrentKey(pId: string): Promise<KeyInfo> {
         try {
             const olmData = this._getParticipantOlmData(pId);
             olmData.validateStatus(PROTOCOL_STATUS.DONE);
@@ -131,7 +129,7 @@ export class OlmAdapter {
     }
 
     async clearMySession() {
-       this._olmAccount?.free();
+        this._olmAccount?.free();
     }
 
     async createPQsessionInitMessage(
@@ -152,8 +150,7 @@ export class OlmAdapter {
                 commitment,
             );
 
-            const encapsulatedBase64 =
-                 olmData.encapsulate(publicKyberKey);
+            const encapsulatedBase64 = olmData.encapsulate(publicKyberKey);
             const commitmentToKeys = await olmData.keyCommitment();
             const ciphertext = olmData.encryptKeyCommitment(commitmentToKeys);
             olmData.setStatus(PROTOCOL_STATUS.WAITING_PQ_SESSION_ACK);
@@ -187,15 +184,15 @@ export class OlmAdapter {
             );
 
             const decapsArray = utils.base64ToUint8Array(encapsKyber);
-             const decapsulatedSecret = pq.decapsulateKyber(
-            decapsArray,
-            this._privateKyberKey,
-        );
+            const decapsulatedSecret = pq.decapsulateKyber(
+                decapsArray,
+                this._privateKyberKey,
+            );
 
-             const publicKeyArray = utils.base64ToUint8Array(publicKyberKey);
-        const { cipherText, sharedSecret } =
-            pq.encapsulateKyber(publicKeyArray);
-        const encapsulatedBase64 = utils.uint8ArrayToBase64(cipherText);
+            const publicKeyArray = utils.base64ToUint8Array(publicKyberKey);
+            const { cipherText, sharedSecret } =
+                pq.encapsulateKyber(publicKeyArray);
+            const encapsulatedBase64 = utils.uint8ArrayToBase64(cipherText);
 
             await olmData.deriveSharedPQkey(sharedSecret, decapsulatedSecret);
 
@@ -226,14 +223,18 @@ export class OlmAdapter {
             const olmData = this._getParticipantOlmData(pId);
             olmData.validateStatus(PROTOCOL_STATUS.WAITING_PQ_SESSION_ACK);
 
-             const decapsArray = utils.base64ToUint8Array(encapsKyber);
-             const decapsulatedSecret = pq.decapsulateKyber(
-            decapsArray,
-            this._privateKyberKey,
-        );
+            const decapsArray = utils.base64ToUint8Array(encapsKyber);
+            const decapsulatedSecret = pq.decapsulateKyber(
+                decapsArray,
+                this._privateKyberKey,
+            );
 
             await olmData.deriveSharedPQkey(decapsulatedSecret);
-            const key = await olmData.decryptKeys(pId, ciphertext, pqCiphertext);
+            const key = await olmData.decryptKeys(
+                pId,
+                ciphertext,
+                pqCiphertext,
+            );
             await olmData.validateCommitment(key);
 
             const {
@@ -265,7 +266,11 @@ export class OlmAdapter {
             const olmData = this._getParticipantOlmData(pId);
             olmData.validateStatus(PROTOCOL_STATUS.WAITING_SESSION_ACK);
 
-            const key = await olmData.decryptKeys(pId, ciphertext, pqCiphertext);
+            const key = await olmData.decryptKeys(
+                pId,
+                ciphertext,
+                pqCiphertext,
+            );
             await olmData.validateCommitment(key);
 
             const keyChanged = olmData.indexChanged(this._mediaKey);
@@ -277,8 +282,7 @@ export class OlmAdapter {
         }
     }
 
-
-     processSessionDoneMessage(pId: string): boolean {
+    processSessionDoneMessage(pId: string): boolean {
         try {
             const olmData = this._getParticipantOlmData(pId);
             olmData.validateStatus(PROTOCOL_STATUS.WAITING_DONE);
