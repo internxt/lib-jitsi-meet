@@ -13,9 +13,7 @@ import Listenable from "../util/Listenable";
 import { OlmAdapter } from "./OlmAdapter";
 import JitsiConference from "../../JitsiConference";
 import RTCEvents from "../../service/RTC/RTCEvents";
-import {
-    generateEmojiSas,
-} from "./crypto-workers";
+import { generateEmojiSas } from "./SAS";
 
 import { JITSI_MEET_MUC_TYPE, FEATURE_E2EE } from "../xmpp/xmpp";
 import {

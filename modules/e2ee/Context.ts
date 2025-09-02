@@ -1,7 +1,3 @@
-import {
-    logError,
-    logInfo,
-} from "./crypto-workers";
 import { symmetric, MediaKeys, deriveKey, hash, utils } from 'internxt-crypto';
 
 // We copy the first bytes of the VP8 payload unencrypted.
@@ -41,7 +37,6 @@ export class Context {
     async ratchetKeys() {
         if (this.key.index >= 0) {
             const key = await deriveKey.ratchetMediaKey(this.key);
-            logInfo(`Ratchet keys of participant ${this.id}`);
             this.setKey(key);
         }
     }
@@ -63,9 +58,6 @@ export class Context {
         this.encryptionKey = await deriveKey.deriveSymmetricCryptoKeyFromTwoKeys(this.key.olmKey, this.key.pqKey);
         const keyBase64 = utils.mediaKeysToBase64(this.key);
         this.hash = await hash.hashData([keyBase64, this.commitment]);
-        logInfo(
-            `Set keys for ${this.id}, index is ${this.key.index} and hash is ${this.hash}`,
-        );
     }
 
     /**
@@ -159,13 +151,13 @@ export class Context {
             ); // append frame trailer.
             encodedFrame.data = newData;
             if (printEncStart) {
-                logInfo("Started encrypting my frames!");
+                console.info("Started encrypting my frames!");
                 printEncStart = false;
             }
             return encodedFrame;
         } catch (e) {
             // TODO: surface this to the app.
-            logError(`Encryption failed: ${e}`);
+            console.error(`Encryption failed: ${e}`);
 
             // We are not enqueuing the frame here on purpose.
         }
@@ -240,7 +232,7 @@ export class Context {
 
             return encodedFrame;
         } catch (error) {
-            logError(`Decryption of a frame from ${this.id} failed: ${error}`);
+            console.error(`Decryption of a frame from ${this.id} failed: ${error}`);
         }
     }
 }
