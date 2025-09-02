@@ -6,8 +6,8 @@ export const OLM_MESSAGE_TYPE = "olm";
 export const OLM_MESSAGE_TYPES = {
     ERROR: "error",
     KEY_INFO: "key-info",
-    KEY_UPDATED: "key-updated",
-    KEY_UPDATED_ACK: "key-updated-ack",
+    KEY_UPDATE: "key-update",
+    KEY_UPDATE_REQ: "key-update-request",
     SESSION_ACK: "session-ack",
     PQ_SESSION_ACK: "pq-session-ack",
     SESSION_INIT: "session-init",
@@ -79,3 +79,7 @@ export type PQsessionInit = {
     ciphertext: string;
 };
 
+export type ParticipantEvent = {
+    type: 'join' | 'leave';
+    id: string;
+}
