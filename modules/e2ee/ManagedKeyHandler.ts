@@ -200,11 +200,11 @@ export class ManagedKeyHandler extends Listenable {
     }
 
     async createKeyUpdatePromise(pId: string) {
-        const promice = new Promise((resolve, reject) => {
+        const promise = new Promise((resolve, reject) => {
             this.update.set(pId, { resolve, reject });
         });
 
-        return Promise.race([promice, timeout(this.max_wait)]);
+        return Promise.race([promise, timeout(this.max_wait)]);
     }
 
     async createSessionPromise(pId: string) {
@@ -484,7 +484,7 @@ export class ManagedKeyHandler extends Listenable {
             );
             this.updateParticipantKey(pId, key);
         } catch (error) {
-            throw new Error("updateParticipantKey failed", error);
+           throw new Error(`updateParticipantKey failed for participant ${pId}`, { cause: error });
         }
     }
 

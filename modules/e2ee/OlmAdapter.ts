@@ -10,8 +10,8 @@ import {
 import { SessionData } from "./SessionData";
 import { MediaKeys, symmetric, utils, pq, deriveKey } from "internxt-crypto";
 
-function getError(method: string, error: any): Error {
-    return new Error(`E2E: Function ${method} failed: ${error}`);
+function getError(method: string, error: Error): Error {
+    return new Error(`E2E: Function ${method} failed:`,  { cause: error });
 }
 
 export class OlmAdapter {
