@@ -1,5 +1,7 @@
 import { hash } from "internxt-crypto";
 
+const SAS_BIT_LENGTH = 48;
+
 /**
  * Generates a SAS composed of emojies.
  * Borrowed from the Matrix JS SDK.
@@ -8,7 +10,7 @@ import { hash } from "internxt-crypto";
  * @returns {Promise<string[][]>} The SAS emojies.
  */
 export async function generateEmojiSas(data: string): Promise<string[][]> {
-    const sasBytes = await hash.getBitsFromString(48, data);
+    const sasBytes = await hash.getBitsFromString(SAS_BIT_LENGTH, data);
     // Just like base64.
     const emojis = [
         sasBytes[0] >> 2,
