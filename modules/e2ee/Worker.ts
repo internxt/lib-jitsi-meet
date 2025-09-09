@@ -1,5 +1,4 @@
 import { Context } from "./Context";
-import { logError, logInfo } from "./crypto-workers";
 
 export function setupWorker(self: {
     postMessage: (data: any) => void;
@@ -48,7 +47,7 @@ export function setupWorker(self: {
             writableStream: WritableStream
         ): void {
             if (operation !== "encode" && operation !== "decode") {
-                logError(`Invalid operation: ${operation}`);
+                console.error(`Invalid operation: ${operation}`);
                 return;
             }
 
@@ -118,12 +117,12 @@ export function setupWorker(self: {
 
                 case "cleanupAll": {
                     this.contexts.clear();
-                    logInfo("Stopped encrypting my frames!");
+                    console.info("Stopped encrypting my frames!");
                     break;
                 }
 
                 default:
-                    logError(`Worker received unknown operation: ${operation}`);
+                    console.error(`Worker received unknown operation: ${operation}`);
             }
         }
 

@@ -1,7 +1,8 @@
 /* global RTCRtpScriptTransform */
 import Listenable from "../util/Listenable";
 import { CustomRTCRtpReceiver, CustomRTCRtpSender } from "./Types";
-import { logError } from "./crypto-workers";
+import { getLogger } from '@jitsi/logger';
+const logger = getLogger('modules/e2ee/E2EEContext');
 
 /**
  * Context encapsulating the cryptography bits required for E2EE.
@@ -11,15 +12,13 @@ import { logError } from "./crypto-workers";
  *
  */
 export default class E2EEcontext extends Listenable {
-    private _worker: Worker;
+    private readonly _worker: Worker;
 
     constructor() {
         super();
         this._worker = this._initializeWorker();
 
-        this._worker.onerror = (e) => {
-            logError(`Worker error: ${e.message || e.toString()}`);
-        };
+        this._worker.onerror = e => logger.error(e);
 
         this._worker.onmessage = (event: MessageEvent) => {
             const { operation, sas } = event.data;
@@ -95,7 +94,7 @@ export default class E2EEcontext extends Listenable {
                 },
                 [readable, writable],
             );
-        } else logError(`Receiver does not support encoded streams.!`);
+        } else logger.error(`Receiver does not support encoded streams.!`);
     }
 
     /**
@@ -126,7 +125,7 @@ export default class E2EEcontext extends Listenable {
                 },
                 [readable, writable],
             );
-        } else logError(`Sender does not support encoded streams.`);
+        } else logger.error(`Sender does not support encoded streams.`);
     }
 
     setKey(
