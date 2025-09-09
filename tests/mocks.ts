@@ -79,8 +79,6 @@ export class XmppServerMock {
         this.e2e = true;
         for (const [_, keyHandler] of this.listeners) {
             keyHandler.setEnabled(true);
-            expect(keyHandler.isEnabled()).toBe(true);
-            expect(keyHandler.initialized).toBe(true);
         }
     }
 
@@ -183,7 +181,6 @@ export async function createInitializedManagedKeyHandler(
 
     const conference = instance(conferenceMock);
     const keyHandler = new ManagedKeyHandler(conference);
-    await keyHandler.init();
 
     conference.eventEmitter.emit(JitsiConferenceEvents.CONFERENCE_JOINED);
 

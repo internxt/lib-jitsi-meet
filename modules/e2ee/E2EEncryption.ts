@@ -16,10 +16,6 @@ export class E2EEncryption {
         this._keyHandler = new ManagedKeyHandler(conference);
     }
 
-    async init() {
-        await this._keyHandler.init();
-    }
-
     /**
      * Indicates if E2EE is supported in the current platform.
      *
