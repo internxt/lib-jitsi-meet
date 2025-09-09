@@ -568,7 +568,9 @@ JitsiConference.prototype._init = function(options = {}) {
  */
 JitsiConference.prototype.join = async function(password, replaceParticipant = false) {
     if (this.room) {
-        await this._e2eEncryption.init();
+        if (this._e2eEncryption) {
+            await this._e2eEncryption.init();
+        }
         this.room.join(password, replaceParticipant).then(() => this._maybeSetSITimeout());
     }
 };
@@ -3971,7 +3973,9 @@ JitsiConference.prototype.disableLobby = function() {
  */
 JitsiConference.prototype.joinLobby = async function(displayName, email) {
     if (this.room) {
-        await this._e2eEncryption.init();
+        if (this._e2eEncryption) {
+            await this._e2eEncryption.init();
+        }
 
         return this.room.getLobby().join(displayName, email);
     }
