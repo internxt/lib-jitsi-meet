@@ -17,8 +17,8 @@ import { generateEmojiSas } from "./SAS";
 
 import { JITSI_MEET_MUC_TYPE, FEATURE_E2EE } from "../xmpp/xmpp";
 import {
-    OLM_MESSAGE_TYPE,
-    OLM_MESSAGE_TYPES,
+    OLM_MESSAGE,
+    MESSAGE_TYPES,
     MessageType,
     CustomRTCRtpReceiver,
     CustomRTCRtpSender,
@@ -268,7 +268,7 @@ export class ManagedKeyHandler extends Listenable {
                         );
                     this.log("info", `Sent session-init to participant ${pId}`);
                     this._sendMessage(
-                        OLM_MESSAGE_TYPES.SESSION_INIT,
+                        MESSAGE_TYPES.SESSION_INIT,
                         data,
                         pId,
                     );
@@ -432,7 +432,7 @@ export class ManagedKeyHandler extends Listenable {
                     this.log("info", `Sending key update to ${pId}.`);
                     const result = this.createKeyUpdatePromise(pId);
                     const data = await this._olmAdapter.encryptCurrentKey(pId);
-                    this._sendMessage(OLM_MESSAGE_TYPES.KEY_UPDATE, data, pId);
+                    this._sendMessage(MESSAGE_TYPES.KEY_UPDATE, data, pId);
                     this.log(
                         "info",
                         `Key update with ${pId} finished successfully.`,
@@ -448,7 +448,7 @@ export class ManagedKeyHandler extends Listenable {
                 try {
                     const result = this.createKeyUpdatePromise(pId);
                     this._sendMessage(
-                        OLM_MESSAGE_TYPES.KEY_UPDATE_REQ,
+                        MESSAGE_TYPES.KEY_UPDATE_REQ,
                         "update",
                         pId,
                     );
@@ -499,7 +499,7 @@ export class ManagedKeyHandler extends Listenable {
             if (
                 !payload.olm ||
                 !participant ||
-                payload[JITSI_MEET_MUC_TYPE] !== OLM_MESSAGE_TYPE
+                payload[JITSI_MEET_MUC_TYPE] !== OLM_MESSAGE
             ) {
                 this.log("error", "Incorrect payload");
                 return;
@@ -512,7 +512,7 @@ export class ManagedKeyHandler extends Listenable {
             const pId = participant.getId();
 
             switch (msg.type) {
-                case OLM_MESSAGE_TYPES.SESSION_INIT: {
+                case MESSAGE_TYPES.SESSION_INIT: {
                     const { otKey, publicKey, publicKyberKey, commitment } =
                         msg.data;
                     const data =
@@ -529,14 +529,14 @@ export class ManagedKeyHandler extends Listenable {
                         publicKyberKey,
                     );
                     this._sendMessage(
-                        OLM_MESSAGE_TYPES.PQ_SESSION_INIT,
+                        MESSAGE_TYPES.PQ_SESSION_INIT,
                         data,
                         pId,
                     );
                     break;
                 }
 
-                case OLM_MESSAGE_TYPES.PQ_SESSION_INIT: {
+                case MESSAGE_TYPES.PQ_SESSION_INIT: {
                     const {
                         encapsKyber,
                         publicKey,
@@ -557,13 +557,13 @@ export class ManagedKeyHandler extends Listenable {
                         publicKyberKey,
                     );
                     this._sendMessage(
-                        OLM_MESSAGE_TYPES.PQ_SESSION_ACK,
+                        MESSAGE_TYPES.PQ_SESSION_ACK,
                         data,
                         pId,
                     );
                     break;
                 }
-                case OLM_MESSAGE_TYPES.PQ_SESSION_ACK: {
+                case MESSAGE_TYPES.PQ_SESSION_ACK: {
                     const { encapsKyber, ciphertext, pqCiphertext } = msg.data;
 
                     const { data, key } =
@@ -574,10 +574,10 @@ export class ManagedKeyHandler extends Listenable {
                             pqCiphertext,
                         );
                     this.updateParticipantKey(pId, key);
-                    this._sendMessage(OLM_MESSAGE_TYPES.SESSION_ACK, data, pId);
+                    this._sendMessage(MESSAGE_TYPES.SESSION_ACK, data, pId);
                     break;
                 }
-                case OLM_MESSAGE_TYPES.SESSION_ACK: {
+                case MESSAGE_TYPES.SESSION_ACK: {
                     const { ciphertext, pqCiphertext } = msg.data;
                     const { keyChanged, key } =
                         await this._olmAdapter.createSessionDoneMessage(
@@ -587,7 +587,7 @@ export class ManagedKeyHandler extends Listenable {
                         );
                     this.updateParticipantKey(pId, key);
                     this._sendMessage(
-                        OLM_MESSAGE_TYPES.SESSION_DONE,
+                        MESSAGE_TYPES.SESSION_DONE,
                         "update",
                         pId,
                     );
@@ -595,7 +595,7 @@ export class ManagedKeyHandler extends Listenable {
                         const data =
                             await this._olmAdapter.encryptCurrentKey(pId);
                         this._sendMessage(
-                            OLM_MESSAGE_TYPES.KEY_INFO,
+                            MESSAGE_TYPES.KEY_INFO,
                             data,
                             pId,
                         );
@@ -611,18 +611,18 @@ export class ManagedKeyHandler extends Listenable {
                         );
                     break;
                 }
-                case OLM_MESSAGE_TYPES.ERROR: {
+                case MESSAGE_TYPES.ERROR: {
                     this.log("error", msg.data.error);
                     break;
                 }
-                case OLM_MESSAGE_TYPES.SESSION_DONE: {
+                case MESSAGE_TYPES.SESSION_DONE: {
                     const keyChanged =
                         this._olmAdapter.processSessionDoneMessage(pId);
                     if (keyChanged) {
                         const data =
                             await this._olmAdapter.encryptCurrentKey(pId);
                         this._sendMessage(
-                            OLM_MESSAGE_TYPES.KEY_INFO,
+                            MESSAGE_TYPES.KEY_INFO,
                             data,
                             pId,
                         );
@@ -633,22 +633,22 @@ export class ManagedKeyHandler extends Listenable {
                     );
                     break;
                 }
-                case OLM_MESSAGE_TYPES.KEY_INFO: {
+                case MESSAGE_TYPES.KEY_INFO: {
                     this.log("info", `Got key info from ${pId}.`);
                     const { ciphertext, pqCiphertext } = msg.data;
                     await this.updateKey(pId, ciphertext, pqCiphertext);
                     break;
                 }
-                case OLM_MESSAGE_TYPES.KEY_UPDATE: {
+                case MESSAGE_TYPES.KEY_UPDATE: {
                     this.log("info", `Got new key from ${pId}.`);
                     const { ciphertext, pqCiphertext } = msg.data;
                     await this.updateKey(pId, ciphertext, pqCiphertext);
                     this.resolveKeyUpdatePromise(pId);
                     break;
                 }
-                case OLM_MESSAGE_TYPES.KEY_UPDATE_REQ: {
+                case MESSAGE_TYPES.KEY_UPDATE_REQ: {
                     const data = await this._olmAdapter.encryptCurrentKey(pId);
-                    this._sendMessage(OLM_MESSAGE_TYPES.KEY_UPDATE, data, pId);
+                    this._sendMessage(MESSAGE_TYPES.KEY_UPDATE, data, pId);
                     break;
                 }
             }
@@ -690,7 +690,7 @@ export class ManagedKeyHandler extends Listenable {
         participantId: string,
     ) {
         const msg = {
-            [JITSI_MEET_MUC_TYPE]: OLM_MESSAGE_TYPE,
+            [JITSI_MEET_MUC_TYPE]: OLM_MESSAGE,
             olm: {
                 type,
                 data,

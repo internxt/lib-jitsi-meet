@@ -2,8 +2,8 @@
 export const PREKEY_MESSAGE = 0;
 export const NORMAL_MESSAGE = 1;
 
-export const OLM_MESSAGE_TYPE = "olm";
-export const OLM_MESSAGE_TYPES = {
+export const OLM_MESSAGE = "olm";
+export const MESSAGE_TYPES = {
     ERROR: "error",
     KEY_INFO: "key-info",
     KEY_UPDATE: "key-update",
@@ -14,8 +14,7 @@ export const OLM_MESSAGE_TYPES = {
     PQ_SESSION_INIT: "pq-session-init",
     SESSION_DONE: "session-done",
 };
-export type MessageType =
-    (typeof OLM_MESSAGE_TYPES)[keyof typeof OLM_MESSAGE_TYPES];
+export type MessageType = (typeof MESSAGE_TYPES)[keyof typeof MESSAGE_TYPES];
 
 export const PROTOCOL_STATUS = {
     TERMINATED: "protocol-terminated",

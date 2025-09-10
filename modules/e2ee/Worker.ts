@@ -5,7 +5,7 @@ export function setupWorker(self: {
     onmessage: ((event: MessageEvent) => void) | null;
     onrtctransform?: (event: any) => void;
     RTCTransformEvent?: any;
-}): void {
+}) {
     class E2EEWorker {
         private readonly contexts: Map<string, Context>;
 
@@ -142,7 +142,7 @@ export function setupWorker(self: {
         }
     }
 
-    new E2EEWorker(self);
+    return new E2EEWorker(self);
 }
 
 setupWorker(self);

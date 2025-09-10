@@ -141,9 +141,7 @@ export class Context {
             encodedFrame.data = newUint8.buffer;
             return encodedFrame;
         } catch (e) {
-            // TODO: surface this to the app.
             console.error(`Encryption failed: ${e}`);
-
             // We are not enqueuing the frame here on purpose.
         }
     }
