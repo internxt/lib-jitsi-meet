@@ -102,7 +102,7 @@ export class Context {
         const keyIndex = new Uint8Array([this.key.index %MAX_NUMBER_TO_FIT_BYTE]);
         try {
             // Thіs is not encrypted and contains the VP8 payload descriptor or the Opus TOC byte.
-            const frameHeader = new Uint8Array(
+            const unencryptedPart = new Uint8Array(
                 encodedFrame.data,
                 0,
                 UNENCRYPTED_BYTES_NUMBER,
@@ -133,7 +133,7 @@ export class Context {
                     IV_LEN_BYTES +
                     1);
 
-            newUint8.set(frameHeader); // copy undencrypted byte.
+            newUint8.set(unencryptedPart); // copy undencrypted byte.
             newUint8.set(ciphertext, UNENCRYPTED_BYTES_NUMBER); // add ciphertext.
             newUint8.set(iv, UNENCRYPTED_BYTES_NUMBER + ciphertext.byteLength); // append IV.
             newUint8.set(keyIndex, UNENCRYPTED_BYTES_NUMBER + ciphertext.byteLength + IV_LEN_BYTES); // append key index.
