@@ -17,7 +17,7 @@ import { generateEmojiSas } from "./SAS";
 
 import { JITSI_MEET_MUC_TYPE, FEATURE_E2EE } from "../xmpp/xmpp";
 import {
-    OLM_MESSAGE_TYPE,
+    OLM_MESSAGE,
     OLM_MESSAGE_TYPES,
     MessageType,
     CustomRTCRtpReceiver,
@@ -499,7 +499,7 @@ export class ManagedKeyHandler extends Listenable {
             if (
                 !payload.olm ||
                 !participant ||
-                payload[JITSI_MEET_MUC_TYPE] !== OLM_MESSAGE_TYPE
+                payload[JITSI_MEET_MUC_TYPE] !== OLM_MESSAGE
             ) {
                 this.log("error", "Incorrect payload");
                 return;
@@ -690,7 +690,7 @@ export class ManagedKeyHandler extends Listenable {
         participantId: string,
     ) {
         const msg = {
-            [JITSI_MEET_MUC_TYPE]: OLM_MESSAGE_TYPE,
+            [JITSI_MEET_MUC_TYPE]: OLM_MESSAGE,
             olm: {
                 type,
                 data,
