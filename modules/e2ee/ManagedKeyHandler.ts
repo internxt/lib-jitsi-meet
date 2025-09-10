@@ -392,8 +392,11 @@ export class ManagedKeyHandler extends Listenable {
      */
     async _handleParticipantJoined(id: string) {
         this.log("info", `Participant ${id} joined the conference.`);
-        if (!this._conferenceJoined || !this.enabled || !this.initialized)
+        if (!this._conferenceJoined || !this.enabled)
             return;
+        if (!this.initialized) {
+            await this.init();
+        }
         const participants = this.conference.getParticipants();
         const { olmKey, pqKey, index } = await this._olmAdapter.ratchetMyKeys();
         this.setKey(olmKey, pqKey, index);
@@ -413,7 +416,10 @@ export class ManagedKeyHandler extends Listenable {
     async _handleParticipantLeft(id: string) {
         this.log("info", `Participant ${id} left the conference.`);
 
-        if (!this.enabled || !this.initialized) return;
+        if (!this.enabled) return;
+        if (!this.initialized) {
+            await this.init();
+        }
 
         this.resolveSessionPromise(id);
         if (this.update.get(id)) this.resolveKeyUpdatePromise(id);
