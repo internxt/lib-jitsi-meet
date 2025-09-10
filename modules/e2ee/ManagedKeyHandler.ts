@@ -392,8 +392,7 @@ export class ManagedKeyHandler extends Listenable {
      */
     async _handleParticipantJoined(id: string) {
         this.log("info", `Participant ${id} joined the conference.`);
-        if (!this._conferenceJoined || !this.enabled)
-            return;
+        if (!this._conferenceJoined || !this.enabled) return;
         if (!this.initialized) {
             await this.init();
         }
@@ -490,7 +489,10 @@ export class ManagedKeyHandler extends Listenable {
             );
             this.updateParticipantKey(pId, key);
         } catch (error) {
-           throw new Error(`updateParticipantKey failed for participant ${pId}`, { cause: error });
+            throw new Error(
+                `updateParticipantKey failed for participant ${pId}`,
+                { cause: error },
+            );
         }
     }
 

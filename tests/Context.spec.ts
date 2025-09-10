@@ -1,6 +1,6 @@
 /* eslint-disable no-bitwise */
 import { Context } from "../modules/e2ee/Context";
-import {  deriveKey } from 'internxt-crypto';
+import { deriveKey } from "internxt-crypto";
 
 const audioBytes = [0xde, 0xad, 0xbe, 0xef];
 const videoBytes = [
@@ -47,7 +47,7 @@ describe("E2EE Context", () => {
         2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
         0, 0, 0, 0, 0, 0, 0, 0,
     ]);
-    const key = {olmKey, pqKey, index: 0, userID: "id"};
+    const key = { olmKey, pqKey, index: 0, userID: "id" };
 
     beforeEach(() => {
         sender = new Context("sender");
@@ -147,7 +147,12 @@ describe("E2EE Context", () => {
 
             const encodeFunction = async () => {
                 // Ratchet the key for both
-                const newKey = await deriveKey.ratchetMediaKey({olmKey: olmKey, pqKey, index: 0, userID: 'id'});
+                const newKey = await deriveKey.ratchetMediaKey({
+                    olmKey: olmKey,
+                    pqKey,
+                    index: 0,
+                    userID: "id",
+                });
 
                 await sender.setKey(newKey);
                 await receiver.setKey(newKey);

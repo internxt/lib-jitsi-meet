@@ -1,4 +1,11 @@
-import { symmetric, MediaKeys, deriveKey, hash, utils, IV_LEN_BYTES } from 'internxt-crypto';
+import {
+    symmetric,
+    MediaKeys,
+    deriveKey,
+    hash,
+    utils,
+    IV_LEN_BYTES,
+} from "internxt-crypto";
 
 // We copy the first bytes of the VP8 payload unencrypted.
 // This allows the bridge to continue detecting keyframes (only one byte needed in the JVB)
@@ -22,7 +29,12 @@ export class Context {
 
     constructor(id: string) {
         this.encryptionKey = null as any;
-        this.key = { olmKey: new Uint8Array(), pqKey: new Uint8Array(), index: -1, userID: id};
+        this.key = {
+            olmKey: new Uint8Array(),
+            pqKey: new Uint8Array(),
+            index: -1,
+            userID: id,
+        };
         this.id = id;
         this.commitment = "";
         this.hash = "";
@@ -49,7 +61,11 @@ export class Context {
      */
     async setKey(key: MediaKeys) {
         this.key = key;
-        this.encryptionKey = await deriveKey.deriveSymmetricCryptoKeyFromTwoKeys(this.key.olmKey, this.key.pqKey);
+        this.encryptionKey =
+            await deriveKey.deriveSymmetricCryptoKeyFromTwoKeys(
+                this.key.olmKey,
+                this.key.pqKey,
+            );
         const keyBase64 = utils.mediaKeysToBase64(this.key);
         this.hash = await hash.hashData([keyBase64, this.commitment]);
     }
@@ -99,7 +115,9 @@ export class Context {
         encodedFrame: RTCEncodedVideoFrame | RTCEncodedAudioFrame,
     ) {
         const key: CryptoKey = this.encryptionKey;
-        const keyIndex = new Uint8Array([this.key.index %MAX_NUMBER_TO_FIT_BYTE]);
+        const keyIndex = new Uint8Array([
+            this.key.index % MAX_NUMBER_TO_FIT_BYTE,
+        ]);
         try {
             // Thіs is not encrypted and contains the VP8 payload descriptor or the Opus TOC byte.
             const unencryptedPart = new Uint8Array(
@@ -124,19 +142,31 @@ export class Context {
                 0,
                 UNENCRYPTED_BYTES_NUMBER,
             );
-            const freeField = [encodedFrame.getMetadata().synchronizationSource, encodedFrame.timestamp].toString();
-            const {iv, ciphertext} = await symmetric.encryptSymmetrically(key, data, additionalData.toString(), freeField);
+            const freeField = [
+                encodedFrame.getMetadata().synchronizationSource,
+                encodedFrame.timestamp,
+            ].toString();
+            const { iv, ciphertext } = await symmetric.encryptSymmetrically(
+                key,
+                data,
+                additionalData.toString(),
+                freeField,
+            );
 
-
-            const newUint8 = new Uint8Array(UNENCRYPTED_BYTES_NUMBER +
+            const newUint8 = new Uint8Array(
+                UNENCRYPTED_BYTES_NUMBER +
                     ciphertext.byteLength +
                     IV_LEN_BYTES +
-                    1);
+                    1,
+            );
 
             newUint8.set(unencryptedPart); // copy undencrypted byte.
             newUint8.set(ciphertext, UNENCRYPTED_BYTES_NUMBER); // add ciphertext.
             newUint8.set(iv, UNENCRYPTED_BYTES_NUMBER + ciphertext.byteLength); // append IV.
-            newUint8.set(keyIndex, UNENCRYPTED_BYTES_NUMBER + ciphertext.byteLength + IV_LEN_BYTES); // append key index.
+            newUint8.set(
+                keyIndex,
+                UNENCRYPTED_BYTES_NUMBER + ciphertext.byteLength + IV_LEN_BYTES,
+            ); // append key index.
 
             encodedFrame.data = newUint8.buffer;
             return encodedFrame;
@@ -199,7 +229,11 @@ export class Context {
                 UNENCRYPTED_BYTES_NUMBER,
                 cipherTextLength,
             );
-            const plainText = await  symmetric.decryptSymmetrically(encryptionKey, {iv, ciphertext}, additionalData.toString());
+            const plainText = await symmetric.decryptSymmetrically(
+                encryptionKey,
+                { iv, ciphertext },
+                additionalData.toString(),
+            );
 
             const newData = new ArrayBuffer(
                 UNENCRYPTED_BYTES_NUMBER + plainText.byteLength,
@@ -215,7 +249,9 @@ export class Context {
 
             return encodedFrame;
         } catch (error) {
-            console.error(`Decryption of a frame from ${this.id} failed: ${error}`);
+            console.error(
+                `Decryption of a frame from ${this.id} failed: ${error}`,
+            );
         }
     }
 }

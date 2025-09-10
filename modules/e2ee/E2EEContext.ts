@@ -1,8 +1,8 @@
 /* global RTCRtpScriptTransform */
 import Listenable from "../util/Listenable";
 import { CustomRTCRtpReceiver, CustomRTCRtpSender } from "./Types";
-import { getLogger } from '@jitsi/logger';
-const logger = getLogger('modules/e2ee/E2EEContext');
+import { getLogger } from "@jitsi/logger";
+const logger = getLogger("modules/e2ee/E2EEContext");
 
 /**
  * Context encapsulating the cryptography bits required for E2EE.
@@ -18,7 +18,7 @@ export default class E2EEcontext extends Listenable {
         super();
         this._worker = this._initializeWorker();
 
-        this._worker.onerror = e => logger.error(e);
+        this._worker.onerror = (e) => logger.error(e);
 
         this._worker.onmessage = (event: MessageEvent) => {
             const { operation, sas } = event.data;
