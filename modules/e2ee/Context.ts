@@ -1,13 +1,17 @@
-import {
-    deriveEncryptionKey,
-    ratchetKey,
-    encryptData,
-    decryptData,
-    hashKeysOfParticipant,
-    logError,
-    logInfo,
-} from "./crypto-workers";
-import { KEYRING_SIZE, UNENCRYPTED_BYTES_NUMBER, IV_LENGTH } from "./Constants";
+import { symmetric, MediaKeys, deriveKey, hash, utils, IV_LEN_BYTES } from 'internxt-crypto';
+
+// We copy the first bytes of the VP8 payload unencrypted.
+// This allows the bridge to continue detecting keyframes (only one byte needed in the JVB)
+//    https://tools.ietf.org/html/rfc6386#section-9.1
+//
+// For audio (where frame.type is not set) we do not encrypt the opus TOC byte:
+//   https://tools.ietf.org/html/rfc6716#section-3.1
+const UNENCRYPTED_BYTES_NUMBER = 1;
+
+// We use a ringbuffer of keys so we can change them and still decode packets that were
+// encrypted with an old key. We use a size of 16 which corresponds to the four bits
+// in the frame trailer.
+export const KEYRING_SIZE = 16;
 
 let printEncStart = true;
 
@@ -17,34 +21,27 @@ let printEncStart = true;
 export class Context {
     private readonly id: string;
     private encryptionKey: CryptoKey;
-    private olmKey: Uint8Array;
-    private pqKey: Uint8Array;
-    private index: number;
+    private key: MediaKeys;
     private hash: string;
     private commitment: string;
 
     constructor(id: string) {
         this.encryptionKey = null as any;
-        this.olmKey = new Uint8Array();
-        this.pqKey = new Uint8Array();
+        this.key = { olmKey: new Uint8Array(), pqKey: new Uint8Array(), index: -1, userID: id};
         this.id = id;
         this.commitment = "";
         this.hash = "";
-        this.index = -1;
     }
 
     async ratchetKeys() {
-        const currentIndex = this.index;
-        if (currentIndex >= 0) {
-            const newMaterialOlm = await ratchetKey(this.olmKey);
-            const newMaterialPQ = await ratchetKey(this.pqKey);
-            logInfo(`Ratchet keys of participant ${this.id}`);
-            this.setKey(newMaterialOlm, newMaterialPQ, currentIndex + 1);
+        if (this.key.index >= 0) {
+            const key = await deriveKey.ratchetMediaKey(this.key);
+            this.setKey(key);
         }
     }
 
-    async setKeyCommitment(commitment: string) {
-        this.commitment = commitment;
+    async setKeyCommitment(pk: string, pkKyber: string) {
+        this.commitment = await hash.hashData([this.id, pk, pkKyber]);
     }
 
     getHash() {
@@ -53,25 +50,13 @@ export class Context {
 
     /**
      * Derives the encryption key and sets participant key.
-     * @param {Uint8Array} olmKey The olm key.
-     * @param {Uint8Array} pqKey The pq key.
-     * @param {number} index The keys index.
+     * @param {MediaKeys} key The new key.
      */
-    async setKey(olmKey: Uint8Array, pqKey: Uint8Array, index: number) {
-        this.olmKey = olmKey;
-        this.pqKey = pqKey;
-        this.encryptionKey = await deriveEncryptionKey(this.olmKey, pqKey);
-        this.index = index % KEYRING_SIZE;
-        this.hash = await hashKeysOfParticipant(
-            this.id,
-            this.olmKey,
-            this.pqKey,
-            this.index,
-            this.commitment,
-        );
-        logInfo(
-            `Set keys for ${this.id}, index is ${this.index} and hash is ${this.hash}`,
-        );
+    async setKey(key: MediaKeys) {
+        this.key = key;
+        this.encryptionKey = await deriveKey.deriveSymmetricCryptoKeyFromTwoKeys(this.key.olmKey, this.key.pqKey);
+        const keyBase64 = utils.mediaKeysToBase64(this.key);
+        this.hash = await hash.hashData([keyBase64, this.commitment]);
     }
 
     /**
@@ -85,7 +70,7 @@ export class Context {
         encodedFrame: RTCEncodedVideoFrame | RTCEncodedAudioFrame,
         controller: TransformStreamDefaultController,
     ) {
-        if (this.index >= 0) {
+        if (this.key.index >= 0) {
             const encryptedFrame = await this._encryptFrame(encodedFrame);
 
             if (encryptedFrame) {
@@ -120,9 +105,8 @@ export class Context {
         encodedFrame: RTCEncodedVideoFrame | RTCEncodedAudioFrame,
     ) {
         const key: CryptoKey = this.encryptionKey;
-        const keyIndex = this.index;
+        const keyIndex = this.key.index %KEYRING_SIZE;
         try {
-            const iv = crypto.getRandomValues(new Uint8Array(IV_LENGTH));
             // Thіs is not encrypted and contains the VP8 payload descriptor or the Opus TOC byte.
             const frameHeader = new Uint8Array(
                 encodedFrame.data,
@@ -146,35 +130,33 @@ export class Context {
                 0,
                 UNENCRYPTED_BYTES_NUMBER,
             );
-            const cipherText = await encryptData(iv, additionalData, key, data);
+            const freeField = [encodedFrame.getMetadata().synchronizationSource, encodedFrame.timestamp].toString();
+            const {iv, ciphertext: cipherText} = await symmetric.encryptSymmetrically(key, data, additionalData.toString(), freeField);
 
             const newData = new ArrayBuffer(
                 UNENCRYPTED_BYTES_NUMBER +
                     cipherText.byteLength +
-                    IV_LENGTH +
+                    IV_LEN_BYTES +
                     1,
             );
             const newUint8 = new Uint8Array(newData);
 
             newUint8.set(frameHeader); // copy first bytes.
-            newUint8.set(new Uint8Array(cipherText), UNENCRYPTED_BYTES_NUMBER); // add ciphertext.
-            newUint8.set(
-                new Uint8Array(iv),
-                UNENCRYPTED_BYTES_NUMBER + cipherText.byteLength,
-            ); // append IV.
+            newUint8.set(cipherText, UNENCRYPTED_BYTES_NUMBER); // add ciphertext.
+            newUint8.set(iv, UNENCRYPTED_BYTES_NUMBER + cipherText.byteLength); // append IV.
             newUint8.set(
                 new Uint8Array([keyIndex]),
-                UNENCRYPTED_BYTES_NUMBER + cipherText.byteLength + IV_LENGTH,
+                UNENCRYPTED_BYTES_NUMBER + cipherText.byteLength + IV_LEN_BYTES,
             ); // append frame trailer.
             encodedFrame.data = newData;
             if (printEncStart) {
-                logInfo("Started encrypting my frames!");
+                console.info("Started encrypting my frames!");
                 printEncStart = false;
             }
             return encodedFrame;
         } catch (e) {
             // TODO: surface this to the app.
-            logError(`Encryption failed: ${e}`);
+            console.error(`Encryption failed: ${e}`);
 
             // We are not enqueuing the frame here on purpose.
         }
@@ -192,7 +174,7 @@ export class Context {
     ) {
         const data = new Uint8Array(encodedFrame.data);
         const keyIndex = data[encodedFrame.data.byteLength - 1];
-        if (keyIndex === this.index) {
+        if (keyIndex === this.key.index) {
             const decodedFrame = await this._decryptFrame(encodedFrame);
 
             if (decodedFrame) {
@@ -215,30 +197,25 @@ export class Context {
         try {
             const iv = new Uint8Array(
                 encodedFrame.data,
-                encodedFrame.data.byteLength - IV_LENGTH - 1,
-                IV_LENGTH,
+                encodedFrame.data.byteLength - IV_LEN_BYTES - 1,
+                IV_LEN_BYTES,
             );
 
             const cipherTextLength =
                 encodedFrame.data.byteLength -
-                (UNENCRYPTED_BYTES_NUMBER + IV_LENGTH + 1);
+                (UNENCRYPTED_BYTES_NUMBER + IV_LEN_BYTES + 1);
 
             const additionalData = new Uint8Array(
                 encodedFrame.data,
                 0,
                 UNENCRYPTED_BYTES_NUMBER,
             );
-            const data = new Uint8Array(
+            const ciphertext = new Uint8Array(
                 encodedFrame.data,
                 UNENCRYPTED_BYTES_NUMBER,
                 cipherTextLength,
             );
-            const plainText = await decryptData(
-                iv,
-                additionalData,
-                encryptionKey,
-                data,
-            );
+            const plainText = await  symmetric.decryptSymmetrically(encryptionKey, {iv, ciphertext}, additionalData.toString());
 
             const newData = new ArrayBuffer(
                 UNENCRYPTED_BYTES_NUMBER + plainText.byteLength,
@@ -254,7 +231,7 @@ export class Context {
 
             return encodedFrame;
         } catch (error) {
-            logError(`Decryption of a frame from ${this.id} failed: ${error}`);
+            console.error(`Decryption of a frame from ${this.id} failed: ${error}`);
         }
     }
 }

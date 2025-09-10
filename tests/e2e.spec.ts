@@ -11,7 +11,6 @@ import {
     delay,
 } from "./mocks.ts";
 
-import initKyber from "@dashlane/pqc-kem-kyber512-browser/dist/pqc-kem-kyber512.js";
 import initOlm from "vodozemac-wasm/javascript/pkg/vodozemac.js";
 
 const TEST_TIMEOUT = 1000;
@@ -28,16 +27,10 @@ type UserData = {
 };
 
 describe("Test E2E:", () => {
-    beforeAll(async () => {
-        const kyberPath =
-            "/base/node_modules/@dashlane/pqc-kem-kyber512-browser/dist/pqc-kem-kyber512.wasm";
-        await initKyber(kyberPath);
+    beforeEach(async () => {
         const wasmPath =
             "/base/node_modules/vodozemac-wasm/javascript/pkg/vodozemac_bg.wasm";
         await initOlm(wasmPath);
-    });
-
-    beforeEach(() => {
         (window as any).Worker = WorkerMock;
     });
 
@@ -46,8 +39,8 @@ describe("Test E2E:", () => {
         async () => {
             const context1 = new E2EEContext();
             const context2 = new E2EEContext();
-            context1.setKeysCommitment("participant1", "commitment1");
-            context2.setKeysCommitment("participant2", "commitment2");
+            context1.setKeysCommitment("participant1", "pk1", "pkKyber1");
+            context2.setKeysCommitment("participant2", "pk2", "pkKyber2");
 
             const contextSpy1 = spy(context1);
             const contextSpy2 = spy(context2);

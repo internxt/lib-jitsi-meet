@@ -47,13 +47,6 @@ module.exports = function(config) {
                 served: true,
                 watched: false
             },
-            {
-                pattern:
-                    'node_modules/@dashlane/pqc-kem-kyber512-browser/dist/pqc-kem-kyber512.wasm',
-                included: false,
-                served: true,
-                watched: false
-            },
             './tests/*.spec.js',
             './tests/*.spec.ts'
         ],
@@ -95,9 +88,7 @@ module.exports = function(config) {
         proxies: {
             '/libs/': '/base/wasm/RTC/',
             '/libs/dist/': '/base/node_modules/onnxruntime-web/dist/',
-            '/libs/models/': '/base/models/RTC/',
-            '/libs/pqc-kem-kyber512.wasm':
-                'node_modules/@dashlane/pqc-kem-kyber512-browser/dist/pqc-kem-kyber512.wasm'
+            '/libs/models/': '/base/models/RTC/'
         },
 
         // web server port

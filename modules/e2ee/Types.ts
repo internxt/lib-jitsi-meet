@@ -6,7 +6,8 @@ export const OLM_MESSAGE_TYPE = "olm";
 export const OLM_MESSAGE_TYPES = {
     ERROR: "error",
     KEY_INFO: "key-info",
-    KEY_UPDATED: "key-updated",
+    KEY_UPDATE: "key-update",
+    KEY_UPDATE_REQ: "key-update-request",
     SESSION_ACK: "session-ack",
     PQ_SESSION_ACK: "pq-session-ack",
     SESSION_INIT: "session-init",
@@ -48,19 +49,7 @@ export interface CustomRTCRtpSender extends RTCRtpSender {
     transform: RTCRtpScriptTransform;
 }
 
-export type MediaKey = {
-    olmKey: Uint8Array;
-    pqKey: Uint8Array;
-    index: number;
-};
-
-export type ReplyMessage =
-    | KeyInfo
-    | SessionInit
-    | PQsessionInit
-    | PQsessionAck
-    | SessionAck
-    | SessionError;
+export type ReplyMessage = KeyInfo | SessionInit | PQsessionInit | PQsessionAck;
 
 export type KeyInfo = {
     ciphertext: string;
@@ -86,11 +75,7 @@ export type PQsessionInit = {
     ciphertext: string;
 };
 
-export type SessionAck = {
-    ciphertext: string;
-    pqCiphertext: string;
-};
-
-export type SessionError = {
-    error: string;
+export type ParticipantEvent = {
+    type: "join" | "leave";
+    id: string;
 };

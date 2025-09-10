@@ -1,5 +1,4 @@
 import { Context } from "./Context";
-import { logError, logInfo } from "./crypto-workers";
 
 export function setupWorker(self: {
     postMessage: (data: any) => void;
@@ -20,9 +19,9 @@ export function setupWorker(self: {
             }
         }
 
-        private createParticipantContext(participantId: string): Context {
+        private createParticipantContext(participantId: string): Context|undefined {
             if (this.contexts.has(participantId)) {
-                return null;
+                return undefined;
             }
 
             const context = new Context(participantId);
@@ -30,7 +29,7 @@ export function setupWorker(self: {
             return context;
         }
 
-        private getParticipantContext(participantId: string): Context {
+        private getParticipantContext(participantId: string): Context|undefined {
             return this.contexts.get(participantId);
         }
 
@@ -48,7 +47,7 @@ export function setupWorker(self: {
             writableStream: WritableStream
         ): void {
             if (operation !== "encode" && operation !== "decode") {
-                logError(`Invalid operation: ${operation}`);
+                console.error(`Invalid operation: ${operation}`);
                 return;
             }
 
@@ -87,18 +86,18 @@ export function setupWorker(self: {
                     const { participantId, olmKey, pqKey, index } = event.data;
                     const context = this.getParticipantContext(participantId);
                     if (!context) break;
-                    await context.setKey(olmKey, pqKey, index);
+                    await context.setKey({olmKey, pqKey, index, userID: participantId});
                     const sas = this.getCurrentSASMaterial();
                     self.postMessage({ operation: "updateSAS", sas });
                     break;
                 }
 
                 case "setKeysCommitment": {
-                    const { participantId, commitment } = event.data;
+                    const { participantId, pk, pkKyber } = event.data;
                     const context =
                         this.createParticipantContext(participantId);
                     if (!context) break;
-                    await context.setKeyCommitment(commitment);
+                    await context.setKeyCommitment(pk, pkKyber);
                     break;
                 }
 
@@ -118,12 +117,12 @@ export function setupWorker(self: {
 
                 case "cleanupAll": {
                     this.contexts.clear();
-                    logInfo("Stopped encrypting my frames!");
+                    console.info("Stopped encrypting my frames!");
                     break;
                 }
 
                 default:
-                    logError(`Worker received unknown operation: ${operation}`);
+                    console.error(`Worker received unknown operation: ${operation}`);
             }
         }
 

@@ -1,71 +1,55 @@
 import initVodozemac, { Account } from "vodozemac-wasm";
 import {
-    generateKyberKeys,
-    encapsulateSecret,
-    decapsulateSecret,
-    generateKey,
-    getError,
-} from "./crypto-utils";
-import { ratchetKey, commitToIdentityKeys } from "./crypto-workers";
-import {
     PROTOCOL_STATUS,
     KeyInfo,
     PQsessionAck,
-    SessionAck,
     PQsessionInit,
     SessionInit,
-    MediaKey,
 } from "./Types";
 
 import { SessionData } from "./SessionData";
+import { MediaKeys, symmetric, utils, pq, deriveKey } from "internxt-crypto";
+
+function getError(method: string, error: Error): Error {
+    return new Error(`E2E: Function ${method} failed:`,  { cause: error });
+}
 
 export class OlmAdapter {
-    private readonly _myId: string;
-    private _mediaKey: MediaKey;
+    private _mediaKey: MediaKeys;
 
-    private _publicKyberKeyBase64: string;
-    private _privateKyberKey: Uint8Array;
+    private _publicKyberKeyBase64: string = "";
+    private _privateKyberKey: Uint8Array = new Uint8Array();
     private _olmAccount: Account;
-    private _publicCurve25519Key: string;
-    private _indenityKeyCommitment: string;
+    private _publicCurve25519Key: string = "";
     private readonly _olmDataMap: Map<string, SessionData>;
 
     constructor(id: string) {
-        this._myId = id;
         this._mediaKey = {
             olmKey: new Uint8Array(),
             pqKey: new Uint8Array(),
             index: -1,
+            userID: id,
         };
-        this._publicKyberKeyBase64 = "";
-        this._privateKyberKey = new Uint8Array();
-        this._publicCurve25519Key = "";
-        this._indenityKeyCommitment = "";
         this._olmDataMap = new Map<string, SessionData>();
     }
 
     async init() {
-        try {
-            await initVodozemac();
+        await initVodozemac();
+    }
 
+    genMyPublicKeys(): { pkKyber: string; pk: string } {
+        try {
             this._olmAccount = new Account();
             this._publicCurve25519Key = this._olmAccount.curve25519_key;
 
-            const { publicKeyBase64, privateKey } = await generateKyberKeys();
+            const { publicKey, secretKey } = pq.generateKyberKeys();
+            const publicKeyBase64 = utils.uint8ArrayToBase64(publicKey);
             this._publicKyberKeyBase64 = publicKeyBase64;
-            this._privateKyberKey = privateKey;
-            this._indenityKeyCommitment = await commitToIdentityKeys(
-                this._myId,
-                this._publicKyberKeyBase64,
-                this._publicCurve25519Key,
-            );
+            this._privateKyberKey = secretKey;
+            return { pkKyber: publicKeyBase64, pk: this._publicCurve25519Key };
         } catch (error) {
-            throw getError("ínit", error);
+            throw getError("genMyPublicKeys", error);
         }
-    }
-
-    getMyIdentityKeysCommitment(): string {
-        return this._indenityKeyCommitment;
     }
 
     generateOneTimeKeys(size: number): string[] {
@@ -80,35 +64,31 @@ export class OlmAdapter {
         }
     }
 
-    async ratchetMyKeys(): Promise<MediaKey> {
+    async ratchetMyKeys(): Promise<MediaKeys> {
         try {
-            const newMediaKey = {
-                olmKey: await ratchetKey(this._mediaKey.olmKey),
-                pqKey: await ratchetKey(this._mediaKey.pqKey),
-                index: this._mediaKey.index + 1,
-            };
-            this._mediaKey = newMediaKey;
-            return newMediaKey;
+            this._mediaKey = await deriveKey.ratchetMediaKey(this._mediaKey);
+            return this._mediaKey;
         } catch (error) {
             throw getError("ratchetMyKeys", error);
         }
     }
 
-    checkIfShouldRatchetParticipantKey(pId: string): boolean {
+    isSessionDone(pId: string): boolean {
         try {
             const olmData = this._getParticipantOlmData(pId);
             return olmData.isDone();
         } catch (error) {
-            throw getError("checkIfShouldRatchetParticipantKey", error);
+            throw getError("isSessionDone", error);
         }
     }
 
-    updateMyKeys(): MediaKey {
+    updateMyKeys(): MediaKeys {
         try {
             const newMediaKey = {
-                olmKey: generateKey(),
-                pqKey: generateKey(),
+                olmKey: symmetric.genSymmetricKey(),
+                pqKey: symmetric.genSymmetricKey(),
                 index: this._mediaKey.index + 1,
+                userID: this._mediaKey.userID,
             };
             this._mediaKey = newMediaKey;
             return newMediaKey;
@@ -117,46 +97,39 @@ export class OlmAdapter {
         }
     }
 
-    async checkIfShouldSendKeyInfoToParticipant(
-        pId: string,
-    ): Promise<KeyInfo | undefined> {
+    async encryptCurrentKey(pId: string): Promise<KeyInfo> {
         try {
             const olmData = this._getParticipantOlmData(pId);
-            let data = undefined;
-
-            if (olmData.isDone()) {
-                data = await olmData.createKeyInfoMessage(this._mediaKey);
-            }
+            olmData.validateStatus(PROTOCOL_STATUS.DONE);
+            let data = await olmData.createKeyInfoMessage(this._mediaKey);
             return data;
         } catch (error) {
-            throw getError("checkIfShouldSendKeyInfoToParticipant", error);
+            throw getError("encryptCurrentKey", error);
         }
+    }
+
+    deleteParticipantSession(pId: string) {
+        this._olmDataMap.delete(pId);
     }
 
     clearParticipantSession(pId: string) {
         try {
             const olmData = this._getParticipantOlmData(pId);
             olmData.clearSession();
-            this._olmDataMap.delete(pId);
         } catch (error) {
             throw getError("clearParticipantSession", error);
         }
     }
 
     private _getParticipantOlmData(pId: string): SessionData {
-        let result = this._olmDataMap.get(pId);
-        if (!result) {
-            result = new SessionData(this._mediaKey);
-            this._olmDataMap.set(pId, result);
+        if (!this._olmDataMap.has(pId)) {
+            this._olmDataMap.set(pId, new SessionData(this._mediaKey));
         }
-        return result;
+        return this._olmDataMap.get(pId);
     }
 
     async clearMySession() {
-        if (this._olmAccount) {
-            this._olmAccount.free();
-            this._olmAccount = undefined;
-        }
+        this._olmAccount?.free();
     }
 
     async createPQsessionInitMessage(
@@ -165,16 +138,10 @@ export class OlmAdapter {
         publicKey: string,
         publicKyberKey: string,
         commitment: string,
-    ): Promise<{ data: PQsessionInit; keyCommitment: string }> {
+    ): Promise<PQsessionInit> {
         try {
             const olmData = this._getParticipantOlmData(pId);
             olmData.validateStatus(PROTOCOL_STATUS.READY_TO_START);
-
-            const keyCommitment = await commitToIdentityKeys(
-                pId,
-                publicKyberKey,
-                publicKey,
-            );
 
             olmData.createOutboundOLMchannel(
                 this._olmAccount,
@@ -183,21 +150,17 @@ export class OlmAdapter {
                 commitment,
             );
 
-            const encapsulatedBase64 =
-                await olmData.encapsulate(publicKyberKey);
-            const commitmentToKeys = await olmData.keyCommitment(this._myId);
-
+            const encapsulatedBase64 = olmData.encapsulate(publicKyberKey);
+            const commitmentToKeys = await olmData.keyCommitment();
             const ciphertext = olmData.encryptKeyCommitment(commitmentToKeys);
+            olmData.setStatus(PROTOCOL_STATUS.WAITING_PQ_SESSION_ACK);
 
-            const data: PQsessionInit = {
+            return {
                 encapsKyber: encapsulatedBase64,
                 publicKey: this._publicCurve25519Key,
                 publicKyberKey: this._publicKyberKeyBase64,
                 ciphertext: ciphertext,
             };
-
-            olmData.setStatus(PROTOCOL_STATUS.WAITING_PQ_SESSION_ACK);
-            return { data, keyCommitment };
         } catch (error) {
             throw getError("createPQsessionInitMessage", error);
         }
@@ -209,16 +172,10 @@ export class OlmAdapter {
         publicKey: string,
         publicKyberKey: string,
         ciphertext: string,
-    ): Promise<{ data: PQsessionAck; keyCommitment: string }> {
+    ): Promise<PQsessionAck> {
         try {
             const olmData = this._getParticipantOlmData(pId);
             olmData.validateStatus(PROTOCOL_STATUS.WAITING_PQ_SESSION_INIT);
-
-            const keyCommitment = await commitToIdentityKeys(
-                pId,
-                publicKyberKey,
-                publicKey,
-            );
 
             olmData.createInboundOLMchannel(
                 this._olmAccount,
@@ -226,27 +183,28 @@ export class OlmAdapter {
                 ciphertext,
             );
 
-            const decapsulatedSecret = await decapsulateSecret(
-                encapsKyber,
+            const decapsArray = utils.base64ToUint8Array(encapsKyber);
+            const decapsulatedSecret = pq.decapsulateKyber(
+                decapsArray,
                 this._privateKyberKey,
             );
 
-            const { encapsulatedBase64, sharedSecret } =
-                await encapsulateSecret(publicKyberKey);
+            const publicKeyArray = utils.base64ToUint8Array(publicKyberKey);
+            const { cipherText, sharedSecret } =
+                pq.encapsulateKyber(publicKeyArray);
+            const encapsulatedBase64 = utils.uint8ArrayToBase64(cipherText);
 
             await olmData.deriveSharedPQkey(sharedSecret, decapsulatedSecret);
 
             const { ciphertext: olmEncKeyInfo, pqCiphertext: pqEncKeyInfo } =
                 await olmData.encryptKeys();
 
-            const data: PQsessionAck = {
+            olmData.setStatus(PROTOCOL_STATUS.WAITING_SESSION_ACK);
+            return {
                 encapsKyber: encapsulatedBase64,
                 ciphertext: olmEncKeyInfo,
                 pqCiphertext: pqEncKeyInfo,
             };
-
-            olmData.setStatus(PROTOCOL_STATUS.WAITING_SESSION_ACK);
-            return { data, keyCommitment };
         } catch (error) {
             throw getError("createPQsessionAckMessage", error);
         }
@@ -258,28 +216,33 @@ export class OlmAdapter {
         ciphertext: string,
         pqCiphertext: string,
     ): Promise<{
-        data: SessionAck;
-        key: MediaKey;
+        data: KeyInfo;
+        key: MediaKeys;
     }> {
         try {
             const olmData = this._getParticipantOlmData(pId);
             olmData.validateStatus(PROTOCOL_STATUS.WAITING_PQ_SESSION_ACK);
 
-            const decapsulatedSecret = await decapsulateSecret(
-                encapsKyber,
+            const decapsArray = utils.base64ToUint8Array(encapsKyber);
+            const decapsulatedSecret = pq.decapsulateKyber(
+                decapsArray,
                 this._privateKyberKey,
             );
 
             await olmData.deriveSharedPQkey(decapsulatedSecret);
-            const key = await olmData.decryptKeys(ciphertext, pqCiphertext);
-            await olmData.validateCommitment(pId, key);
+            const key = await olmData.decryptKeys(
+                pId,
+                ciphertext,
+                pqCiphertext,
+            );
+            await olmData.validateCommitment(key);
 
             const {
                 ciphertext: olmCiphertext,
                 pqCiphertext: pqCiphertextBase64,
             } = await olmData.encryptKeys();
 
-            const data: SessionAck = {
+            const data: KeyInfo = {
                 ciphertext: olmCiphertext,
                 pqCiphertext: pqCiphertextBase64,
             };
@@ -296,50 +259,46 @@ export class OlmAdapter {
         ciphertext: string,
         pqCiphertext: string,
     ): Promise<{
-        data: KeyInfo | undefined;
-        key: MediaKey;
+        keyChanged: boolean;
+        key: MediaKeys;
     }> {
         try {
             const olmData = this._getParticipantOlmData(pId);
             olmData.validateStatus(PROTOCOL_STATUS.WAITING_SESSION_ACK);
 
-            const key = await olmData.decryptKeys(ciphertext, pqCiphertext);
-            await olmData.validateCommitment(pId, key);
+            const key = await olmData.decryptKeys(
+                pId,
+                ciphertext,
+                pqCiphertext,
+            );
+            await olmData.validateCommitment(key);
 
-            let data = undefined;
-            if (olmData.indexChanged(this._mediaKey)) {
-                data = await olmData.createKeyInfoMessage(this._mediaKey);
-            }
+            const keyChanged = olmData.indexChanged(this._mediaKey);
             olmData.setDone();
 
-            return { data, key };
+            return { keyChanged, key };
         } catch (error) {
             throw getError("createSessionDoneMessage", error);
         }
     }
 
-    async processSessionDoneMessage(pId: string): Promise<KeyInfo | undefined> {
+    processSessionDoneMessage(pId: string): boolean {
         try {
             const olmData = this._getParticipantOlmData(pId);
             olmData.validateStatus(PROTOCOL_STATUS.WAITING_DONE);
-
-            let data = undefined;
-            if (olmData.indexChanged(this._mediaKey)) {
-                data = await olmData.createKeyInfoMessage(this._mediaKey);
-            }
+            const keyChanged = olmData.indexChanged(this._mediaKey);
             olmData.setDone();
-
-            return data;
+            return keyChanged;
         } catch (error) {
             throw getError("processSessionDoneMessage", error);
         }
     }
 
-    async processKeyInfoMessage(
+    async decryptKey(
         pId: string,
         ciphertext: string,
         pqCiphertext: string,
-    ): Promise<MediaKey> {
+    ): Promise<MediaKeys> {
         try {
             const olmData = this._getParticipantOlmData(pId);
 
@@ -347,9 +306,9 @@ export class OlmAdapter {
                 throw new Error(`Session init is not done yet`);
             }
 
-            return olmData.decryptKeys(ciphertext, pqCiphertext);
+            return olmData.decryptKeys(pId, ciphertext, pqCiphertext);
         } catch (error) {
-            throw getError("processKeyInfoMessage", error);
+            throw getError("decryptKey", error);
         }
     }
 
@@ -360,17 +319,15 @@ export class OlmAdapter {
         try {
             const olmData = this._getParticipantOlmData(pId);
             olmData.validateStatus(PROTOCOL_STATUS.READY_TO_START);
+            const commitment = await olmData.keyCommitment();
+            olmData.setStatus(PROTOCOL_STATUS.WAITING_PQ_SESSION_INIT);
 
-            const commitment = await olmData.keyCommitment(this._myId);
-            const data: SessionInit = {
+            return {
                 otKey,
                 publicKey: this._publicCurve25519Key,
                 publicKyberKey: this._publicKyberKeyBase64,
                 commitment,
             };
-            olmData.setStatus(PROTOCOL_STATUS.WAITING_PQ_SESSION_INIT);
-
-            return data;
         } catch (error) {
             throw getError("createSessionInitMessage", error);
         }
