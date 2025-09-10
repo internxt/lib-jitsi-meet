@@ -58,7 +58,7 @@ export class XmppServerMock {
     }
 
     getSas(id: string): string[] {
-        return this.sasMap.get(id) ??[];
+        return this.sasMap.get(id) ?? [];
     }
 
     getAllParticipantsIDs(): string[] {

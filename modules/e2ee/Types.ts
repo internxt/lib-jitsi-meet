@@ -14,7 +14,8 @@ export const OLM_MESSAGE_TYPES = {
     PQ_SESSION_INIT: "pq-session-init",
     SESSION_DONE: "session-done",
 };
-export type MessageType = (typeof OLM_MESSAGE_TYPES)[keyof typeof OLM_MESSAGE_TYPES];
+export type MessageType =
+    (typeof OLM_MESSAGE_TYPES)[keyof typeof OLM_MESSAGE_TYPES];
 
 export const PROTOCOL_STATUS = {
     TERMINATED: "protocol-terminated",
