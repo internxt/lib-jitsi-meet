@@ -2,7 +2,7 @@
 import Listenable from "../util/Listenable";
 import { CustomRTCRtpReceiver, CustomRTCRtpSender } from "./Types";
 import { getLogger } from "@jitsi/logger";
-const logger = getLogger("modules/e2ee/E2EEContext");
+const logger = getLogger("modules/e2ee-internxt/E2EEContext");
 
 /**
  * Context encapsulating the cryptography bits required for E2EE.

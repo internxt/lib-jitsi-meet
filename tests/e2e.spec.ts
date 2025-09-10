@@ -1,8 +1,8 @@
 import { anything, verify, spy } from "ts-mockito";
 
-import { OlmAdapter } from "../modules/e2ee/OlmAdapter.ts";
-import E2EEContext from "../modules/e2ee/E2EEContext.ts";
-import { ManagedKeyHandler } from "../modules/e2ee/ManagedKeyHandler";
+import { OlmAdapter } from "../modules/e2ee-internxt/OlmAdapter";
+import E2EEContext from "../modules/e2ee-internxt/E2EEContext";
+import { ManagedKeyHandler } from "../modules/e2ee-internxt/ManagedKeyHandler";
 
 import {
     WorkerMock,

@@ -10,7 +10,7 @@ import * as JitsiConnectionEvents from '../../JitsiConnectionEvents';
 import { XMPPEvents } from '../../service/xmpp/XMPPEvents';
 import { XEP } from '../../service/xmpp/XMPPExtensioProtocols';
 import browser from '../browser';
-import { E2EEncryption } from '../e2ee/E2EEncryption';
+import { E2EEncryption } from '../e2ee-internxt/E2EEncryption';
 import FeatureFlags from '../flags/FeatureFlags';
 import Statistics from '../statistics/statistics';
 import Listenable from '../util/Listenable';

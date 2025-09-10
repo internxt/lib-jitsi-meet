@@ -44,7 +44,7 @@ module.exports = (_env, argv) => {
                 ]
             },
             entry: {
-                worker: './modules/e2ee/Worker.ts'
+                worker: './modules/e2ee-internxt/Worker.ts'
             },
             mode,
             output: {
