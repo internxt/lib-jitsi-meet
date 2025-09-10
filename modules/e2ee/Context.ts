@@ -8,12 +8,7 @@ import { symmetric, MediaKeys, deriveKey, hash, utils, IV_LEN_BYTES } from 'inte
 //   https://tools.ietf.org/html/rfc6716#section-3.1
 const UNENCRYPTED_BYTES_NUMBER = 1;
 
-// We use a ringbuffer of keys so we can change them and still decode packets that were
-// encrypted with an old key. We use a size of 16 which corresponds to the four bits
-// in the frame trailer.
-export const KEYRING_SIZE = 16;
-
-let printEncStart = true;
+export const MAX_NUMBER_TO_FIT_BYTE = 255;
 
 /**
  * Per-participant context holding the cryptographic keys
@@ -92,20 +87,19 @@ export class Context {
      *
      * The encrypted frame is formed as follows:
      * 1) Leave the first byte unencrypted
-     * 2) Form the GCM IV for the frame as described above.
-     * 3) Encrypt the rest of the frame using AES-GCM.
-     * 4) Allocate space for the encrypted frame.
-     * 5) Copy the unencrypted bytes to the start of the encrypted frame.
-     * 6) Append the ciphertext to the encrypted frame.
-     * 7) Append the IV.
-     * 8) Append a single byte for the key identifier.
-     * 9) Enqueue the encrypted frame for sending.
+     * 2) Encrypt the rest of the frame using AES-GCM.
+     * 3) Allocate space for the encrypted frame.
+     * 4) Copy the unencrypted bytes to the start of the encrypted frame.
+     * 5) Append the ciphertext to the encrypted frame.
+     * 6) Append the IV.
+     * 7) Append a single byte for the key identifier.
+     * 8) Enqueue the encrypted frame for sending.
      */
     async _encryptFrame(
         encodedFrame: RTCEncodedVideoFrame | RTCEncodedAudioFrame,
     ) {
         const key: CryptoKey = this.encryptionKey;
-        const keyIndex = this.key.index %KEYRING_SIZE;
+        const keyIndex = new Uint8Array([this.key.index %MAX_NUMBER_TO_FIT_BYTE]);
         try {
             // Thіs is not encrypted and contains the VP8 payload descriptor or the Opus TOC byte.
             const frameHeader = new Uint8Array(
@@ -118,9 +112,9 @@ export class Context {
             // https://tools.ietf.org/html/draft-omara-sframe-00#section-4.2
             // but we put it at the end.
             //
-            // ---------+-------------------------+-+---------+----
-            // payload  |IV...(length = IV_LENGTH)|R|IV_LENGTH|KID |
-            // ---------+-------------------------+-+---------+----
+            // +------------------+-----------------+----+-----------+
+            // | unencrypted byte | encrypted data  | IV | key index |
+            // +------------------+-----------------+----+-----------+
             const data: Uint8Array = new Uint8Array(
                 encodedFrame.data,
                 UNENCRYPTED_BYTES_NUMBER,
@@ -131,28 +125,20 @@ export class Context {
                 UNENCRYPTED_BYTES_NUMBER,
             );
             const freeField = [encodedFrame.getMetadata().synchronizationSource, encodedFrame.timestamp].toString();
-            const {iv, ciphertext: cipherText} = await symmetric.encryptSymmetrically(key, data, additionalData.toString(), freeField);
+            const {iv, ciphertext} = await symmetric.encryptSymmetrically(key, data, additionalData.toString(), freeField);
 
-            const newData = new ArrayBuffer(
-                UNENCRYPTED_BYTES_NUMBER +
-                    cipherText.byteLength +
+
+            const newUint8 = new Uint8Array(UNENCRYPTED_BYTES_NUMBER +
+                    ciphertext.byteLength +
                     IV_LEN_BYTES +
-                    1,
-            );
-            const newUint8 = new Uint8Array(newData);
+                    1);
 
-            newUint8.set(frameHeader); // copy first bytes.
-            newUint8.set(cipherText, UNENCRYPTED_BYTES_NUMBER); // add ciphertext.
-            newUint8.set(iv, UNENCRYPTED_BYTES_NUMBER + cipherText.byteLength); // append IV.
-            newUint8.set(
-                new Uint8Array([keyIndex]),
-                UNENCRYPTED_BYTES_NUMBER + cipherText.byteLength + IV_LEN_BYTES,
-            ); // append frame trailer.
-            encodedFrame.data = newData;
-            if (printEncStart) {
-                console.info("Started encrypting my frames!");
-                printEncStart = false;
-            }
+            newUint8.set(frameHeader); // copy undencrypted byte.
+            newUint8.set(ciphertext, UNENCRYPTED_BYTES_NUMBER); // add ciphertext.
+            newUint8.set(iv, UNENCRYPTED_BYTES_NUMBER + ciphertext.byteLength); // append IV.
+            newUint8.set(keyIndex, UNENCRYPTED_BYTES_NUMBER + ciphertext.byteLength + IV_LEN_BYTES); // append key index.
+
+            encodedFrame.data = newUint8.buffer;
             return encodedFrame;
         } catch (e) {
             // TODO: surface this to the app.
