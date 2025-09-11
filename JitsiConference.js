@@ -22,7 +22,7 @@ import P2PDominantSpeakerDetection from './modules/detection/P2PDominantSpeakerD
 import VADAudioAnalyser from './modules/detection/VADAudioAnalyser';
 import VADNoiseDetection from './modules/detection/VADNoiseDetection';
 import VADTalkMutedDetection from './modules/detection/VADTalkMutedDetection';
-import { E2EEncryption } from './modules/e2ee/E2EEncryption';
+import { E2EEncryption } from './modules/e2ee-internxt/E2EEncryption';
 import E2ePing from './modules/e2eping/e2eping';
 import Jvb121EventGenerator from './modules/event/Jvb121EventGenerator';
 import FeatureFlags from './modules/flags/FeatureFlags';

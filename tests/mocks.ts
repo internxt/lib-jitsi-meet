@@ -1,8 +1,8 @@
-import { setupWorker } from "../modules/e2ee/Worker";
-import { ManagedKeyHandler } from "../modules/e2ee/ManagedKeyHandler";
+import { setupWorker } from "../modules/e2ee-internxt/Worker";
+import { ManagedKeyHandler } from "../modules/e2ee-internxt/ManagedKeyHandler";
 import JitsiParticipant from "../JitsiParticipant";
-import JitsiConference from "../JitsiConference.js";
-import RTC from "../modules/RTC/RTC.js";
+import JitsiConference from "../JitsiConference";
+import RTC from "../modules/RTC/RTC";
 import EventEmitter from "../modules/util/EventEmitter";
 import * as JitsiConferenceEvents from "../JitsiConferenceEvents";
 

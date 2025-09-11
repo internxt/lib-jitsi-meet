@@ -1,5 +1,5 @@
 /* eslint-disable no-bitwise */
-import { Context } from "../modules/e2ee/Context";
+import { Context } from "../modules/e2ee-internxt/Context";
 import { deriveKey } from "internxt-crypto";
 
 const audioBytes = [0xde, 0xad, 0xbe, 0xef];
