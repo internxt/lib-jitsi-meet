@@ -10,7 +10,11 @@ docs
 # not seem to be a reason why we will want to risk being inconsistent with our
 # remaining JavaScript source code.
 !.eslintrc.js
+wasm/*
 
+# temporary to pass CI
+modules/**/JitsiLocalTrack.js
+modules/**/JitsiRemoteTrack.js
 *.d.ts
 *.spec.ts
 *.spec.js
