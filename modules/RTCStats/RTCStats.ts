@@ -3,12 +3,7 @@ import { getLogger } from '@jitsi/logger';
 import rtcstatsInit from '@jitsi/rtcstats/rtcstats';
 import traceInit from '@jitsi/rtcstats/trace-ws';
 
-import {
-    CONFERENCE_CREATED_TIMESTAMP,
-    CONFERENCE_JOINED,
-    CONFERENCE_LEFT,
-    CONFERENCE_UNIQUE_ID_SET
-} from '../../JitsiConferenceEvents';
+import { JitsiConferenceEvents} from '../../JitsiConferenceEvents';
 import JitsiConference from '../../JitsiConference';
 import { IRTCStatsConfiguration } from './interfaces';
 import { RTC_STATS_PC_EVENT, RTC_STATS_WC_DISCONNECTED } from './RTCStatsEvents';
@@ -112,7 +107,7 @@ class RTCStats {
 
         // When the conference is joined, we need to initialize the trace module with the new conference's config.
         // The trace module will then connect to the rtcstats server and send the identity data.
-        conference.once(CONFERENCE_JOINED, () => {
+        conference.once(JitsiConferenceEvents.CONFERENCE_JOINED, () => {
             const traceOptions = {
                 endpoint,
                 meetingFqn: confName,
@@ -145,15 +140,15 @@ class RTCStats {
         });
 
         // Note, this will only be called for normal rooms, not breakout rooms.
-        conference.once(CONFERENCE_UNIQUE_ID_SET, (meetingUniqueId) => {
+        conference.once(JitsiConferenceEvents.CONFERENCE_UNIQUE_ID_SET, (meetingUniqueId) => {
             this.sendIdentity({meetingUniqueId});
         });
 
-        conference.once(CONFERENCE_LEFT, () => {
+        conference.once(JitsiConferenceEvents.CONFERENCE_LEFT, () => {
             this.reset();
         });
 
-        conference.once(CONFERENCE_CREATED_TIMESTAMP, (timestamp: number) => {
+        conference.once(JitsiConferenceEvents.CONFERENCE_CREATED_TIMESTAMP, (timestamp: number) => {
             this.sendStatsEntry('conferenceStartTimestamp', null, timestamp);
         })
     }

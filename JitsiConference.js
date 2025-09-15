@@ -5,7 +5,7 @@ import { Strophe } from 'strophe.js';
 
 import * as JitsiConferenceErrors from './JitsiConferenceErrors';
 import JitsiConferenceEventManager from './JitsiConferenceEventManager';
-import * as JitsiConferenceEvents from './JitsiConferenceEvents';
+import { JitsiConferenceEvents } from './JitsiConferenceEvents';
 import JitsiParticipant from './JitsiParticipant';
 import JitsiTrackError from './JitsiTrackError';
 import * as JitsiTrackErrors from './JitsiTrackErrors';

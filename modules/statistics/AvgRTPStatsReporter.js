@@ -1,7 +1,7 @@
 import { getLogger } from '@jitsi/logger';
 import { isEqual } from 'lodash-es';
 
-import * as ConferenceEvents from '../../JitsiConferenceEvents';
+import { JitsiConferenceEvents } from '../../JitsiConferenceEvents';
 import { MediaType } from '../../service/RTC/MediaType';
 import { VideoType } from '../../service/RTC/VideoType';
 import * as ConnectionQualityEvents
@@ -166,7 +166,7 @@ class ConnectionAvgStats {
 
         if (!this.isP2P) {
             this._onUserLeft = id => this._avgRemoteRTTMap.delete(id);
-            conference.on(ConferenceEvents.USER_LEFT, this._onUserLeft);
+            conference.on(JitsiConferenceEvents.USER_LEFT, this._onUserLeft);
 
             this._onRemoteStatsUpdated
                 = (id, data) => this._processRemoteStats(id, data);
@@ -320,7 +320,7 @@ class ConnectionAvgStats {
                 ConnectionQualityEvents.REMOTE_STATS_UPDATED,
                 this._onRemoteStatsUpdated);
             conference.off(
-                ConferenceEvents.USER_LEFT,
+                JitsiConferenceEvents.USER_LEFT,
                 this._onUserLeft);
         }
     }
@@ -547,7 +547,7 @@ export default class AvgRTPStatsReporter {
             this.p2pStatsMonitor._resetAvgStats();
         };
         conference.on(
-            ConferenceEvents.P2P_STATUS,
+            JitsiConferenceEvents.P2P_STATUS,
             this._onP2PStatusChanged);
 
         this._onJvb121StatusChanged = (oldStatus, newStatus) => {
@@ -560,7 +560,7 @@ export default class AvgRTPStatsReporter {
             }
         };
         conference.on(
-            ConferenceEvents.JVB121_STATUS,
+            JitsiConferenceEvents.JVB121_STATUS,
             this._onJvb121StatusChanged);
 
         this.jvbStatsMonitor
@@ -1006,13 +1006,13 @@ export default class AvgRTPStatsReporter {
      */
     dispose() {
         this._conference.off(
-            ConferenceEvents.P2P_STATUS,
+            JitsiConferenceEvents.P2P_STATUS,
             this._onP2PStatusChanged);
         this._conference.off(
             ConnectionQualityEvents.LOCAL_STATS_UPDATED,
             this._onLocalStatsUpdated);
         this._conference.off(
-            ConferenceEvents.JVB121_STATUS,
+            JitsiConferenceEvents.JVB121_STATUS,
             this._onJvb121StatusChanged);
         this.jvbStatsMonitor.dispose();
         this.p2pStatsMonitor.dispose();

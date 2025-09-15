@@ -1,4 +1,4 @@
-import * as JitsiConferenceEvents from '../../JitsiConferenceEvents';
+import { JitsiConferenceEvents } from '../../JitsiConferenceEvents';
 import { XMPPEvents } from '../../service/xmpp/XMPPEvents';
 
 import SpeakerStats from './SpeakerStats';

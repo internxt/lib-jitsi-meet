@@ -2,7 +2,7 @@
 import { Strophe } from 'strophe.js';
 
 
-import * as JitsiConferenceEvents from './JitsiConferenceEvents';
+import { JitsiConferenceEvents } from './JitsiConferenceEvents';
 import { MediaType } from './service/RTC/MediaType';
 
 /**
