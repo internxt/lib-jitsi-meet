@@ -9,7 +9,7 @@ import Statistics from './modules/statistics/statistics';
 import EventEmitterForwarder from './modules/util/EventEmitterForwarder';
 import { MediaType } from './service/RTC/MediaType';
 import RTCEvents from './service/RTC/RTCEvents';
-import AuthenticationEvents
+import { AuthenticationEvents }
     from './service/authentication/AuthenticationEvents';
 import {
     ACTION_JINGLE_SA_TIMEOUT,
@@ -612,38 +612,6 @@ JitsiConferenceEventManager.prototype.setupXMPPListeners = function() {
         XMPPEvents.CALL_ENDED,
         conference.onCallEnded.bind(conference));
 
-    this._addConferenceXMPPListener(XMPPEvents.START_MUTED_FROM_FOCUS,
-        (audioMuted, videoMuted) => {
-            if (conference.options.config.ignoreStartMuted) {
-                return;
-            }
-
-            conference.startAudioMuted = audioMuted;
-            conference.startVideoMuted = videoMuted;
-
-            if (audioMuted) {
-                conference.isMutedByFocus = true;
-            }
-
-            if (videoMuted) {
-                conference.isVideoMutedByFocus = true;
-            }
-
-            // mute existing local tracks because this is initial mute from
-            // Jicofo
-            conference.getLocalTracks().forEach(track => {
-                switch (track.getType()) {
-                case MediaType.AUDIO:
-                    conference.startAudioMuted && track.mute();
-                    break;
-                case MediaType.VIDEO:
-                    conference.startVideoMuted && track.mute();
-                    break;
-                }
-            });
-
-            conference.eventEmitter.emit(JitsiConferenceEvents.STARTED_MUTED);
-        });
 
     this._addConferenceXMPPListener(XMPPEvents.AV_MODERATION_CHANGED,
         (value, mediaType, actorJid) => {
