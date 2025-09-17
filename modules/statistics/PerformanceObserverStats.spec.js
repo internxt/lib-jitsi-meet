@@ -1,5 +1,5 @@
 
-import * as JitsiConferenceEvents from '../../JitsiConferenceEvents';
+import { JitsiConferenceEvents } from '../../JitsiConferenceEvents';
 import browser from '../browser';
 import Listenable from '../util/Listenable';
 

@@ -1,6 +1,6 @@
 import { getLogger } from '@jitsi/logger';
 
-import * as JitsiConferenceEvents from '../../JitsiConferenceEvents';
+import { JitsiConferenceEvents } from '../../JitsiConferenceEvents';
 import * as JitsiE2EPingEvents from '../../service/e2eping/E2ePingEvents';
 
 const logger = getLogger(__filename);

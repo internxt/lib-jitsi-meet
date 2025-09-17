@@ -5,7 +5,7 @@ import { Strophe } from 'strophe.js';
 
 import * as JitsiConferenceErrors from './JitsiConferenceErrors';
 import JitsiConferenceEventManager from './JitsiConferenceEventManager';
-import * as JitsiConferenceEvents from './JitsiConferenceEvents';
+import { JitsiConferenceEvents } from './JitsiConferenceEvents';
 import JitsiParticipant from './JitsiParticipant';
 import JitsiTrackError from './JitsiTrackError';
 import * as JitsiTrackErrors from './JitsiTrackErrors';
@@ -24,7 +24,6 @@ import VADNoiseDetection from './modules/detection/VADNoiseDetection';
 import VADTalkMutedDetection from './modules/detection/VADTalkMutedDetection';
 import { E2EEncryption } from './modules/e2ee-internxt/E2EEncryption';
 import E2ePing from './modules/e2eping/e2eping';
-import Jvb121EventGenerator from './modules/event/Jvb121EventGenerator';
 import FeatureFlags from './modules/flags/FeatureFlags';
 import { LiteModeContext } from './modules/litemode/LiteModeContext';
 import { QualityController } from './modules/qualitycontrol/QualityController';
@@ -530,11 +529,6 @@ JitsiConference.prototype._init = function(options = {}) {
         this.setLastN(config.channelLastN);
     }
 
-    /**
-     * Emits {@link JitsiConferenceEvents.JVB121_STATUS}.
-     * @type {Jvb121EventGenerator}
-     */
-    this.jvb121Status = new Jvb121EventGenerator(this);
 
     // creates dominant speaker detection that works only in p2p mode
     this.p2pDominantSpeakerDetection = new P2PDominantSpeakerDetection(this);

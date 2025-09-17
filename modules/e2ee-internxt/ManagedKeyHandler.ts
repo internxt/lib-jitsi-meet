@@ -6,7 +6,7 @@ import JingleSessionPC from "../xmpp/JingleSessionPC";
 import TraceablePeerConnection from "../RTC/TraceablePeerConnection";
 import E2EEContext from "./E2EEContext";
 
-import * as JitsiConferenceEvents from "../../JitsiConferenceEvents";
+import { JitsiConferenceEvents } from "../../JitsiConferenceEvents";
 import JitsiParticipant from "../../JitsiParticipant";
 
 import Listenable from "../util/Listenable";

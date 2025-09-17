@@ -4,7 +4,7 @@ import * as JitsiConferenceErrors from './JitsiConferenceErrors';
 import * as JitsiConferenceEvents from './JitsiConferenceEvents';
 import JitsiConnection from './JitsiConnection';
 import * as JitsiConnectionErrors from './JitsiConnectionErrors';
-import * as JitsiConnectionEvents from './JitsiConnectionEvents';
+import{ JitsiConnectionEvents } from './JitsiConnectionEvents';
 import JitsiMediaDevices from './JitsiMediaDevices';
 import * as JitsiMediaDevicesEvents from './JitsiMediaDevicesEvents';
 import JitsiTrackError from './JitsiTrackError';

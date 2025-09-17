@@ -4,7 +4,7 @@ import JitsiParticipant from "../JitsiParticipant";
 import JitsiConference from "../JitsiConference";
 import RTC from "../modules/RTC/RTC";
 import EventEmitter from "../modules/util/EventEmitter";
-import * as JitsiConferenceEvents from "../JitsiConferenceEvents";
+import { JitsiConferenceEvents}  from "../JitsiConferenceEvents";
 
 import { mock, instance, when, anything } from "ts-mockito";
 

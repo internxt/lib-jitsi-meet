@@ -1,4 +1,4 @@
-import * as JitsiConferenceEvents from '../../JitsiConferenceEvents';
+import { JitsiConferenceEvents } from '../../JitsiConferenceEvents';
 import RTCEvents from '../../service/RTC/RTCEvents';
 
 /**
