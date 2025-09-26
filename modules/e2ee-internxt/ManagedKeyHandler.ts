@@ -492,8 +492,7 @@ export class ManagedKeyHandler extends Listenable {
             this.updateParticipantKey(pId, key);
         } catch (error) {
             throw new Error(
-                `updateParticipantKey failed for participant ${pId}`,
-                { cause: error },
+                `updateParticipantKey failed for participant ${pId}: ${error}`,
             );
         }
     }
