@@ -280,6 +280,8 @@ export class ManagedKeyHandler extends Listenable {
                     );
                     return result;
                 } catch (error) {
+                     this.conference.eventEmitter.emit(
+                JitsiConferenceEvents.E2EE_KEY_SYNC_FAILED);
                     this.log(
                         "error",
                         `Session initialization request timed out for ${pId}: ${error}`,
@@ -606,11 +608,14 @@ export class ManagedKeyHandler extends Listenable {
                     if (requestPromise) {
                         requestPromise.resolve();
                         this._reqs.delete(pId);
-                    } else
+                    } else {
+                        this.conference.eventEmitter.emit(
+                        JitsiConferenceEvents.E2EE_KEY_SYNC_AFTER_TIMEOUT);
                         this.log(
                             "warn",
                             `Session with ${pId} was established after reaching time out.`,
                         );
+                    }
                     break;
                 }
                 case OLM_MESSAGE_TYPES.ERROR: {
