@@ -280,6 +280,8 @@ export class ManagedKeyHandler extends Listenable {
                     );
                     return result;
                 } catch (error) {
+                     this.conference.eventEmitter.emit(
+                JitsiConferenceEvents.E2EE_KEY_SYNC_FAILED);
                     this.log(
                         "error",
                         `Session initialization request timed out for ${pId}: ${error}`,
