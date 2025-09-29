@@ -188,6 +188,8 @@ export enum JitsiConferenceEvents {
     DTMF_SUPPORT_CHANGED = 'conference.dtmfSupportChanged',
 
     E2EE_SAS_AVAILABLE = 'conference.e2ee.sas.available',
+    E2EE_KEY_SYNC_FAILED = 'conference.e2ee.key_sync_failed',
+    E2EE_KEY_SYNC_AFTER_TIMEOUT = 'conference.e2ee.key_sync_after_timeout',
 
     /**
      * Indicates that the encode time stats for the local video sources has been received.
@@ -527,6 +529,8 @@ export const DISPLAY_NAME_CHANGED = JitsiConferenceEvents.DISPLAY_NAME_CHANGED;
 export const DOMINANT_SPEAKER_CHANGED = JitsiConferenceEvents.DOMINANT_SPEAKER_CHANGED;
 export const DTMF_SUPPORT_CHANGED = JitsiConferenceEvents.DTMF_SUPPORT_CHANGED;
 export const E2EE_SAS_AVAILABLE = JitsiConferenceEvents.E2EE_SAS_AVAILABLE;
+export const E2EE_KEY_SYNC_FAILED = JitsiConferenceEvents.E2EE_KEY_SYNC_FAILED;
+export const E2EE_KEY_SYNC_AFTER_TIMEOUT = JitsiConferenceEvents.E2EE_KEY_SYNC_AFTER_TIMEOUT;
 export const ENCODE_TIME_STATS_RECEIVED = JitsiConferenceEvents.ENCODE_TIME_STATS_RECEIVED;
 export const ENDPOINT_MESSAGE_RECEIVED = JitsiConferenceEvents.ENDPOINT_MESSAGE_RECEIVED;
 export const ENDPOINT_STATS_RECEIVED = JitsiConferenceEvents.ENDPOINT_STATS_RECEIVED;

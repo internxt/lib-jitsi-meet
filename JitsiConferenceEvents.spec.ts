@@ -25,6 +25,8 @@ describe( "/JitsiConferenceEvents members", () => {
         CONFERENCE_CREATED_TIMESTAMP,
         DTMF_SUPPORT_CHANGED,
         E2EE_SAS_AVAILABLE,
+        E2EE_KEY_SYNC_FAILED,
+        E2EE_KEY_SYNC_AFTER_TIMEOUT,
         ENCODE_TIME_STATS_RECEIVED,
         ENDPOINT_MESSAGE_RECEIVED,
         ENDPOINT_STATS_RECEIVED,
@@ -249,6 +251,8 @@ describe( "/JitsiConferenceEvents members", () => {
         expect( JitsiConferenceEvents.SILENT_STATUS_CHANGED ).toBe( 'conference.silentStatusChanged' );
         expect( JitsiConferenceEvents.REACTION_RECEIVED ).toBe( 'conference.reactionReceived' );
         expect( JitsiConferenceEvents.E2EE_SAS_AVAILABLE ).toBe( 'conference.e2ee.sas.available' );
+        expect( JitsiConferenceEvents.E2EE_KEY_SYNC_FAILED ).toBe( 'conference.e2ee.key_sync_failed' );
+        expect( JitsiConferenceEvents.E2EE_KEY_SYNC_AFTER_TIMEOUT ).toBe( 'conference.e2ee.key_sync_after_timeout' );
     } );
 
 it( "unknown members", () => {
