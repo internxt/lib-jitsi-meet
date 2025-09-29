@@ -284,11 +284,12 @@ export class ManagedKeyHandler extends Listenable {
                     );
                     return result;
                 } catch (error) {
+                    const user = {pId, name: participant.getDisplayName()};
                      this.conference.eventEmitter.emit(
-                JitsiConferenceEvents.E2EE_KEY_SYNC_FAILED);
+                JitsiConferenceEvents.E2EE_KEY_SYNC_FAILED, user);
                     this.log(
                         "error",
-                        `Session initialization request timed out for user with ID ${pId} (${participant.getDisplayName()}): ${error}`,
+                        `Session initialization request timed out for user with ID ${pId} (${user.name}): ${error}`,
                     );
                 }
             });
@@ -617,11 +618,12 @@ export class ManagedKeyHandler extends Listenable {
                         requestPromise.resolve();
                         this._reqs.delete(pId);
                     } else {
+                        const user = {pId, name: participant.getDisplayName()};
                         this.conference.eventEmitter.emit(
-                        JitsiConferenceEvents.E2EE_KEY_SYNC_AFTER_TIMEOUT);
+                        JitsiConferenceEvents.E2EE_KEY_SYNC_AFTER_TIMEOUT, user);
                         this.log(
                             "warn",
-                            `Session with ${pId} was established after reaching time out.`,
+                            `Session with ${pId} (${user.name}) was established after reaching time out.`,
                         );
                     }
                     break;
