@@ -244,6 +244,10 @@ export class ManagedKeyHandler extends Listenable {
         this.updateMyKeys();
 
         const participants = this.conference.getParticipants();
+        this.log(
+            "info",
+            `There are following IDs in the meeting: [ ${participants.map((p) => p.getId())}]`,
+        );
         const list = participants.filter(
             (participant) =>
                 participant.hasFeature(FEATURE_E2EE) &&
