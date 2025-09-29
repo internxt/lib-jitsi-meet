@@ -286,7 +286,7 @@ export class ManagedKeyHandler extends Listenable {
                 } catch (error) {
                     this.log(
                         "error",
-                        `Session initialization request timed out for ${pId}: ${error}`,
+                        `Session initialization request timed out for user with ID ${pId} (${participant.getDisplayName()}): ${error}`,
                     );
                 }
             });
@@ -519,6 +519,7 @@ export class ManagedKeyHandler extends Listenable {
 
             switch (msg.type) {
                 case OLM_MESSAGE_TYPES.SESSION_INIT: {
+                    this.log("info", `Got session-init from ${pId}.`);
                     const { otKey, publicKey, publicKyberKey, commitment } =
                         msg.data;
                     const data =
@@ -543,6 +544,7 @@ export class ManagedKeyHandler extends Listenable {
                 }
 
                 case OLM_MESSAGE_TYPES.PQ_SESSION_INIT: {
+                    this.log("info", `Got pq-session-init from ${pId}.`);
                     const {
                         encapsKyber,
                         publicKey,
@@ -570,6 +572,7 @@ export class ManagedKeyHandler extends Listenable {
                     break;
                 }
                 case OLM_MESSAGE_TYPES.PQ_SESSION_ACK: {
+                    this.log("info", `Got pq-session-ack from ${pId}.`);
                     const { encapsKyber, ciphertext, pqCiphertext } = msg.data;
 
                     const { data, key } =
@@ -584,6 +587,7 @@ export class ManagedKeyHandler extends Listenable {
                     break;
                 }
                 case OLM_MESSAGE_TYPES.SESSION_ACK: {
+                    this.log("info", `Got session-ack from ${pId}.`);
                     const { ciphertext, pqCiphertext } = msg.data;
                     const { keyChanged, key } =
                         await this._olmAdapter.createSessionDoneMessage(
@@ -622,6 +626,7 @@ export class ManagedKeyHandler extends Listenable {
                     break;
                 }
                 case OLM_MESSAGE_TYPES.SESSION_DONE: {
+                    this.log("info", `Got session-done from ${pId}.`);
                     const keyChanged =
                         this._olmAdapter.processSessionDoneMessage(pId);
                     if (keyChanged) {
@@ -640,19 +645,20 @@ export class ManagedKeyHandler extends Listenable {
                     break;
                 }
                 case OLM_MESSAGE_TYPES.KEY_INFO: {
-                    this.log("info", `Got key info from ${pId}.`);
+                    this.log("info", `Got key-info from ${pId}.`);
                     const { ciphertext, pqCiphertext } = msg.data;
                     await this.updateKey(pId, ciphertext, pqCiphertext);
                     break;
                 }
                 case OLM_MESSAGE_TYPES.KEY_UPDATE: {
-                    this.log("info", `Got new key from ${pId}.`);
+                    this.log("info", `Got key-update from ${pId}.`);
                     const { ciphertext, pqCiphertext } = msg.data;
                     await this.updateKey(pId, ciphertext, pqCiphertext);
                     this.resolveKeyUpdatePromise(pId);
                     break;
                 }
                 case OLM_MESSAGE_TYPES.KEY_UPDATE_REQ: {
+                    this.log("info", `Got key-update-req from ${pId}.`);
                     const data = await this._olmAdapter.encryptCurrentKey(pId);
                     this._sendMessage(OLM_MESSAGE_TYPES.KEY_UPDATE, data, pId);
                     break;
