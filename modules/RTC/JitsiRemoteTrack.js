@@ -294,12 +294,14 @@ export default class JitsiRemoteTrack extends JitsiTrack {
                 if(timer==true){
                     console.time("TIMER full js2py decoder");
                 }
-                let floatArray = await js2py(imageData,width,height);
-                if(timer==true){
-                    console.timeEnd("TIMER full js2py decoder");
-                }
+                // let floatArray = await js2py(imageData,width,height);
+                // if(timer==true){
+                //     console.timeEnd("TIMER full js2py decoder");
+                // }
+                let floatArray = Float32Array(imageData)
                 // Applying the onnx model
-                const tensor = new ort.Tensor("float32",floatArray,[1,channels,height,width]);
+                // const tensor = new ort.Tensor("float32",floatArray,[1,channels,height,width]);
+                const tensor = new ort.Tensor("float32",floatArray,[1,height,width,4]);
                 const input = {
                     input: tensor
                 };
@@ -327,7 +329,8 @@ export default class JitsiRemoteTrack extends JitsiTrack {
                 if(timer==true){
                     console.time("TIMER full py2js decoder");
                 }
-                dataRestore = await py2js(dataRestore,tensorData,canvasDecoded.width,canvasDecoded.height);
+                // dataRestore = await py2js(dataRestore,tensorData,canvasDecoded.width,canvasDecoded.height);
+                dataRestore.set(tensorData)
                 if(timer==true){
                     console.timeEnd("TIMER full py2js decoder");
                 }
