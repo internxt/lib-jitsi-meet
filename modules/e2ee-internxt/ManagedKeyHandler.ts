@@ -244,6 +244,10 @@ export class ManagedKeyHandler extends Listenable {
         this.updateMyKeys();
 
         const participants = this.conference.getParticipants();
+        this.log(
+            "info",
+            `There are following IDs in the meeting: [ ${participants.map((p) => p.getId())}]`,
+        );
         const list = participants.filter(
             (participant) =>
                 participant.hasFeature(FEATURE_E2EE) &&
@@ -280,11 +284,12 @@ export class ManagedKeyHandler extends Listenable {
                     );
                     return result;
                 } catch (error) {
+                    const user = {pId, name: participant.getDisplayName()};
                      this.conference.eventEmitter.emit(
-                JitsiConferenceEvents.E2EE_KEY_SYNC_FAILED);
+                JitsiConferenceEvents.E2EE_KEY_SYNC_FAILED, user);
                     this.log(
                         "error",
-                        `Session initialization request timed out for ${pId}: ${error}`,
+                        `Session initialization request timed out for user with ID ${pId} (${user.name}): ${error}`,
                     );
                 }
             });
@@ -517,6 +522,7 @@ export class ManagedKeyHandler extends Listenable {
 
             switch (msg.type) {
                 case OLM_MESSAGE_TYPES.SESSION_INIT: {
+                    this.log("info", `Got session-init from ${pId}.`);
                     const { otKey, publicKey, publicKyberKey, commitment } =
                         msg.data;
                     const data =
@@ -541,6 +547,7 @@ export class ManagedKeyHandler extends Listenable {
                 }
 
                 case OLM_MESSAGE_TYPES.PQ_SESSION_INIT: {
+                    this.log("info", `Got pq-session-init from ${pId}.`);
                     const {
                         encapsKyber,
                         publicKey,
@@ -568,6 +575,7 @@ export class ManagedKeyHandler extends Listenable {
                     break;
                 }
                 case OLM_MESSAGE_TYPES.PQ_SESSION_ACK: {
+                    this.log("info", `Got pq-session-ack from ${pId}.`);
                     const { encapsKyber, ciphertext, pqCiphertext } = msg.data;
 
                     const { data, key } =
@@ -582,6 +590,7 @@ export class ManagedKeyHandler extends Listenable {
                     break;
                 }
                 case OLM_MESSAGE_TYPES.SESSION_ACK: {
+                    this.log("info", `Got session-ack from ${pId}.`);
                     const { ciphertext, pqCiphertext } = msg.data;
                     const { keyChanged, key } =
                         await this._olmAdapter.createSessionDoneMessage(
@@ -609,11 +618,12 @@ export class ManagedKeyHandler extends Listenable {
                         requestPromise.resolve();
                         this._reqs.delete(pId);
                     } else {
+                        const user = {pId, name: participant.getDisplayName()};
                         this.conference.eventEmitter.emit(
-                        JitsiConferenceEvents.E2EE_KEY_SYNC_AFTER_TIMEOUT);
+                        JitsiConferenceEvents.E2EE_KEY_SYNC_AFTER_TIMEOUT, user);
                         this.log(
                             "warn",
-                            `Session with ${pId} was established after reaching time out.`,
+                            `Session with ${pId} (${user.name}) was established after reaching time out.`,
                         );
                     }
                     break;
@@ -623,6 +633,7 @@ export class ManagedKeyHandler extends Listenable {
                     break;
                 }
                 case OLM_MESSAGE_TYPES.SESSION_DONE: {
+                    this.log("info", `Got session-done from ${pId}.`);
                     const keyChanged =
                         this._olmAdapter.processSessionDoneMessage(pId);
                     if (keyChanged) {
@@ -641,19 +652,20 @@ export class ManagedKeyHandler extends Listenable {
                     break;
                 }
                 case OLM_MESSAGE_TYPES.KEY_INFO: {
-                    this.log("info", `Got key info from ${pId}.`);
+                    this.log("info", `Got key-info from ${pId}.`);
                     const { ciphertext, pqCiphertext } = msg.data;
                     await this.updateKey(pId, ciphertext, pqCiphertext);
                     break;
                 }
                 case OLM_MESSAGE_TYPES.KEY_UPDATE: {
-                    this.log("info", `Got new key from ${pId}.`);
+                    this.log("info", `Got key-update from ${pId}.`);
                     const { ciphertext, pqCiphertext } = msg.data;
                     await this.updateKey(pId, ciphertext, pqCiphertext);
                     this.resolveKeyUpdatePromise(pId);
                     break;
                 }
                 case OLM_MESSAGE_TYPES.KEY_UPDATE_REQ: {
+                    this.log("info", `Got key-update-req from ${pId}.`);
                     const data = await this._olmAdapter.encryptCurrentKey(pId);
                     this._sendMessage(OLM_MESSAGE_TYPES.KEY_UPDATE, data, pId);
                     break;
