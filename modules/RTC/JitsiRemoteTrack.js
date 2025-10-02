@@ -10,8 +10,6 @@ import RTCUtils from './RTCUtils';
 import JitsiTrack from './JitsiTrack';  
 import { decode } from 'punycode';
 
-
-
 const ort = require('onnxruntime-web');
 ort.env.wasm.wasmPaths = '/libs/dist/';
 
@@ -28,7 +26,9 @@ export let decodingSession = null;
  */
 async function loadDecoder(){
     try{
-        decodingSession = await ort.InferenceSession.create('/libs/models/Decoder.onnx');
+        decodingSession = await ort.InferenceSession.create('/libs/models/Decoder.onnx', {freeDimensionOverrides: {
+            batch: 1,
+          }});
         console.log("Decoder model has been loaded");
     }
     catch (error){
@@ -203,7 +203,7 @@ export default class JitsiRemoteTrack extends JitsiTrack {
                 //Generating tensor from painted frame to be passed to the onnx model
                 const imageEncode = ctxEncoded.getImageData(0, 0, width, height);
                 const imageData = imageEncode.data;
-                let floatArray = Float32Array(imageData)
+                let floatArray = Float32Array.from(imageData)
                 // Applying the onnx model
                 const tensor = new ort.Tensor("float32",floatArray,[1,height,width,4]);
                 const input = {
