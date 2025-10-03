@@ -26,7 +26,7 @@ export let decodingSession = null;
  */
 async function loadDecoder(){
     try{
-        decodingSession = await ort.InferenceSession.create('/libs/models/Decoder.onnx', {freeDimensionOverrides: {
+        decodingSession = await ort.InferenceSession.create('/libs/models/Decoder.onnx', {executionProviders: ['wasm'], freeDimensionOverrides: {
             batch: 1,
           }});
         console.log("Decoder model has been loaded");
@@ -35,6 +35,7 @@ async function loadDecoder(){
         console.error("Decoder model could not be loaded!: ", error);
     }
 }
+console.log('ORT EPs available:', ort.env.wasm.wasmPaths);
 loadDecoder()
 
 /**
