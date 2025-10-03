@@ -64,7 +64,7 @@ export async function loadEncoder(){
         console.error("Encoder model could not be loaded!: ", error);
     }
 }
-loadEncoder();
+// loadEncoder();
 
 /**
  * Uses wasm binaries that transform HWC channel-order used by Javascript to CHW channel order used by python 
