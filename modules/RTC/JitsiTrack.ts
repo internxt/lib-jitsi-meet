@@ -50,7 +50,7 @@ export interface IExtendedMediaStream extends MediaStream {
 export default class JitsiTrack extends Listenable {
     private _streamInactiveHandler: MediaStreamTrackEventHandler;
     private audioLevel: number;
-    private type: MediaType;
+    public type: MediaType;
     private handlers: Map<string, MediaStreamTrackEventHandler>;
     protected containers: HTMLElement[];
     /**

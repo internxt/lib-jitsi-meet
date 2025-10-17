@@ -4342,42 +4342,8 @@ export default class JitsiConference extends Listenable {
      * @param {Number} [keyInfo.index] - the index of the encryption key.
      * @returns {void}
      */
-    public setMediaEncryptionKey(keyInfo: CryptoKey): void {
-        this._e2eEncryption.setEncryptionKey(keyInfo);
-    }
-
-    /**
-     * Starts the participant verification process.
-     *
-     * @param {string} participantId The participant which will be marked as verified.
-     * @returns {void}
-     */
-    public startVerification(participantId: string): void {
-        const participant = this.getParticipantById(participantId);
-
-        if (!participant) {
-            return;
-        }
-
-        this._e2eEncryption.startVerification(participant);
-    }
-
-    /**
-     * Marks the given participant as verified. After this is done, MAC verification will
-     * be performed and an event will be emitted with the result.
-     *
-     * @param {string} participantId The participant which will be marked as verified.
-     * @param {boolean} isVerified - whether the verification was succesfull.
-     * @returns {void}
-     */
-    public markParticipantVerified(participantId: string, isVerified: boolean): void {
-        const participant = this.getParticipantById(participantId);
-
-        if (!participant) {
-            return;
-        }
-
-        this._e2eEncryption.markParticipantVerified(participant, isVerified);
+    public setMediaEncryptionKey(olmKey:Uint8Array, pqKey:Uint8Array, index:number): void {
+        this._e2eEncryption.setEncryptionKey(olmKey, pqKey, index);
     }
 
     /**

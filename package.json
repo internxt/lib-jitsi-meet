@@ -1,6 +1,6 @@
 {
   "name": "lib-jitsi-meet",
-  "version": "0.0.0",
+  "version": "0.0.9-alpha",
   "description": "JS library for accessing Jitsi server side deployments",
   "repository": {
     "type": "git",
@@ -27,6 +27,7 @@
     "emoji-regex": "10.4.0",
     "internxt-crypto": "https://github.com/internxt/crypto/releases/download/v.0.0.5-alpha/internxt-crypto-0.0.5-alpha.tgz",
     "lodash-es": "4.17.21",
+    "onnxruntime-web": "^1.23.0",
     "sdp-transform": "2.3.0",
     "strophe.js": "https://github.com/jitsi/strophejs/releases/download/v1.5-jitsi-3/strophe.js-1.5.0.tgz",
     "uuid": "8.3.2",

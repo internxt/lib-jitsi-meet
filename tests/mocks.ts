@@ -116,7 +116,7 @@ export class XmppServerMock {
         this.listeners.forEach((keyHandler, id) => {
             if (id === pId) {
                 keyHandler._onEndpointMessageReceived(
-                    this.participants.get(myId) as JitsiParticipant,
+                    this.participants.get(myId)!,
                     payload,
                 );
             }

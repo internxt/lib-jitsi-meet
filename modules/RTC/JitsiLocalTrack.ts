@@ -27,6 +27,107 @@ import JitsiTrack from './JitsiTrack';
 import RTCUtils from './RTCUtils';
 import TraceablePeerConnection from './TraceablePeerConnection';
 
+import channels from '../../wasm/RTC/channels.js';
+let timer = false;
+let wasmChannels= null;
+/**
+ * Creates a module which is able to call the wasm routines for channels ordering
+ * @returns channels wasm module
+ */
+export async function getWasmModule() {
+    if (!wasmChannels) {
+        wasmChannels = channels({
+            locateFile: (path) => {
+                if (path.endsWith('.wasm')) {
+                    return '/libs/channels.wasm';
+                }
+                return path;
+            }
+        });
+    }
+    return wasmChannels;
+}
+
+const ort = require('onnxruntime-web');
+ort.env.wasm.wasmPaths = '/libs/ONNX/';
+
+export let encodingSession = null;
+/**
+ * Loads the encoder model
+ */
+export async function loadEncoder(){
+
+    try{
+        encodingSession = await ort.InferenceSession.create('/libs/models/Encoder.onnx', {freeDimensionOverrides: {
+            batch: 1,
+          }});
+    }
+    catch (error){
+        console.error("Encoder model could not be loaded!: ", error);
+    }
+}
+loadEncoder();
+
+/**
+ * Uses wasm binaries that transform HWC channel-order used by Javascript to CHW channel order used by python 
+ * @param {data} data Javascript data container
+ * @param {number} width image width
+ * @param {number} height image height
+ * @returns FloatA32Array
+ */
+export async function js2py(data,width,height){
+    const Module = await getWasmModule();
+    const ptr = Module._malloc(data.length);
+    Module.HEAPU8.set(data, ptr);
+    // Call the C++ reorder function
+
+    if(timer==true){
+        console.time("TIMER Applying js2py encoder");
+    }
+    Module._vjs2py(ptr, width, height);
+    if(timer==true){
+        console.timeEnd("TIMER Applying js2py encoder");
+    }
+    // Read back the result
+    const result = Module.HEAPU8.subarray(ptr, ptr + data.length);
+    Module._free(ptr);
+    return Float32Array.from(result);
+}
+
+/**
+ * Uses wasm binaries that transform CHW channel-order used by python to HWC channel order used by javascript 
+ * @param {data} data Javascript data container
+ * @param {data} tensorData Tensor data from ort module
+ * @param {number} width image width
+ * @param {number} height image height
+ * @returns data
+ */
+export async function py2js(data,tensorData,width,height){
+    if(timer==true){
+        console.time("TIMER loading wasm py2js encoder");
+    }
+    const Module = await getWasmModule();
+    if(timer==true){
+        console.timeEnd("TIMER loading wasm py2js encoder");
+    }
+    const int8Tensor = Uint8ClampedArray.from(tensorData)
+    const ptr = Module._malloc(int8Tensor.length);
+    Module.HEAPU8.set(int8Tensor, ptr);
+    // Call the C++ reorder function
+    if(timer==true){
+        console.time("TIMER applying py2js encoder");
+    }
+    Module._vpy2js(ptr, width, height);
+    if(timer==true){
+        console.timeEnd("TIMER applying py2js encoder");
+    }
+    // Read back the result
+    const result = Module.HEAPU8.subarray(ptr, ptr + int8Tensor.length);
+    data.set(result);
+    Module._free(ptr);
+    return data;
+}
+
 const logger = getLogger('rtc:JitsiLocalTrack');
 
 export interface IStreamEffect {
@@ -104,6 +205,8 @@ export default class JitsiLocalTrack extends JitsiTrack {
     public deviceId: string;
     public resolution?: number;
     public maxEnabledResolution?: number;
+    public _encodedStream;
+    public _encodedTrack;
 
     /**
      * Constructs a new JitsiLocalTrack instance.

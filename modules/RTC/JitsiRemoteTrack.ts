@@ -156,6 +156,8 @@ export default class JitsiRemoteTrack extends JitsiTrack {
     public ownerEndpointId: string;
     public isP2P: boolean;
     public rtcId: Nullable<string>;
+    private _decodedStream;
+    private _decodedTrack;
 
     /**
      * Creates new JitsiRemoteTrack instance.
@@ -184,7 +186,7 @@ export default class JitsiRemoteTrack extends JitsiTrack {
             mediaType: MediaType,
             videoType: VideoType,
             ssrc: number,
-            muted: boolean,
+            _muted: boolean,
             isP2P: boolean,
             sourceName: string) {
         super(
@@ -204,7 +206,7 @@ export default class JitsiRemoteTrack extends JitsiTrack {
         }
         this._ssrc = ssrc;
         this.ownerEndpointId = ownerEndpointId;
-        this._muted = muted;
+        this._muted = _muted;
         this.isP2P = isP2P;
         this._sourceName = sourceName;
         this._trackStreamingStatus = null;
@@ -227,7 +229,7 @@ export default class JitsiRemoteTrack extends JitsiTrack {
         // we want to mark whether the track has been ever muted
         // to detect ttfm events for startmuted conferences, as it can
         // significantly increase ttfm values
-        this._hasBeenMuted = muted;
+        this._hasBeenMuted = _muted;
 
         // Bind 'onmute' and 'onunmute' event handlers
         this._bindTrackHandlers();
@@ -271,7 +273,7 @@ export default class JitsiRemoteTrack extends JitsiTrack {
             this._decodedTrack = this._decodedStream.getVideoTracks()[0];
             const videoTrack = this.stream.getVideoTracks()[0];
             // Applying onnx model to incoming stream and saving the output in the canvas-sender
-            this.applyONNXDecoder(videoTrack,canvasDecoded,this.muted);
+            this.applyONNXDecoder(videoTrack,canvasDecoded,this._muted);
         }
         catch(error){
             logger.error("Error on decoder phase: ", error);
