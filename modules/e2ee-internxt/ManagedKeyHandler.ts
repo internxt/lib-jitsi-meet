@@ -6,13 +6,13 @@ import JingleSessionPC from "../xmpp/JingleSessionPC";
 import TraceablePeerConnection from "../RTC/TraceablePeerConnection";
 import E2EEContext from "./E2EEContext";
 
-import * as JitsiConferenceEvents from "../../JitsiConferenceEvents";
+import { JitsiConferenceEvents } from "../../JitsiConferenceEvents";
 import JitsiParticipant from "../../JitsiParticipant";
 
 import Listenable from "../util/Listenable";
 import { OlmAdapter } from "./OlmAdapter";
 import JitsiConference from "../../JitsiConference";
-import RTCEvents from "../../service/RTC/RTCEvents";
+import { RTCEvents } from "../../service/RTC/RTCEvents";
 import { generateEmojiSas } from "./SAS";
 
 import { JITSI_MEET_MUC_TYPE, FEATURE_E2EE } from "../xmpp/xmpp";
@@ -166,7 +166,7 @@ export class ManagedKeyHandler extends Listenable {
             await this.disableE2E();
         }
 
-        this.conference.setLocalParticipantProperty("e2ee.enabled", enabled);
+        this.conference.setLocalParticipantProperty("e2ee.enabled", enabled.toString());
         this.conference._restartMediaSessions();
     }
 
@@ -497,8 +497,7 @@ export class ManagedKeyHandler extends Listenable {
             this.updateParticipantKey(pId, key);
         } catch (error) {
             throw new Error(
-                `updateParticipantKey failed for participant ${pId}`,
-                { cause: error },
+                `updateParticipantKey failed for participant ${pId}: ${error}`
             );
         }
     }

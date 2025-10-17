@@ -50,10 +50,8 @@ describe("E2EE Context", () => {
     const key = { olmKey, pqKey, index: 0, userID: "id" };
 
     beforeEach(() => {
-        sender = new Context('sender');
-        sender.setEnabled(true);
-        receiver = new Context('receiver');
-        receiver.setEnabled(true);
+        sender = new Context("sender");
+        receiver = new Context("receiver");
     });
 
     describe("encode function", () => {
@@ -155,6 +153,7 @@ describe("E2EE Context", () => {
                     index: 0,
                     userID: "id",
                 });
+
                 await sender.setKey(newKey);
                 await receiver.setKey(newKey);
                 sender.encodeFunction(makeAudioFrame(), sendController);

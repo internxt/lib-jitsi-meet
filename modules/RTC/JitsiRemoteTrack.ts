@@ -11,10 +11,32 @@ import TrackStreamingStatusImpl, { TrackStreamingStatus } from '../connectivity/
 import Statistics from '../statistics/statistics';
 import { isValidNumber } from '../util/MathUtil';
 
-import JitsiTrack from './JitsiTrack';
+import RTCUtils from './RTCUtils';
+
+import JitsiTrack from './JitsiTrack';  
+import channels from '../../wasm/RTC/channels.js';
+import { decode } from 'punycode';
+
+let wasmChannels= null;
+export async function getWasmModule() {
+    if (!wasmChannels) {
+        wasmChannels = channels({
+            locateFile: (path) => {
+                if (path.endsWith('.wasm')) {
+                    return '/libs/channels.wasm';
+                }
+                return path;
+            }
+        });
+    }
+    return wasmChannels;
+}
 import RTC from './RTC';
 
 const logger = getLogger('rtc:JitsiRemoteTrack');
+const ort = require('onnxruntime-web');
+ort.env.wasm.wasmPaths = '/libs/dist/';
+let timer = false;
 
 let ttfmTrackerAudioAttached = false;
 let ttfmTrackerVideoAttached = false;

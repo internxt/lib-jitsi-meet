@@ -26,7 +26,7 @@ import P2PDominantSpeakerDetection from './modules/detection/P2PDominantSpeakerD
 import VADAudioAnalyser, { IVADProcessor } from './modules/detection/VADAudioAnalyser';
 import VADNoiseDetection from './modules/detection/VADNoiseDetection';
 import VADTalkMutedDetection from './modules/detection/VADTalkMutedDetection';
-import { E2EEncryption } from './modules/e2ee/E2EEncryption';
+import { E2EEncryption } from './modules/e2ee-internxt/E2EEncryption';
 import E2ePing from './modules/e2eping/e2eping';
 import FeatureFlags from './modules/flags/FeatureFlags';
 import { LiteModeContext } from './modules/litemode/LiteModeContext';
@@ -225,7 +225,7 @@ interface IUpgradeRoleError {
  */
 interface IAuthenticateAndUpgradeRoleOptions {
     id: string;
-    onCreateResource?: typeof JitsiConference.resourceCreator;
+    onCreateResource?: typeof JitsiConference.staticResourceCreator;
     onLoginSuccessful?: () => void;
     password: string;
 }
@@ -522,6 +522,19 @@ export default class JitsiConference extends Listenable {
         this._unsubscribers = [];
     }
 
+     /**
+     * Create a resource for the a jid. We require
+     * endpoint IDs to be 8 hex digits because in some cases they get serialized
+     * into a 32bit field.
+     *
+     * @returns {string}
+     */
+    static staticResourceCreator(): string {
+        const time = new Date().getTime();
+        return time.toString(16).slice(-8);
+    }
+
+
     /**
      * Create a resource for the a jid. We use the room nickname (the resource part
      * of the occupant JID, see XEP-0045) as the endpoint ID in colibri. We require
@@ -572,7 +585,7 @@ export default class JitsiConference extends Listenable {
                 ...config,
                 statsId: this._statsCurrentId
             },
-            JitsiConference.resourceCreator
+            JitsiConference.staticResourceCreator
         );
 
         this._signalingLayer.setChatRoom(this.room);
@@ -840,7 +853,7 @@ export default class JitsiConference extends Listenable {
      *
      * @returns {void}
      */
-    private _restartMediaSessions(): void {
+    _restartMediaSessions(): void {
         if (this.p2pJingleSession) {
             this._stopP2PSession({
                 reasonDescription: 'restart',

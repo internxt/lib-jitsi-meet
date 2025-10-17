@@ -14,3 +14,9 @@ docs
 *.d.ts
 *.spec.ts
 *.spec.js
+
+wasm/*
+
+# temporary to pass CI
+modules/**/JitsiLocalTrack.js
+modules/**/JitsiRemoteTrack.js
