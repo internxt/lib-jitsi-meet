@@ -19,4 +19,9 @@ declare global {
     interface MediaStream {
         oninactive?: ((this: MediaStream, ev: Event) => void) | ((this: MediaStreamTrack, ev: Event) => void) | null;
     }
+    class ImageCapture {
+        constructor(track: MediaStreamTrack);
+        grabFrame(): Promise<ImageBitmap>;
+        takePhoto(): Promise<Blob>;
+    }
 }

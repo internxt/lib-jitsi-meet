@@ -263,7 +263,7 @@ export default class JitsiTrack extends Listenable {
      *
      * @returns {void}
      */
-    public attach(container: HTMLElement): Promise<void> {
+    public attach(container: HTMLElement, decode: boolean): Promise<void> {
         let result = Promise.resolve();
 
         if (this.stream) {

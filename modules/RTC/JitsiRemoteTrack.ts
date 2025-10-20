@@ -387,7 +387,7 @@ export default class JitsiRemoteTrack extends JitsiTrack {
      *
      * @returns {void}
      */
-    attach(container, decode) {
+    override attach(container, decode) {
         let result = Promise.resolve();
         if (this.type === MediaType.VIDEO) {
             if (this.videoType === VideoType.CAMERA){
