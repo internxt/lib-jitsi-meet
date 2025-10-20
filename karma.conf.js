@@ -115,6 +115,7 @@ module.exports = function(config) {
         ),
 
         client: {
+            args: config.grep ? ['--grep', config.grep] : [],
             jasmine: {
                 random: false
             }

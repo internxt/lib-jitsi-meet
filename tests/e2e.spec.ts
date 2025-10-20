@@ -39,8 +39,8 @@ describe("Test E2E:", () => {
         async () => {
             const context1 = new E2EEContext();
             const context2 = new E2EEContext();
-            context1.setKeysCommitment("participant1", "pk1", "pkKyber1");
-            context2.setKeysCommitment("participant2", "pk2", "pkKyber2");
+            context1.setKeysCommitment("participant1", "key commitment 1");
+            context2.setKeysCommitment("participant2", "key commitment 2");
 
             const contextSpy1 = spy(context1);
             const contextSpy2 = spy(context2);
@@ -553,7 +553,7 @@ describe("Test E2E:", () => {
     );
 
     it(
-        "should sucessfully enable, diable and enable again e2e for a group meeting",
+        "should sucessfully enable, disable and enable again e2e for a group meeting",
         async () => {
             const participantCount = 3;
             expect(participantCount).toBeGreaterThan(0);
@@ -570,7 +570,7 @@ describe("Test E2E:", () => {
             verifyParticipantNumber(xmppServerMock, participantCount);
             verifySasValues(xmppServerMock);
 
-            xmppServerMock.diableE2E();
+            xmppServerMock.disableE2E();
 
             await delay(WAIT_FOR_CHANNELS);
 

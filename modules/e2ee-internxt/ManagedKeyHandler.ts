@@ -25,7 +25,7 @@ import {
     ReplyMessage,
     ParticipantEvent,
 } from "./Types";
-import { MediaKeys } from "internxt-crypto";
+import { MediaKeys, hash } from "internxt-crypto";
 
 export const REQ_TIMEOUT = 20 * 1000;
 
@@ -240,7 +240,7 @@ export class ManagedKeyHandler extends Listenable {
     async enableE2E() {
         const localParticipantId = this.myID;
         const { pkKyber, pk } = this._olmAdapter.genMyPublicKeys();
-        this.e2eeCtx.setKeysCommitment(localParticipantId, pk, pkKyber);
+        await this.setKeyCommitment(localParticipantId, pk, pkKyber);
         this.updateMyKeys();
 
         const participants = this.conference.getParticipants();
@@ -532,11 +532,7 @@ export class ManagedKeyHandler extends Listenable {
                             publicKyberKey,
                             commitment,
                         );
-                    this.e2eeCtx.setKeysCommitment(
-                        pId,
-                        publicKey,
-                        publicKyberKey,
-                    );
+                    await this.setKeyCommitment(pId, publicKey, publicKyberKey);
                     this._sendMessage(
                         OLM_MESSAGE_TYPES.PQ_SESSION_INIT,
                         data,
@@ -561,11 +557,7 @@ export class ManagedKeyHandler extends Listenable {
                             publicKyberKey,
                             ciphertext,
                         );
-                    this.e2eeCtx.setKeysCommitment(
-                        pId,
-                        publicKey,
-                        publicKyberKey,
-                    );
+                    await this.setKeyCommitment(pId, publicKey, publicKyberKey);
                     this._sendMessage(
                         OLM_MESSAGE_TYPES.PQ_SESSION_ACK,
                         data,
@@ -673,6 +665,14 @@ export class ManagedKeyHandler extends Listenable {
         } catch (error) {
             this.log("error", `Error while processing message: ${error}`);
         }
+    }
+
+    async setKeyCommitment(pId: string, publicKey: string, publicKyberKey: string){
+        const keyCommitment = await hash.hashData([pId, publicKey, publicKyberKey]);
+        this.e2eeCtx.setKeysCommitment(
+            pId,
+            keyCommitment,
+        );
     }
 
     /**

@@ -82,7 +82,7 @@ export class XmppServerMock {
         }
     }
 
-    diableE2E() {
+    disableE2E() {
         this.e2e = false;
         this.listeners.forEach((keyHandler, _id) => {
             keyHandler.setEnabled(false);
