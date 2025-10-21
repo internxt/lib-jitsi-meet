@@ -50,7 +50,6 @@ module.exports = function(config) {
                 watched: false
             },
             'node_modules/core-js/index.js',
-            './modules/**/*.spec.js',
             './modules/**/*.spec.ts',
             './service/**/*.spec.ts',
             './*.spec.ts',
@@ -61,7 +60,6 @@ module.exports = function(config) {
                 served: true,
                 watched: false
             },
-            './tests/*.spec.js',
             './tests/*.spec.ts'
         ],
 
