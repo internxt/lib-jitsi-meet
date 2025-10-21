@@ -14,21 +14,24 @@ export function delay(ms: number) {
 }
 
 export class WorkerMock {
-    public onmessage: ((event: MessageEvent) => void) | null = null;
-    public onerror: ((event: Event) => void) | null = null;
+
     private readonly _fakeWorkerSelf: {
         onmessage: ((event: MessageEvent) => void) | null;
         postMessage: (data: any) => void;
     };
 
+    public onerror: ((event: Event) => void) | null = null;
+    public onmessage: ((event: MessageEvent) => void) | null = null;
+
+
     constructor(_scriptUrl: string, _options?: WorkerOptions) {
         this._fakeWorkerSelf = {
+            onmessage: null,
             postMessage: (data: any) => {
                 setTimeout(() => {
                     this.onmessage?.({ data } as MessageEvent);
                 }, 0);
             },
-            onmessage: null,
         };
         (globalThis as any).self = this._fakeWorkerSelf;
         const originalSelf = globalThis.self;
@@ -114,6 +117,9 @@ export class XmppServerMock {
     }
 
     userLeft(pId: string) {
+        const leftUser = this.listeners.get(pId);
+
+        leftUser?._onConferenceLeft();
         this.participants.delete(pId);
         this.listeners.delete(pId);
         this.listeners.forEach((keyHandler, _id) => {
@@ -159,6 +165,8 @@ export async function createInitializedManagedKeyHandler(
             }
         },
     );
+    // eslint-disable-next-line prefer-const
+    let keyHandler: ManagedKeyHandler;
 
     when(eventEmitterMock.emit(anything())).thenCall(event => {
         if (event === JitsiConferenceEvents.CONFERENCE_JOINED) {
@@ -169,7 +177,7 @@ export async function createInitializedManagedKeyHandler(
 
     when(conferenceMock.eventEmitter).thenReturn(instance(eventEmitterMock));
 
-    const eventHandlers = new Map<string, Function[]>();
+    const eventHandlers = new Map<string, ((...args: any[]) => void)[]>();
 
     when(conferenceMock.on(anything(), anything())).thenCall(
         (eventName, handler) => {
@@ -181,6 +189,7 @@ export async function createInitializedManagedKeyHandler(
             return conferenceMock;
         },
     );
+
     when(conferenceMock.getParticipants()).thenCall(() => {
         return xmppServerMock.getParticipantsFor(id);
     });
@@ -192,7 +201,8 @@ export async function createInitializedManagedKeyHandler(
     );
 
     const conference = instance(conferenceMock);
-    const keyHandler = new ManagedKeyHandler(conference);
+
+    keyHandler = new ManagedKeyHandler(conference);
 
     conference.eventEmitter.emit(JitsiConferenceEvents.CONFERENCE_JOINED);
 

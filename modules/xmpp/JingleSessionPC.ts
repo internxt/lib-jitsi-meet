@@ -2467,7 +2467,7 @@ export default class JingleSessionPC extends JingleSession {
                 && sessionTerminate.c(
                     'bridge-session', {
                         id: this._bridgeSessionId,
-                        restart: options && options.requestRestart === true,
+                        restart: options?.requestRestart === true,
                         xmlns: 'http://jitsi.org/protocol/focus'
                     }).up();
 

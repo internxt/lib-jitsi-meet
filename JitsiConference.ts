@@ -854,7 +854,7 @@ export default class JitsiConference extends Listenable {
      *
      * @returns {void}
      */
-    _restartMediaSessions(): void {
+    private _restartMediaSessions(): void {
         if (this.p2pJingleSession) {
             this._stopP2PSession({
                 reasonDescription: 'restart',
@@ -2061,6 +2061,10 @@ export default class JitsiConference extends Listenable {
     private _fireIncompatibleVersionsEvent(): void {
         this.eventEmitter.emit(JitsiConferenceEvents.CONFERENCE_FAILED,
             JitsiConferenceErrors.INCOMPATIBLE_SERVER_VERSIONS);
+    }
+
+    public restartMediaSessions() {
+        this._restartMediaSessions();
     }
 
     /**

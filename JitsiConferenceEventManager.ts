@@ -473,7 +473,7 @@ export default class JitsiConferenceEventManager {
                 video && (conference.isVideoMutedByFocus = true);
                 conference._updateStartMutedPolicy(audio, video);
             }
-            if (metadata.recording && typeof metadata.recording.isTranscribingEnabled !== 'undefined') {
+            if (typeof metadata.recording?.isTranscribingEnabled !== 'undefined') {
                 conference._setTranscribingEnabled(Boolean(metadata.recording.isTranscribingEnabled));
             }
             conference.eventEmitter.emit(JitsiConferenceEvents.METADATA_UPDATED, metadata);

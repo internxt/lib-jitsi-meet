@@ -723,8 +723,7 @@ export default class TraceablePeerConnection {
         const remoteTrackIds = remoteTracks.map(remote => remote.track?.id);
 
         receivers = this.peerconnection.getReceivers()
-            .filter(receiver => receiver.track
-                && receiver.track.kind === mediaType
+            .filter(receiver => receiver.track?.kind === mediaType
                 && remoteTrackIds.find(trackId => trackId === receiver.track.id));
 
         return receivers;

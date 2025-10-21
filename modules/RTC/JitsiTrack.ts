@@ -49,10 +49,10 @@ export interface IExtendedMediaStream extends MediaStream {
  */
 export default class JitsiTrack extends Listenable {
     private _streamInactiveHandler: MediaStreamTrackEventHandler;
-    private audioLevel: number;
-    public type: MediaType;
     private handlers: Map<string, MediaStreamTrackEventHandler>;
+    private audioLevel: number;
     protected containers: HTMLElement[];
+    public type: MediaType;
     /**
      *  @internal
      */
@@ -263,7 +263,7 @@ export default class JitsiTrack extends Listenable {
      *
      * @returns {void}
      */
-    public attach(container: HTMLElement, decode: boolean): Promise<void> {
+    public attach(container: HTMLElement, _decode: boolean): Promise<void> {
         let result = Promise.resolve();
 
         if (this.stream) {

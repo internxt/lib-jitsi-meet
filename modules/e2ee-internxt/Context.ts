@@ -30,9 +30,9 @@ export class Context {
     constructor(id: string) {
         this.encryptionKey = null as any;
         this.key = {
+            index: -1,
             olmKey: new Uint8Array(),
             pqKey: new Uint8Array(),
-            index: -1,
             userID: id,
         };
         this.id = id;
@@ -237,7 +237,7 @@ export class Context {
             );
             const plainText = await symmetric.decryptSymmetrically(
                 encryptionKey,
-                { iv, ciphertext },
+                { ciphertext, iv },
                 additionalData.toString(),
             );
 

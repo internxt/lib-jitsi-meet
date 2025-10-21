@@ -75,7 +75,7 @@ export default function(): void {
             logger.warn(`Strophe: ${msg}`);
             const errStatusCapture = lastErrorStatusRegExpr.exec(msg);
 
-            if (errStatusCapture && errStatusCapture.length === 2) {
+            if (errStatusCapture?.length === 2) {
                 lastErrorStatus = parseInt(errStatusCapture[1], 10);
                 logger.debug(`lastErrorStatus set to: ${lastErrorStatus}`);
             }

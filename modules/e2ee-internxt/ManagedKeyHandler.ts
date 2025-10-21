@@ -17,8 +17,6 @@ import E2EEContext from './E2EEContext';
 import { OlmAdapter } from './OlmAdapter';
 import { generateEmojiSas } from './SAS';
 import {
-    CustomRTCRtpReceiver,
-    CustomRTCRtpSender,
     MessageType,
     OLM_MESSAGE,
     OLM_MESSAGE_TYPES,
@@ -40,14 +38,6 @@ function timeout<T>(ms: number): Promise<T> {
  */
 export class ManagedKeyHandler extends Listenable {
     private readonly myID: string;
-    max_wait: number;
-    conference: JitsiConference;
-    e2eeCtx: E2EEContext;
-    enabled: boolean;
-    initialized: boolean;
-    initSessions: Promise<unknown[]>;
-    _olmAdapter: OlmAdapter;
-    _conferenceJoined: boolean;
     private readonly _participantEventQueue: ParticipantEvent[];
     private _processingEvents: boolean;
     private readonly _reqs: Map<
@@ -59,6 +49,15 @@ export class ManagedKeyHandler extends Listenable {
         string,
         { reject?: (args?: unknown) => void; resolve: (args?: unknown) => void; }
     >;
+
+    conference: JitsiConference;
+    e2eeCtx: E2EEContext;
+    enabled: boolean;
+    initialized: boolean;
+    initSessions: Promise<unknown[]>;
+    max_wait: number;
+    _olmAdapter: OlmAdapter;
+    _conferenceJoined: boolean;
 
     /**
      * Build a new AutomaticKeyHandler instance, which will be used in a given conference.
@@ -129,6 +128,44 @@ export class ManagedKeyHandler extends Listenable {
         });
     }
 
+    private log(level: 'info' | 'error' | 'warn', message: string) {
+        console[level](`E2E: User ${this.myID}: ${message}`);
+    }
+
+    private _queueParticipantEvent(type: 'join' | 'leave', id: string) {
+        this._participantEventQueue.push({
+            id,
+            type,
+        });
+
+        if (!this._processingEvents) {
+            this._processParticipantEvents();
+        }
+    }
+
+    private async _processParticipantEvents() {
+        if (this._processingEvents) {
+            return;
+        }
+
+        this._processingEvents = true;
+
+        try {
+            while (this._participantEventQueue.length > 0) {
+                const event = this._participantEventQueue.shift();
+
+                if (event?.type === 'join') {
+                    await this._handleParticipantJoined(event.id);
+                } else if (event?.type === 'leave') {
+                    await this._handleParticipantLeft(event.id);
+                    this.e2eeCtx.cleanup(event.id);
+                }
+            }
+        } finally {
+            this._processingEvents = false;
+        }
+    }
+
     async init() {
         await this._olmAdapter.init();
         this.initialized = true;
@@ -170,7 +207,7 @@ export class ManagedKeyHandler extends Listenable {
         }
 
         this.conference.setLocalParticipantProperty('e2ee.enabled', enabled.toString());
-        this.conference._restartMediaSessions();
+        this.conference.restartMediaSessions();
     }
 
     /**
@@ -205,7 +242,7 @@ export class ManagedKeyHandler extends Listenable {
 
     async createKeyUpdatePromise(pId: string) {
         const promise = new Promise((resolve, reject) => {
-            this.update.set(pId, { resolve, reject });
+            this.update.set(pId, { reject, resolve });
         });
 
         return Promise.race([ promise, timeout(this.max_wait) ]);
@@ -213,7 +250,7 @@ export class ManagedKeyHandler extends Listenable {
 
     async createSessionPromise(pId: string) {
         const promise = new Promise((resolve, reject) => {
-            this._reqs.set(pId, { resolve, reject });
+            this._reqs.set(pId, { reject, resolve });
         });
 
         return Promise.race([ promise, timeout(this.max_wait) ]);
@@ -226,6 +263,13 @@ export class ManagedKeyHandler extends Listenable {
             promise.resolve();
             this._reqs.delete(pId);
         }
+    }
+
+    resolveAllSessionPromises() {
+        for (const promise of this.update.values()) {
+            promise?.resolve();
+        }
+        this._reqs.clear();
     }
 
     resolveKeyUpdatePromise(pID: string) {
@@ -299,7 +343,7 @@ export class ManagedKeyHandler extends Listenable {
 
                     return result;
                 } catch (error) {
-                    const user = { pId, name: participant.getDisplayName() };
+                    const user = { name: participant.getDisplayName(), pId };
 
                     this.conference.eventEmitter.emit(
                 JitsiConferenceEvents.E2EE_KEY_SYNC_FAILED, user);
@@ -340,7 +384,7 @@ export class ManagedKeyHandler extends Listenable {
 
         if (receiver) {
             this.e2eeCtx.handleReceiver(
-                receiver as CustomRTCRtpReceiver,
+                receiver,
                 track.getParticipantId(),
             );
         } else {
@@ -368,7 +412,7 @@ export class ManagedKeyHandler extends Listenable {
 
         if (sender) {
             this.e2eeCtx.handleSender(
-                sender as CustomRTCRtpSender,
+                sender,
                 track.getParticipantId(),
             );
         } else {
@@ -488,10 +532,10 @@ export class ManagedKeyHandler extends Listenable {
                     );
 
                     return await result;
-                } catch (error) {
+                } catch (err) {
                     this.log(
                         'error',
-                        `Explicit key update request timed out for ${pId}: ${error}`,
+                        `Explicit key update request timed out for ${pId}: ${err}`,
                     );
                 }
             }
@@ -501,6 +545,7 @@ export class ManagedKeyHandler extends Listenable {
     }
 
     clearAllSessions() {
+        this.resolveAllSessionPromises();
         const participants = this.conference.getParticipants();
 
         for (const participant of participants) {
@@ -624,7 +669,7 @@ export class ManagedKeyHandler extends Listenable {
                 this.updateParticipantKey(pId, key);
                 this._sendMessage(
                         OLM_MESSAGE_TYPES.SESSION_DONE,
-                        'update',
+                        'done',
                         pId,
                 );
                 if (keyChanged) {
@@ -643,7 +688,7 @@ export class ManagedKeyHandler extends Listenable {
                     requestPromise.resolve();
                     this._reqs.delete(pId);
                 } else {
-                    const user = { pId, name: participant.getDisplayName() };
+                    const user = { name: participant.getDisplayName(), pId };
 
                     this.conference.eventEmitter.emit(
                         JitsiConferenceEvents.E2EE_KEY_SYNC_AFTER_TIMEOUT, user);
@@ -745,55 +790,19 @@ export class ManagedKeyHandler extends Listenable {
      */
     _sendMessage(
             type: MessageType,
-            data: ReplyMessage | 'update',
+            data: ReplyMessage | 'update' | 'done',
             participantId: string,
     ) {
         const msg = {
             [JITSI_MEET_MUC_TYPE]: OLM_MESSAGE,
             olm: {
-                type,
                 data,
+                type,
             },
         };
 
         this.conference.sendMessage(msg, participantId);
     }
 
-    private _queueParticipantEvent(type: 'join' | 'leave', id: string) {
-        this._participantEventQueue.push({
-            type,
-            id,
-        });
 
-        if (!this._processingEvents) {
-            this._processParticipantEvents();
-        }
-    }
-
-    private async _processParticipantEvents() {
-        if (this._processingEvents) {
-            return;
-        }
-
-        this._processingEvents = true;
-
-        try {
-            while (this._participantEventQueue.length > 0) {
-                const event = this._participantEventQueue.shift();
-
-                if (event?.type === 'join') {
-                    await this._handleParticipantJoined(event.id);
-                } else if (event?.type === 'leave') {
-                    await this._handleParticipantLeft(event.id);
-                    this.e2eeCtx.cleanup(event.id);
-                }
-            }
-        } finally {
-            this._processingEvents = false;
-        }
-    }
-
-    private log(level: 'info' | 'error' | 'warn', message: string) {
-        console[level](`E2E: User ${this.myID}: ${message}`);
-    }
 }

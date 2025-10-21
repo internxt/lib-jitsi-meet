@@ -3,7 +3,6 @@ import { getLogger } from '@jitsi/logger';
 
 import Listenable from '../util/Listenable';
 
-import { CustomRTCRtpReceiver, CustomRTCRtpSender } from './Types';
 const logger = getLogger('modules/e2ee-internxt/E2EEContext');
 
 /**
@@ -56,6 +55,10 @@ export default class E2EEcontext extends Listenable {
         return new Worker(workerUrl, { name: 'E2EE Worker' });
     }
 
+    private async updateSAS(sas: string[]) {
+        this.emit('sasUpdated', sas);
+    }
+
     cleanup(participantId: string) {
         this._worker.postMessage({
             operation: 'cleanup',
@@ -76,7 +79,7 @@ export default class E2EEcontext extends Listenable {
      * @param {RTCRtpReceiver} receiver - The receiver which will get the decoding function injected.
      * @param {string} participantId - The participant id that this receiver belongs to.
      */
-    handleReceiver(receiver: CustomRTCRtpReceiver, participantId: string) {
+    handleReceiver(receiver: RTCRtpReceiver, participantId: string) {
         if (receiver.kJitsiE2EE) return;
         receiver.kJitsiE2EE = true;
 
@@ -111,7 +114,7 @@ export default class E2EEcontext extends Listenable {
      * @param {RTCRtpSender} sender - The sender which will get the encoding function injected.
      * @param {string} participantId - The participant id that this sender belongs to.
      */
-    handleSender(sender: CustomRTCRtpSender, participantId: string) {
+    handleSender(sender: RTCRtpSender, participantId: string) {
         if (sender.kJitsiE2EE) return;
         sender.kJitsiE2EE = true;
 
@@ -143,18 +146,18 @@ export default class E2EEcontext extends Listenable {
             index: number,
     ) {
         this._worker.postMessage({
-            operation: 'setKey',
-            olmKey,
-            pqKey,
             index,
+            olmKey,
+            operation: 'setKey',
             participantId,
+            pqKey,
         });
     }
 
     setKeysCommitment(participantId: string, commitment: string) {
         this._worker.postMessage({
-            operation: 'setKeysCommitment',
             commitment,
+            operation: 'setKeysCommitment',
             participantId,
         });
     }
@@ -166,7 +169,4 @@ export default class E2EEcontext extends Listenable {
         });
     }
 
-    private async updateSAS(sas: string[]) {
-        this.emit('sasUpdated', sas);
-    }
 }

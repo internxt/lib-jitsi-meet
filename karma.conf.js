@@ -16,28 +16,38 @@ module.exports = function(config) {
         // https://npmjs.org/browse/keyword/karma-launcher
         browsers: [ 'ChromeHeadless' ],
 
+        client: {
+            args: config.grep ? [ '--grep', config.grep ] : [],
+            jasmine: {
+                random: false
+            }
+        },
+
         // enable / disable colors in the output (reporters and logs)
         colors: true,
 
         // list of files to exclude
         exclude: [
         ],
+        experiments: {
+            asyncWebAssembly: true
+        },
 
         // list of files / patterns to load in the browser
         files: [
             {
-                pattern: 'models/RTC/*',
-                watched: false,
                 included: false,
+                nocache: false,
+                pattern: 'models/RTC/*',
                 served: true,
-                nocache: false
+                watched: false
             },
             {
-                pattern: 'wasm/RTC/*',
-                watched: false,
                 included: false,
+                nocache: false,
+                pattern: 'wasm/RTC/*',
                 served: true,
-                nocache: false
+                watched: false
             },
             'node_modules/core-js/index.js',
             './modules/**/*.spec.js',
@@ -45,32 +55,15 @@ module.exports = function(config) {
             './service/**/*.spec.ts',
             './*.spec.ts',
             {
+                included: false,
                 pattern:
                     'node_modules/vodozemac-wasm/javascript/pkg/vodozemac_bg.wasm',
-                included: false,
                 served: true,
                 watched: false
             },
             './tests/*.spec.js',
             './tests/*.spec.ts'
         ],
-        mime: {
-            'application/wasm': [ 'wasm' ]
-        },
-        experiments: {
-            asyncWebAssembly: true
-        },
-        module: {
-            rules: [
-                {
-                    test: /\.wasm$/,
-                    type: 'asset/resource' // emit as file, returns URL
-                }
-            ]
-        },
-        resolve: {
-            extensions: [ '.ts', '.js', '.wasm' ]
-        },
 
         // frameworks to use
         // available frameworks: https://npmjs.org/browse/keyword/karma-adapter
@@ -80,6 +73,18 @@ module.exports = function(config) {
         // possible values: config.LOG_DISABLE || config.LOG_ERROR ||
         //  config.LOG_WARN || config.LOG_INFO || config.LOG_DEBUG
         logLevel: config.LOG_INFO,
+
+        mime: {
+            'application/wasm': [ 'wasm' ]
+        },
+        module: {
+            rules: [
+                {
+                    test: /\.wasm$/,
+                    type: 'asset/resource' // emit as file, returns URL
+                }
+            ]
+        },
 
         // web server port
         port: 9876,
@@ -98,6 +103,10 @@ module.exports = function(config) {
         // available reporters: https://npmjs.org/browse/keyword/karma-reporter
         reporters: [ 'progress' ],
 
+        resolve: {
+            extensions: [ '.ts', '.js', '.wasm' ]
+        },
+
         // Continuous Integration mode
         // if true, Karma captures browsers, runs the tests and exits
         singleRun: true,
@@ -105,13 +114,6 @@ module.exports = function(config) {
         webpack: require('./webpack-shared-config')(
             false /* minimize */,
             false /* analyzeBundle */
-        ),
-
-        client: {
-            args: config.grep ? [ '--grep', config.grep ] : [],
-            jasmine: {
-                random: false
-            }
-        }
+        )
     });
 };

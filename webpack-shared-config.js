@@ -4,12 +4,12 @@ const { BundleAnalyzerPlugin } = require('webpack-bundle-analyzer');
 
 module.exports = (minimize, analyzeBundle) => {
     return {
+        // The inline-source-map is used to allow debugging the unit tests with Karma
+        devtool: minimize ? 'source-map' : 'inline-source-map',
         experiments: {
             topLevelAwait: true
         },
 
-        // The inline-source-map is used to allow debugging the unit tests with Karma
-        devtool: minimize ? 'source-map' : 'inline-source-map',
         mode: minimize ? 'production' : 'development',
         module: {
             rules: [ {

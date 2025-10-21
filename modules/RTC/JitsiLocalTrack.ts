@@ -1,4 +1,5 @@
 import { getLogger } from '@jitsi/logger';
+import ort from 'onnxruntime-web';
 
 import JitsiConference from '../../JitsiConference';
 import JitsiTrackError from '../../JitsiTrackError';
@@ -28,7 +29,6 @@ import JitsiTrack from './JitsiTrack';
 import RTCUtils from './RTCUtils';
 import TraceablePeerConnection from './TraceablePeerConnection';
 
-const timer = false;
 let wasmChannels = null;
 
 /**
@@ -50,8 +50,6 @@ export async function getWasmModule() {
 
     return wasmChannels;
 }
-
-const ort = require('onnxruntime-web');
 
 ort.env.wasm.wasmPaths = '/libs/ONNX/';
 
@@ -85,13 +83,7 @@ export async function js2py(data, width, height) {
     Module.HEAPU8.set(data, ptr);
     // Call the C++ reorder function
 
-    if (timer == true) {
-        console.time('TIMER Applying js2py encoder');
-    }
     Module._vjs2py(ptr, width, height);
-    if (timer == true) {
-        console.timeEnd('TIMER Applying js2py encoder');
-    }
     // Read back the result
     const result = Module.HEAPU8.subarray(ptr, ptr + data.length);
 
@@ -109,26 +101,14 @@ export async function js2py(data, width, height) {
  * @returns data
  */
 export async function py2js(data, tensorData, width, height) {
-    if (timer == true) {
-        console.time('TIMER loading wasm py2js encoder');
-    }
     const Module = await getWasmModule();
 
-    if (timer == true) {
-        console.timeEnd('TIMER loading wasm py2js encoder');
-    }
     const int8Tensor = Uint8ClampedArray.from(tensorData);
     const ptr = Module._malloc(int8Tensor.length);
 
     Module.HEAPU8.set(int8Tensor, ptr);
     // Call the C++ reorder function
-    if (timer == true) {
-        console.time('TIMER applying py2js encoder');
-    }
     Module._vpy2js(ptr, width, height);
-    if (timer == true) {
-        console.timeEnd('TIMER applying py2js encoder');
-    }
     // Read back the result
     const result = Module.HEAPU8.subarray(ptr, ptr + int8Tensor.length);
 
@@ -421,146 +401,6 @@ export default class JitsiLocalTrack extends JitsiTrack {
         //         this.encodingRoutine();
         //     }
         // }
-    }
-
-    /**
-     * Starts to encode the incoming images from the camera
-     */
-    encodingRoutine() {
-        // Creating canvas stream that will be sent to other participants
-        const canvasEncoded = document.createElement('canvas');
-
-        this._encodedStream = canvasEncoded.captureStream();
-        // Extracting track from canvas-sender
-        this._encodedTrack = this._encodedStream.getVideoTracks()[0];
-        const videoTrack = this.stream.getVideoTracks()[0];
-
-        // Applying onnx model to original stream and saving the output in the canvas-sender
-        this._applyONNXEncoder(videoTrack, canvasEncoded);
-    }
-
-    /**
-     *  Encoding/resizing algorithm, reduces the size of the input video by 1/4 (compression: 100*(1-1/(4**2))=93.75%)
-     * @param {*} stream original stream
-     * @param {*} canvasEncoded  canvas-sender that will be transformed in a stream carrying the encoded/resized image
-     */
-    _applyONNXEncoder(videoTrack, canvasEncoded) {
-        // Frame grabber from original track
-        const imageCapture = new ImageCapture(videoTrack);
-        // Extracting size from original track
-        const width = videoTrack.getSettings().width;
-        const height = videoTrack.getSettings().height;
-
-        // Setting canvas size where the encoded/resized image will be set
-        canvasEncoded.width = width / 2;
-        canvasEncoded.height = height / 2;
-        // Creating and preparing aux canvas where the grabbed frame will be painted
-        const canvasRaw = document.createElement('canvas');
-        const ctxRaw = canvasRaw.getContext('2d', { willReadFrequently: true });
-
-        canvasRaw.width = width;
-        canvasRaw.height = height;
-        const ctxEncoded = canvasEncoded.getContext('2d', { willReadFrequently: true });
-
-        /**
-         * Encodes each frame received by the camera, this function is repeated in loop
-         */
-        async function processFrame() {
-            try {
-                if (timer == true) {
-                    console.time('TIMER encoder');
-                }
-                // Captures a frame from the original source
-                const frame = await imageCapture.grabFrame();
-
-                // Paints the frame in the aux canvas
-                ctxRaw.drawImage(frame, 0, 0, width, height);
-                if (timer == true) {
-                    console.time('TIMER imageEncode get encoder');
-                }
-                const imageRaw = ctxRaw.getImageData(0, 0, width, height);
-
-                if (timer == true) {
-                    console.timeEnd('TIMER imageEncode get encoder');
-                }
-                const imageData = imageRaw.data;
-                const channels = 4;
-
-                // Channels are reordered as required by the onnx model
-                if (timer == true) {
-                    console.time('TIMER full js2py encoder',);
-                }
-                const floatArray = await js2py(imageData, width, height);
-
-                if (timer == true) {
-                    console.timeEnd('TIMER full js2py encoder',);
-                }
-                // Applying the onnx model
-                const tensor = new ort.Tensor('float32', floatArray, [ 1, channels, height, width ]);
-                const input_encoder = {
-                    input: tensor
-                };
-
-                if (timer == true) {
-                    console.time('TIMER encoder onnx');
-                }
-                const results = await encodingSession.run(input_encoder);
-
-                if (timer == true) {
-                    console.timeEnd('TIMER encoder onnx');
-                }
-                // Extracting output data from the onnx model
-                const tensorData = results.output.data;
-
-                // Moving data to set channels order as required by RTCweb standars
-                if (timer == true) {
-                    console.time('TIMER imageDataRestore create encoder');
-                }
-                const encodedImg = ctxEncoded.createImageData(canvasEncoded.width, canvasEncoded.height);
-
-                if (timer == true) {
-                    console.timeEnd('TIMER imageDataRestore create encoder');
-                }
-                let imageDataEncodedInfo = encodedImg.data;
-
-                // Channels are reordered as required by javascript
-                if (timer == true) {
-                    console.time('TIMER full py2js encoder',);
-                }
-                imageDataEncodedInfo = await py2js(imageDataEncodedInfo, tensorData, canvasEncoded.width, canvasEncoded.height);
-                if (timer == true) {
-                    console.timeEnd('TIMER full py2js encoder',);
-                }
-                // Setting encoded /resized image in the canvas-sender
-                ctxEncoded.putImageData(encodedImg, 0, 0);
-                if (timer == true) {
-                    console.timeEnd('TIMER encoder');
-                }
-            } catch (error) {
-                logger.info('Error in encoder: ', error);
-            }
-            // Requesting loop
-            if (videoTrack.readyState == 'live') {
-                requestAnimationFrame(processFrame);
-            }
-        }
-        processFrame();
-    }
-
-    /**
-     * Returns the stream with the encoded/resize image
-     * @returns MediaStream
-     */
-    getEncodedStream() {
-        return this._encodedStream;
-    }
-
-    /**
-     * Returns the track /canvas with the encoded/resized image
-     * @returns CanvasCaptureMediaStreamTrack
-     */
-    getEncodedTrack() {
-        return this._encodedTrack;
     }
 
     /**
@@ -950,6 +790,90 @@ export default class JitsiLocalTrack extends JitsiTrack {
         }
 
         return super.dispose();
+    }
+
+    /**
+     * Starts to encode the incoming images from the camera
+     */
+    encodingRoutine() {
+        // Creating canvas stream that will be sent to other participants
+        const canvasEncoded = document.createElement('canvas');
+
+        this._encodedStream = canvasEncoded.captureStream();
+        // Extracting track from canvas-sender
+        this._encodedTrack = this._encodedStream.getVideoTracks()[0];
+        const videoTrack = this.stream.getVideoTracks()[0];
+
+        // Applying onnx model to original stream and saving the output in the canvas-sender
+        this._applyONNXEncoder(videoTrack, canvasEncoded);
+    }
+
+    /**
+     *  Encoding/resizing algorithm, reduces the size of the input video by 1/4 (compression: 100*(1-1/(4**2))=93.75%)
+     * @param {*} stream original stream
+     * @param {*} canvasEncoded  canvas-sender that will be transformed in a stream carrying the encoded/resized image
+     */
+    _applyONNXEncoder(videoTrack, canvasEncoded) {
+        // Frame grabber from original track
+        const imageCapture = new ImageCapture(videoTrack);
+        // Extracting size from original track
+        const width = videoTrack.getSettings().width;
+        const height = videoTrack.getSettings().height;
+
+        // Setting canvas size where the encoded/resized image will be set
+        canvasEncoded.width = width / 2;
+        canvasEncoded.height = height / 2;
+        // Creating and preparing aux canvas where the grabbed frame will be painted
+        const canvasRaw = document.createElement('canvas');
+        const ctxRaw = canvasRaw.getContext('2d', { willReadFrequently: true });
+
+        canvasRaw.width = width;
+        canvasRaw.height = height;
+        const ctxEncoded = canvasEncoded.getContext('2d', { willReadFrequently: true });
+
+        /**
+         * Encodes each frame received by the camera, this function is repeated in loop
+         */
+        async function processFrame() {
+            try {
+                // Captures a frame from the original source
+                const frame = await imageCapture.grabFrame();
+
+                // Paints the frame in the aux canvas
+                ctxRaw.drawImage(frame, 0, 0, width, height);
+
+
+                // Moving data to set channels order as required by RTCweb standars
+                const encodedImg = ctxEncoded.createImageData(canvasEncoded.width, canvasEncoded.height);
+
+                // Setting encoded /resized image in the canvas-sender
+                ctxEncoded.putImageData(encodedImg, 0, 0);
+
+            } catch (error) {
+                logger.info('Error in encoder: ', error);
+            }
+            // Requesting loop
+            if (videoTrack.readyState == 'live') {
+                requestAnimationFrame(processFrame);
+            }
+        }
+        processFrame();
+    }
+
+    /**
+     * Returns the stream with the encoded/resize image
+     * @returns MediaStream
+     */
+    getEncodedStream() {
+        return this._encodedStream;
+    }
+
+    /**
+     * Returns the track /canvas with the encoded/resized image
+     * @returns CanvasCaptureMediaStreamTrack
+     */
+    getEncodedTrack() {
+        return this._encodedTrack;
     }
 
     /**

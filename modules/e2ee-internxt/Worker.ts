@@ -97,9 +97,9 @@ class E2EEWorker {
 
             if (!context) break;
             await context.setKey({
+                index,
                 olmKey,
                 pqKey,
-                index,
                 userID: participantId,
             });
             const sas = this.getCurrentSASMaterial();
