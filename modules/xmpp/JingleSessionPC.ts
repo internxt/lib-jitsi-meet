@@ -1547,7 +1547,7 @@ export default class JingleSessionPC extends JingleSession {
         logger.debug(`${this} Queued PC close task`);
         this.modificationQueue.push(finishCallback => {
             // do not try to close if already closed.
-            this.peerconnection && this.peerconnection.close();
+            this.peerconnection?.close();
             finishCallback();
             logger.debug(`${this} PC close task done!`);
         });

@@ -90,7 +90,7 @@ export default class AsyncQueue {
      */
     push(task: Task, callback?: TaskCallback): void {
         if (this._stopped) {
-            callback && callback(new Error('The queue has been stopped'));
+            callback?.(new Error('The queue has been stopped'));
 
             return;
         }

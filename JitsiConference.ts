@@ -1815,7 +1815,7 @@ export default class JitsiConference extends Listenable {
             this.isP2PConnectionInterrupted = false;
         } else {
             this.isJvbConnectionInterrupted = false;
-            this._delayedIceFailed && this._delayedIceFailed.cancel();
+            this._delayedIceFailed?.cancel();
         }
 
         if (session.isP2P === this.isP2PActive()) {
@@ -2503,7 +2503,7 @@ export default class JitsiConference extends Listenable {
             this.statistics.dispose();
         }
 
-        this._delayedIceFailed && this._delayedIceFailed.cancel();
+        this._delayedIceFailed?.cancel();
 
         this._maybeClearSITimeout();
 

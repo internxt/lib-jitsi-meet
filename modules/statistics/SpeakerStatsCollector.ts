@@ -95,8 +95,8 @@ export default class SpeakerStatsCollector {
             = this.stats.users[this.stats.dominantSpeakerId as string];
         const newDominantSpeaker = this.stats.users[dominantSpeakerId];
 
-        oldDominantSpeaker && oldDominantSpeaker.setDominantSpeaker(false, false);
-        newDominantSpeaker && newDominantSpeaker.setDominantSpeaker(true, silence);
+        oldDominantSpeaker?.setDominantSpeaker(false, false);
+        newDominantSpeaker?.setDominantSpeaker(true, silence);
         this.stats.dominantSpeakerId = dominantSpeakerId;
     }
 

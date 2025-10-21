@@ -522,7 +522,7 @@ export default class JitsiConferenceEventManager {
                             if (speakerList.length > SPEAKERS_AUDIO_LEVELS) {
                                 speakerList.splice(SPEAKERS_AUDIO_LEVELS, speakerList.length - SPEAKERS_AUDIO_LEVELS);
                             }
-                            conference.statistics && conference.statistics.setSpeakerList(speakerList);
+                            conference.statistics?.setSpeakerList(speakerList);
                         }
                     }
                 }

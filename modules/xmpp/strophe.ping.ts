@@ -150,7 +150,7 @@ export default class PingConnectionPlugin extends ConnectionPlugin {
 
                 if (this.failedPings >= this.pingThreshold) {
                     logger.error(errmsg, error);
-                    this._onPingThresholdExceeded && this._onPingThresholdExceeded();
+                    this._onPingThresholdExceeded?.();
                 } else {
                     logger.warn(errmsg, error);
                 }

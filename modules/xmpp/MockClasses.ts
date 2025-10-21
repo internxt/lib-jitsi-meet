@@ -83,7 +83,7 @@ export class MockStropheConnection extends Listenable {
      */
     sendIQ(iq: any, resultCb?: () => void): void {
         this.sentIQs.push(iq);
-        resultCb && resultCb();
+        resultCb?.();
     }
 
     /**
