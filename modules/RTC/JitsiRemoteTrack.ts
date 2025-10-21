@@ -16,21 +16,6 @@ import RTCUtils from './RTCUtils';
 import JitsiTrack from './JitsiTrack';  
 import channels from '../../wasm/RTC/channels.js';
 import { decode } from 'punycode';
-
-let wasmChannels= null;
-export async function getWasmModule() {
-    if (!wasmChannels) {
-        wasmChannels = channels({
-            locateFile: (path) => {
-                if (path.endsWith('.wasm')) {
-                    return '/libs/channels.wasm';
-                }
-                return path;
-            }
-        });
-    }
-    return wasmChannels;
-}
 import RTC from './RTC';
 
 const logger = getLogger('rtc:JitsiRemoteTrack');
@@ -57,70 +42,6 @@ async function loadDecoder(){
 }
 loadDecoder()
 
-/**
- * Uses wasm binaries that transform HWC channel-order used by Javascript to CHW channel order used by python 
- * @param {data} data Javascript data container
- * @param {number} width image width
- * @param {number} height image height
- * @returns FloatA32Array
- */
-export async function js2py(data,width,height){
-    if(timer==true){
-        console.time("TIMER loading wasm js2py decoder");
-    }
-    const Module = await getWasmModule();
-    if(timer==true){
-        console.timeEnd("TIMER loading wasm js2py decoder");
-    }
-    const ptr = Module._malloc(data.length);
-    Module.HEAPU8.set(data, ptr);
-    // Call the C++ reorder function
-    if(timer==true){
-        console.time("TIMER Applying js2py decoder");
-    }
-    Module._vjs2py(ptr, width, height);
-    if(timer==true){
-        console.timeEnd("TIMER Applying js2py decoder");
-    }
-    // Read back the result
-    const result = Module.HEAPU8.subarray(ptr, ptr + data.length);
-    Module._free(ptr);
-    return Float32Array.from(result);
-}
-
-/**
- * Uses wasm binaries that transform CHW channel-order used by python to HWC channel order used by javascript 
- * @param {data} data Javascript data container
- * @param {data} tensorData Tensor data from ort module
- * @param {number} width image width
- * @param {number} height image height
- * @returns data
- */
-export async function py2js(data,tensorData,width,height){
-    if(timer==true){
-        console.time("TIMER loading wasm py2js decoder")
-    }
-    const Module = await getWasmModule();
-    if(timer==true){
-        console.timeEnd("TIMER loading wasm py2js decoder")
-    }
-    const int8Tensor = Uint8ClampedArray.from(tensorData)
-    const ptr = Module._malloc(int8Tensor.length);
-    Module.HEAPU8.set(int8Tensor, ptr);
-    // Call the C++ reorder function
-    if(timer==true){
-        console.time("TIMER applying py2js decoder");
-    }
-    Module._vpy2js(ptr, width, height);
-    if(timer==true){
-        console.timeEnd("TIMER applying py2js decoder");
-    }
-    // Read back the result
-    const result = Module.HEAPU8.subarray(ptr, ptr + int8Tensor.length);
-    data.set(result);
-    Module._free(ptr);
-    return data;
-}
 
 /**
  * List of container events that we are going to process. _onContainerEventHandler will be added as listener to the
@@ -298,7 +219,7 @@ export default class JitsiRemoteTrack extends JitsiTrack {
         async function processFrame(){
             try{
                 if(timer==true){
-                    console.time("TIMER decoder");
+                    console.time("TIMER decoder full-elapsed time");
                 }
                 // Getting the current size of the incoming stream
                 const width = videoTrack.getSettings().width;
@@ -310,25 +231,11 @@ export default class JitsiRemoteTrack extends JitsiTrack {
                 const frame = await imageCapture.grabFrame();
                 ctxEncoded.drawImage(frame, 0, 0, width, height);
                 //Generating tensor from painted frame to be passed to the onnx model
-                if(timer==true){
-                    console.time("TIMER imageEncode get decoder");
-                }
                 const imageEncode = ctxEncoded.getImageData(0, 0, width, height);
-                if(timer==true){
-                    console.timeEnd("TIMER imageEncode get decoder");
-                }
                 const imageData = imageEncode.data;
-                const channels = 4;
-                // Channels are reordered as required by the onnx model 
-                if(timer==true){
-                    console.time("TIMER full js2py decoder");
-                }
-                let floatArray = await js2py(imageData,width,height);
-                if(timer==true){
-                    console.timeEnd("TIMER full js2py decoder");
-                }
+                let floatArray = Float32Array.from(imageData)
                 // Applying the onnx model
-                const tensor = new ort.Tensor("float32",floatArray,[1,channels,height,width]);
+                const tensor = new ort.Tensor("float32",floatArray,[1,height,width,4]);
                 const input = {
                     input: tensor
                 };
@@ -344,26 +251,13 @@ export default class JitsiRemoteTrack extends JitsiTrack {
                 // Resizing canvas that will be exported to GUI
                 canvasDecoded.width = width*2;
                 canvasDecoded.height = height*2;
-                if(timer==true){
-                    console.time("TIMER imageDataRestore create decoder");
-                }
                 const imageDataRestore = ctxDecoded.createImageData(canvasDecoded.width, canvasDecoded.height);
-                if(timer==true){
-                    console.timeEnd("TIMER imageDataRestore create decoder");
-                }
                 let dataRestore =  imageDataRestore.data;
-                // Channels are reordered as required by javascript
-                if(timer==true){
-                    console.time("TIMER full py2js decoder");
-                }
-                dataRestore = await py2js(dataRestore,tensorData,canvasDecoded.width,canvasDecoded.height);
-                if(timer==true){
-                    console.timeEnd("TIMER full py2js decoder");
-                }
+                dataRestore.set(tensorData)
                 // Setting decoded image in the canvas-sender
                 ctxDecoded.putImageData(imageDataRestore, 0, 0);
                 if(timer==true){
-                    console.timeEnd("TIMER decoder");
+                    console.timeEnd("TIMER decoder full-elapsed time");
                 }
             }
             catch(error){
