@@ -1972,19 +1972,19 @@ export default class TraceablePeerConnection {
         let webrtcStream = null;
         let mediaStreamTrack = null;
 
-    if (track.type === MediaType.VIDEO) {
-        if (track.videoType === VideoType.CAMERA) {
-            try {
-                webrtcStream = track.getOriginalStream();
-                mediaStreamTrack = track.getTrack();
-            } catch (error) {
-                logger.info('Problems adding encoded streams at TraceablePeerConnection:', error);
+        if (track.type === MediaType.VIDEO) {
+            if (track.videoType === VideoType.CAMERA) {
+                try {
+                    webrtcStream = track.getOriginalStream();
+                    mediaStreamTrack = track.getTrack();
+                } catch (error) {
+                    logger.info('Problems adding encoded streams at TraceablePeerConnection:', error);
+                }
             }
+        } else {
+            webrtcStream = track.getOriginalStream();
+            mediaStreamTrack = track.getTrack();
         }
-    } else {
-        webrtcStream = track.getOriginalStream();
-        mediaStreamTrack = track.getTrack();
-    }
         let transceiver;
 
         if (isInitiator) {

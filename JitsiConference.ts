@@ -522,7 +522,7 @@ export default class JitsiConference extends Listenable {
         this._unsubscribers = [];
     }
 
-     /**
+    /**
      * Create a resource for the a jid. We require
      * endpoint IDs to be 8 hex digits because in some cases they get serialized
      * into a 32bit field.
@@ -531,6 +531,7 @@ export default class JitsiConference extends Listenable {
      */
     static staticResourceCreator(): string {
         const time = new Date().getTime();
+
         return time.toString(16).slice(-8);
     }
 
@@ -4342,7 +4343,7 @@ export default class JitsiConference extends Listenable {
      * @param {Number} [keyInfo.index] - the index of the encryption key.
      * @returns {void}
      */
-    public setMediaEncryptionKey(olmKey:Uint8Array, pqKey:Uint8Array, index:number): void {
+    public setMediaEncryptionKey(olmKey: Uint8Array, pqKey: Uint8Array, index: number): void {
         this._e2eEncryption.setEncryptionKey(olmKey, pqKey, index);
     }
 

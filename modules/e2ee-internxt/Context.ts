@@ -1,11 +1,11 @@
 import {
-    symmetric,
+    IV_LEN_BYTES,
     MediaKeys,
     deriveKey,
     hash,
+    symmetric,
     utils,
-    IV_LEN_BYTES,
-} from "internxt-crypto";
+} from 'internxt-crypto';
 
 // We copy the first bytes of the VP8 payload unencrypted.
 // This allows the bridge to continue detecting keyframes (only one byte needed in the JVB)
@@ -36,13 +36,14 @@ export class Context {
             userID: id,
         };
         this.id = id;
-        this.commitment = "";
-        this.hash = "";
+        this.commitment = '';
+        this.hash = '';
     }
 
     async ratchetKeys() {
         if (this.key.index >= 0) {
             const key = await deriveKey.ratchetMediaKey(this.key);
+
             this.setKey(key);
         }
     }
@@ -61,13 +62,14 @@ export class Context {
      */
     async setKey(key: MediaKeys) {
         this.key = key;
-        this.encryptionKey =
-            await deriveKey.deriveSymmetricCryptoKeyFromTwoKeys(
+        this.encryptionKey
+            = await deriveKey.deriveSymmetricCryptoKeyFromTwoKeys(
                 this.key.olmKey,
                 this.key.pqKey,
             );
         const keyBase64 = utils.mediaKeysToBase64(this.key);
-        this.hash = await hash.hashData([keyBase64, this.commitment]);
+
+        this.hash = await hash.hashData([ keyBase64, this.commitment ]);
     }
 
     /**
@@ -78,8 +80,8 @@ export class Context {
      *
      */
     async encodeFunction(
-        encodedFrame: RTCEncodedVideoFrame | RTCEncodedAudioFrame,
-        controller: TransformStreamDefaultController,
+            encodedFrame: RTCEncodedVideoFrame | RTCEncodedAudioFrame,
+            controller: TransformStreamDefaultController,
     ) {
         if (this.key.index >= 0) {
             const encryptedFrame = await this._encryptFrame(encodedFrame);
@@ -112,12 +114,13 @@ export class Context {
      * 8) Enqueue the encrypted frame for sending.
      */
     async _encryptFrame(
-        encodedFrame: RTCEncodedVideoFrame | RTCEncodedAudioFrame,
+            encodedFrame: RTCEncodedVideoFrame | RTCEncodedAudioFrame,
     ) {
         const key: CryptoKey = this.encryptionKey;
         const keyIndex = new Uint8Array([
             this.key.index % MAX_NUMBER_TO_FIT_BYTE,
         ]);
+
         try {
             // Thіs is not encrypted and contains the VP8 payload descriptor or the Opus TOC byte.
             const unencryptedPart = new Uint8Array(
@@ -154,10 +157,10 @@ export class Context {
             );
 
             const newUint8 = new Uint8Array(
-                UNENCRYPTED_BYTES_NUMBER +
-                    ciphertext.byteLength +
-                    IV_LEN_BYTES +
-                    1,
+                UNENCRYPTED_BYTES_NUMBER
+                    + ciphertext.byteLength
+                    + IV_LEN_BYTES
+                    + 1,
             );
 
             newUint8.set(unencryptedPart); // copy undencrypted byte.
@@ -169,6 +172,7 @@ export class Context {
             ); // append key index.
 
             encodedFrame.data = newUint8.buffer;
+
             return encodedFrame;
         } catch (e) {
             console.error(`Encryption failed: ${e}`);
@@ -183,11 +187,12 @@ export class Context {
      * @param {TransformStreamDefaultController} controller - TransportStreamController.
      */
     async decodeFunction(
-        encodedFrame: RTCEncodedVideoFrame | RTCEncodedAudioFrame,
-        controller: TransformStreamDefaultController,
+            encodedFrame: RTCEncodedVideoFrame | RTCEncodedAudioFrame,
+            controller: TransformStreamDefaultController,
     ) {
         const data = new Uint8Array(encodedFrame.data);
         const keyIndex = data[encodedFrame.data.byteLength - 1];
+
         if (keyIndex === this.key.index) {
             const decodedFrame = await this._decryptFrame(encodedFrame);
 
@@ -205,9 +210,10 @@ export class Context {
      * @private
      */
     async _decryptFrame(
-        encodedFrame: RTCEncodedVideoFrame | RTCEncodedAudioFrame,
+            encodedFrame: RTCEncodedVideoFrame | RTCEncodedAudioFrame,
     ) {
         const encryptionKey = this.encryptionKey;
+
         try {
             const iv = new Uint8Array(
                 encodedFrame.data,
@@ -215,9 +221,9 @@ export class Context {
                 IV_LEN_BYTES,
             );
 
-            const cipherTextLength =
-                encodedFrame.data.byteLength -
-                (UNENCRYPTED_BYTES_NUMBER + IV_LEN_BYTES + 1);
+            const cipherTextLength
+                = encodedFrame.data.byteLength
+                - (UNENCRYPTED_BYTES_NUMBER + IV_LEN_BYTES + 1);
 
             const additionalData = new Uint8Array(
                 encodedFrame.data,

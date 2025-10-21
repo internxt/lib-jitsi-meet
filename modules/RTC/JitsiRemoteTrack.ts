@@ -1,27 +1,27 @@
 import { getLogger } from '@jitsi/logger';
+import { decode } from 'punycode';
 
 import JitsiConference from '../../JitsiConference';
 import { JitsiTrackEvents } from '../../JitsiTrackEvents';
 import { MediaType } from '../../service/RTC/MediaType';
 import { RTCEvents } from '../../service/RTC/RTCEvents';
 import { VideoType } from '../../service/RTC/VideoType';
-
 import { createTtfmEvent } from '../../service/statistics/AnalyticsEvents';
+import channels from '../../wasm/RTC/channels.js';
 import TrackStreamingStatusImpl, { TrackStreamingStatus } from '../connectivity/TrackStreamingStatus';
 import Statistics from '../statistics/statistics';
 import { isValidNumber } from '../util/MathUtil';
 
-import RTCUtils from './RTCUtils';
 
-import JitsiTrack from './JitsiTrack';  
-import channels from '../../wasm/RTC/channels.js';
-import { decode } from 'punycode';
+import JitsiTrack from './JitsiTrack';
 import RTC from './RTC';
+import RTCUtils from './RTCUtils';
 
 const logger = getLogger('rtc:JitsiRemoteTrack');
 const ort = require('onnxruntime-web');
+
 ort.env.wasm.wasmPaths = '/libs/dist/';
-let timer = false;
+const timer = false;
 
 let ttfmTrackerAudioAttached = false;
 let ttfmTrackerVideoAttached = false;
@@ -30,17 +30,16 @@ export let decodingSession = null;
 /**
  * Loads the decoder model
  */
-async function loadDecoder(){
-    try{
-        decodingSession = await ort.InferenceSession.create('/libs/models/Decoder.onnx', {freeDimensionOverrides: {
+async function loadDecoder() {
+    try {
+        decodingSession = await ort.InferenceSession.create('/libs/models/Decoder.onnx', { freeDimensionOverrides: {
             batch: 1,
-          }});
-    }
-    catch (error){
-        console.error("Decoder model could not be loaded!: ", error);
+        } });
+    } catch (error) {
+        console.error('Decoder model could not be loaded!: ', error);
     }
 }
-loadDecoder()
+loadDecoder();
 
 
 /**
@@ -168,8 +167,7 @@ export default class JitsiRemoteTrack extends JitsiTrack {
      * Returns decoded stream from camera stream
      * @returns MediaStream object
      */
-    getDecodedStream()
-    {
+    getDecodedStream() {
         return this._decodedStream;
     }
 
@@ -177,93 +175,99 @@ export default class JitsiRemoteTrack extends JitsiTrack {
      * Returns decoded stream from camera stream
      * @returns Track object
      */
-    getDecodedTrack()
-    {
+    getDecodedTrack() {
         return this._decodedTrack;
     }
 
     /**
      * Starts to decode the incoming images from the JVB
      */
-    decodingRoutine(){
-        try{
+    decodingRoutine() {
+        try {
             // Creating canvas stream that will be attached to GUI
-            const canvasDecoded =  document.createElement('canvas');
+            const canvasDecoded = document.createElement('canvas');
+
             this._decodedStream = canvasDecoded.captureStream();
             // Extracting track from canvas-sender
             this._decodedTrack = this._decodedStream.getVideoTracks()[0];
             const videoTrack = this.stream.getVideoTracks()[0];
+
             // Applying onnx model to incoming stream and saving the output in the canvas-sender
-            this.applyONNXDecoder(videoTrack,canvasDecoded,this._muted);
-        }
-        catch(error){
-            logger.error("Error on decoder phase: ", error);
+            this.applyONNXDecoder(videoTrack, canvasDecoded, this._muted);
+        } catch (error) {
+            logger.error('Error on decoder phase: ', error);
         }
     }
 
     /**
-     * Does the decoding phase of the incoming streams 
-     * @param {*} videoTrack 
-     * @param {*} canvasDecoded 
+     * Does the decoding phase of the incoming streams
+     * @param {*} videoTrack
+     * @param {*} canvasDecoded
      */
-    applyONNXDecoder(videoTrack,canvasDecoded,muted){
-        // Frame-grabber to catch frames from the incoming stream  
-        let imageCapture = new ImageCapture(videoTrack);
+    applyONNXDecoder(videoTrack, canvasDecoded, muted) {
+        // Frame-grabber to catch frames from the incoming stream
+        const imageCapture = new ImageCapture(videoTrack);
         // Setting up the aux canvas to paint the caught frames
-        const canvasEncoded =  document.createElement('canvas');
-        const ctxEncoded = canvasEncoded.getContext("2d",{willReadFrequently :true});
-        const ctxDecoded = canvasDecoded.getContext('2d',{willReadFrequently :true});
+        const canvasEncoded = document.createElement('canvas');
+        const ctxEncoded = canvasEncoded.getContext('2d', { willReadFrequently: true });
+        const ctxDecoded = canvasDecoded.getContext('2d', { willReadFrequently: true });
+
         /*
          *  Decoded each frame from the incoming stream with decoded images, this function is repeated in loop
          */
-        async function processFrame(){
-            try{
-                if(timer==true){
-                    console.time("TIMER decoder full-elapsed time");
+        async function processFrame() {
+            try {
+                if (timer == true) {
+                    console.time('TIMER decoder full-elapsed time');
                 }
                 // Getting the current size of the incoming stream
                 const width = videoTrack.getSettings().width;
                 const height = videoTrack.getSettings().height;
+
                 // Adjusting the size of the aux canvas
                 canvasEncoded.width = width;
                 canvasEncoded.height = height;
                 // Capturing a frame and painting it into the aux canvas
                 const frame = await imageCapture.grabFrame();
+
                 ctxEncoded.drawImage(frame, 0, 0, width, height);
-                //Generating tensor from painted frame to be passed to the onnx model
+                // Generating tensor from painted frame to be passed to the onnx model
                 const imageEncode = ctxEncoded.getImageData(0, 0, width, height);
                 const imageData = imageEncode.data;
-                let floatArray = Float32Array.from(imageData)
+                const floatArray = Float32Array.from(imageData);
                 // Applying the onnx model
-                const tensor = new ort.Tensor("float32",floatArray,[1,height,width,4]);
+                const tensor = new ort.Tensor('float32', floatArray, [ 1, height, width, 4 ]);
                 const input = {
                     input: tensor
                 };
-                if(timer==true){
-                    console.time("TIMER onnx decoder");
+
+                if (timer == true) {
+                    console.time('TIMER onnx decoder');
                 }
                 const results = await decodingSession.run(input);
-                if(timer==true){
-                    console.timeEnd("TIMER onnx decoder");
+
+                if (timer == true) {
+                    console.timeEnd('TIMER onnx decoder');
                 }
                 // Extracting output data from the onnx model
                 const tensorData = results.output.data;
+
                 // Resizing canvas that will be exported to GUI
-                canvasDecoded.width = width*2;
-                canvasDecoded.height = height*2;
+                canvasDecoded.width = width * 2;
+                canvasDecoded.height = height * 2;
                 const imageDataRestore = ctxDecoded.createImageData(canvasDecoded.width, canvasDecoded.height);
-                let dataRestore =  imageDataRestore.data;
-                dataRestore.set(tensorData)
+                const dataRestore = imageDataRestore.data;
+
+                dataRestore.set(tensorData);
                 // Setting decoded image in the canvas-sender
                 ctxDecoded.putImageData(imageDataRestore, 0, 0);
-                if(timer==true){
-                    console.timeEnd("TIMER decoder full-elapsed time");
+                if (timer == true) {
+                    console.timeEnd('TIMER decoder full-elapsed time');
                 }
+            } catch (error) {
+                logger.info('Decoder failed! because: ', error);
             }
-            catch(error){
-                logger.info("Decoder failed! because: ",error);
-            }
-            if (muted == false){
+            if (muted == false) {
                 requestAnimationFrame(processFrame);
             }
         }
@@ -277,30 +281,29 @@ export default class JitsiRemoteTrack extends JitsiTrack {
      *
      * @param container the HTML container which can be 'video' or 'audio'
      * element.
-     * @param decode boolean to determine if the decoding session is used or not. 
+     * @param decode boolean to determine if the decoding session is used or not.
      *
      * @returns {void}
      */
     override attach(container, decode) {
         let result = Promise.resolve();
+
         if (this.type === MediaType.VIDEO) {
-            if (this.videoType === VideoType.CAMERA){
-                if (decode){
+            if (this.videoType === VideoType.CAMERA) {
+                if (decode) {
                     this.decodingRoutine();
                 }
                 if (this._decodedStream) {
                     this._onTrackAttach(container);
                     result = RTCUtils.attachMediaStream(container, this._decodedStream);
-                }
-                else if (this.stream) {
+                } else if (this.stream) {
                     this._onTrackAttach(container);
                     result = RTCUtils.attachMediaStream(container, this.stream);
                 }
                 this.containers.push(container);
                 this._attachTTFMTracker(container);
             }
-        }
-        else{
+        } else {
             if (this.stream) {
                 this._onTrackAttach(container);
                 result = RTCUtils.attachMediaStream(container, this.stream);

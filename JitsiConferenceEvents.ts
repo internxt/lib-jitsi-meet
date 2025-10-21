@@ -176,9 +176,9 @@ export enum JitsiConferenceEvents {
      */
     DTMF_SUPPORT_CHANGED = 'conference.dtmfSupportChanged',
 
-    E2EE_SAS_AVAILABLE = 'conference.e2ee.sas.available',
-    E2EE_KEY_SYNC_FAILED = 'conference.e2ee.key_sync_failed',
     E2EE_KEY_SYNC_AFTER_TIMEOUT = 'conference.e2ee.key_sync_after_timeout',
+    E2EE_KEY_SYNC_FAILED = 'conference.e2ee.key_sync_failed',
+    E2EE_SAS_AVAILABLE = 'conference.e2ee.sas.available',
 
     /**
      * Indicates that the encode time stats for the local video sources has been received.

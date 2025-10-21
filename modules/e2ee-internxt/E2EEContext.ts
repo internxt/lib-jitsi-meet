@@ -1,8 +1,10 @@
 /* global RTCRtpScriptTransform */
-import Listenable from "../util/Listenable";
-import { CustomRTCRtpReceiver, CustomRTCRtpSender } from "./Types";
-import { getLogger } from "@jitsi/logger";
-const logger = getLogger("modules/e2ee-internxt/E2EEContext");
+import { getLogger } from '@jitsi/logger';
+
+import Listenable from '../util/Listenable';
+
+import { CustomRTCRtpReceiver, CustomRTCRtpSender } from './Types';
+const logger = getLogger('modules/e2ee-internxt/E2EEContext');
 
 /**
  * Context encapsulating the cryptography bits required for E2EE.
@@ -18,48 +20,52 @@ export default class E2EEcontext extends Listenable {
         super();
         this._worker = this._initializeWorker();
 
-        this._worker.onerror = (e) => logger.error(e);
+        this._worker.onerror = e => logger.error(e);
 
         this._worker.onmessage = (event: MessageEvent) => {
             const { operation, sas } = event.data;
-            if (operation === "updateSAS" && sas) {
+
+            if (operation === 'updateSAS' && sas) {
                 this.updateSAS(sas);
             }
         };
     }
+
     private _initializeWorker(): Worker {
         const scriptEl = document.querySelector<HTMLScriptElement>(
             'script[src*="lib-jitsi-meet"]',
         );
-        let baseUrl = "";
+        let baseUrl = '';
 
         if (scriptEl) {
-            const idx = scriptEl.src.lastIndexOf("/");
+            const idx = scriptEl.src.lastIndexOf('/');
+
             baseUrl = `${scriptEl.src.substring(0, idx)}/`;
         }
 
         let workerUrl = `${baseUrl}lib-jitsi-meet.e2ee-worker.js`;
 
-        if (baseUrl && baseUrl !== "/") {
-            const workerBlob = new Blob([`importScripts("${workerUrl}");`], {
-                type: "application/javascript",
+        if (baseUrl && baseUrl !== '/') {
+            const workerBlob = new Blob([ `importScripts("${workerUrl}");` ], {
+                type: 'application/javascript',
             });
+
             workerUrl = URL.createObjectURL(workerBlob);
         }
 
-        return new Worker(workerUrl, { name: "E2EE Worker" });
+        return new Worker(workerUrl, { name: 'E2EE Worker' });
     }
 
     cleanup(participantId: string) {
         this._worker.postMessage({
-            operation: "cleanup",
+            operation: 'cleanup',
             participantId,
         });
     }
 
     cleanupAll() {
         this._worker.postMessage({
-            operation: "cleanupAll",
+            operation: 'cleanupAll',
         });
     }
 
@@ -75,7 +81,7 @@ export default class E2EEcontext extends Listenable {
         receiver.kJitsiE2EE = true;
 
         const options = {
-            operation: "decode",
+            operation: 'decode',
             participantId,
         };
 
@@ -86,15 +92,16 @@ export default class E2EEcontext extends Listenable {
             );
         } else if (receiver.createEncodedStreams) {
             const { readable, writable } = receiver.createEncodedStreams();
+
             this._worker.postMessage(
                 {
                     ...options,
                     readableStream: readable,
                     writableStream: writable,
                 },
-                [readable, writable],
+                [ readable, writable ],
             );
-        } else logger.error(`Receiver does not support encoded streams.!`);
+        } else logger.error('Receiver does not support encoded streams.!');
     }
 
     /**
@@ -109,7 +116,7 @@ export default class E2EEcontext extends Listenable {
         sender.kJitsiE2EE = true;
 
         const options = {
-            operation: "encode",
+            operation: 'encode',
             participantId,
         };
 
@@ -117,25 +124,26 @@ export default class E2EEcontext extends Listenable {
             sender.transform = new RTCRtpScriptTransform(this._worker, options);
         } else if (sender.createEncodedStreams) {
             const { readable, writable } = sender.createEncodedStreams();
+
             this._worker.postMessage(
                 {
                     ...options,
                     readableStream: readable,
                     writableStream: writable,
                 },
-                [readable, writable],
+                [ readable, writable ],
             );
-        } else logger.error(`Sender does not support encoded streams.`);
+        } else logger.error('Sender does not support encoded streams.');
     }
 
     setKey(
-        participantId: string,
-        olmKey: Uint8Array,
-        pqKey: Uint8Array,
-        index: number,
+            participantId: string,
+            olmKey: Uint8Array,
+            pqKey: Uint8Array,
+            index: number,
     ) {
         this._worker.postMessage({
-            operation: "setKey",
+            operation: 'setKey',
             olmKey,
             pqKey,
             index,
@@ -145,7 +153,7 @@ export default class E2EEcontext extends Listenable {
 
     setKeysCommitment(participantId: string, commitment: string) {
         this._worker.postMessage({
-            operation: "setKeysCommitment",
+            operation: 'setKeysCommitment',
             commitment,
             participantId,
         });
@@ -153,12 +161,12 @@ export default class E2EEcontext extends Listenable {
 
     ratchetKeys(participantId: string) {
         this._worker.postMessage({
-            operation: "ratchetKeys",
+            operation: 'ratchetKeys',
             participantId,
         });
     }
 
     private async updateSAS(sas: string[]) {
-        this.emit("sasUpdated", sas);
+        this.emit('sasUpdated', sas);
     }
 }
