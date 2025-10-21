@@ -1,14 +1,17 @@
 import { getLogger } from '@jitsi/logger';
 
+import JitsiConference from '../../JitsiConference';
 import { JitsiConferenceEvents } from '../../JitsiConferenceEvents';
-import * as JitsiTrackEvents from '../../JitsiTrackEvents';
-import RTCEvents from '../../service/RTC/RTCEvents';
+import { JitsiTrackEvents } from '../../JitsiTrackEvents';
+import { RTCEvents } from '../../service/RTC/RTCEvents';
+import { VideoType } from '../../service/RTC/VideoType';
 import { createTrackStreamingStatusEvent } from '../../service/statistics/AnalyticsEvents';
+import JitsiRemoteTrack from '../RTC/JitsiRemoteTrack';
+import RTC from '../RTC/RTC';
+import RTCStats from '../RTCStats/RTCStats';
+import { RTCStatsEvents } from '../RTCStats/RTCStatsEvents';
 import browser from '../browser';
 import Statistics from '../statistics/statistics';
-import JitsiRemoteTrack from '../RTC/JitsiRemoteTrack';
-import { VideoType } from '../../service/RTC/VideoType';
-import RTC from '../RTC/RTC';
 
 /** Track streaming statuses. */
 export enum TrackStreamingStatus {
@@ -34,17 +37,17 @@ export enum TrackStreamingStatus {
      * Status indicating that streaming is currently restoring.
      */
     RESTORING = 'restoring',
-  }
+}
 
 type StreamingStatusMap = {
-    videoType?: VideoType,
-    startedMs?: number,
-    p2p?: boolean,
-    streamingStatus?: string,
-    value?: number
+    p2p?: boolean;
+    startedMs?: number;
+    streamingStatus?: string;
+    value?: number;
+    videoType?: VideoType;
 };
 
-const logger = getLogger(__filename);
+const logger = getLogger('connectivity:TrackStreamingStatus');
 
 /**
  * Default value of 500 milliseconds for {@link TrackStreamingStatusImpl.outOfForwardedSourcesTimeout}.
@@ -73,11 +76,11 @@ const DEFAULT_RESTORING_TIMEOUT = 10000;
  */
 export class TrackStreamingStatusImpl {
     rtc: RTC;
-    conference: any; // TODO: needs JitsiConference type
+    conference: JitsiConference;
     track: JitsiRemoteTrack;
 
     /**  This holds the timeout callback ID scheduled using window.setTimeout. */
-    trackTimer: number | null;
+    trackTimer: Nullable<number>;
 
     /**
      * If video track frozen detection through RTC mute event is supported, we wait some time until video track is
@@ -113,10 +116,10 @@ export class TrackStreamingStatusImpl {
      * FIXME merge this logic with NO_DATA_FROM_SOURCE event implemented in JitsiLocalTrack by extending the event
      * to the remote track and allowing to set different timeout for local and remote tracks.
      */
-    rtcMutedTimestamp: number | null;
+    rtcMutedTimestamp: Nullable<number>;
 
     /** This holds the restoring timeout callback ID scheduled using window.setTimeout. */
-    restoringTimer: ReturnType<typeof setTimeout> | null;
+    restoringTimer: Nullable<ReturnType<typeof setTimeout>>;
 
     /**
      * This holds the current streaming status (along with all the internal events that happen while in that
@@ -135,7 +138,7 @@ export class TrackStreamingStatusImpl {
     _onLastNValueChanged: () => void;
     _onForwardedSourcesChanged: () => void;
 
-    /* eslint-disable max-params*/
+    /* eslint-disable max-params */
     /**
      * Calculates the new {@link TrackStreamingStatus} based on the values given for some specific remote track. It is
      * assumed that the conference is currently in the JVB mode (in contrary to the P2P mode)
@@ -179,7 +182,7 @@ export class TrackStreamingStatusImpl {
         return isInForwardedSources ? TrackStreamingStatus.ACTIVE : TrackStreamingStatus.INACTIVE;
     }
 
-    /* eslint-enable max-params*/
+    /* eslint-enable max-params */
 
     /**
      * In P2P mode we don't care about any values coming from the JVB and the streaming status can be only active or
@@ -214,10 +217,10 @@ export class TrackStreamingStatusImpl {
      * @param {number} [options.outOfForwardedSourcesTimeout=500] custom value for
      * {@link TrackStreamingStatusImpl.outOfForwardedSourcesTimeout}.
      */
-    constructor(rtc: RTC, conference: any, track: JitsiRemoteTrack, options: {
-        outOfForwardedSourcesTimeout: number,
-        p2pRtcMuteTimeout: number,
-        rtcMuteTimeout: number
+    constructor(rtc: RTC, conference: JitsiConference, track: JitsiRemoteTrack, options: {
+        outOfForwardedSourcesTimeout: number;
+        p2pRtcMuteTimeout: number;
+        rtcMuteTimeout: number;
     }) {
         this.rtc = rtc;
         this.conference = conference;
@@ -329,6 +332,11 @@ export class TrackStreamingStatusImpl {
 
             // It's common for the event listeners to access the JitsiRemoteTrack. Thus pass it as a parameter here.
             this.track.emit(JitsiTrackEvents.TRACK_STREAMING_STATUS_CHANGED, this.track, newStatus);
+            if (newStatus === TrackStreamingStatus.INACTIVE) {
+                RTCStats.sendStatsEntry(RTCStatsEvents.REMOTE_SOURCE_SUSPENDED_EVENT);
+            } else if (newStatus === TrackStreamingStatus.INTERRUPTED) {
+                RTCStats.sendStatsEntry(RTCStatsEvents.REMOTE_SOURCE_INTERRUPTED_EVENT);
+            }
         }
     }
 
@@ -424,9 +432,9 @@ export class TrackStreamingStatusImpl {
 
             this.streamingStatusMap = {
                 ...oldStreamingStatus,
-                streamingStatus: newState,
                 p2p: inP2PMode,
-                startedMs: nowMs
+                startedMs: nowMs,
+                streamingStatus: newState
             };
 
             // sometimes (always?) we're late to hook the TRACK_VIDEOTYPE_CHANGED event and the video type is not in
@@ -609,8 +617,6 @@ export class TrackStreamingStatusImpl {
             return;
         }
 
-        const sourceName = this.track.getSourceName();
-
         this.figureOutStreamingStatus();
     }
 
@@ -626,8 +632,8 @@ export class TrackStreamingStatusImpl {
 
         this.streamingStatusMap = {
             ...this.streamingStatusMap || {},
-            videoType: type,
-            startedMs: nowMs
+            startedMs: nowMs,
+            videoType: type
         };
     }
 }

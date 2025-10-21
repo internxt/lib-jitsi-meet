@@ -36,13 +36,13 @@ describe( "/JitsiConferenceErrors members", () => {
         expect( AUTH_ERROR_TYPES.NO_VISITORS_LOBBY ).toBe( 'no-visitors-lobby' );
         expect( AUTH_ERROR_TYPES.PROMOTION_NOT_ALLOWED ).toBe( 'promotion-not-allowed' );
         expect( AUTH_ERROR_TYPES.ROOM_CREATION_RESTRICTION ).toBe( 'room-creation-restriction' );
+        expect( AUTH_ERROR_TYPES.ROOM_UNAUTHENTICATED_ACCESS_DISABLED ).toBe( 'authentication-required' );
         expect( AUTHENTICATION_REQUIRED ).toBe( 'conference.authenticationRequired' );
         expect( CHAT_ERROR ).toBe( 'conference.chatError' );
         expect( SETTINGS_ERROR ).toBe( 'conference.settingsError' );
         expect( CONFERENCE_DESTROYED ).toBe( 'conference.destroyed' );
         expect( CONFERENCE_MAX_USERS ).toBe( 'conference.max_users' );
         expect( CONNECTION_ERROR ).toBe( 'conference.connectionError' );
-        expect( CONFERENCE_RESTARTED ).toBe( 'conference.restarted' );
         expect( DISPLAY_NAME_REQUIRED ).toBe( 'conference.display_name_required' );
         expect( NOT_ALLOWED_ERROR ).toBe( 'conference.connectionError.notAllowed' );
         expect( MEMBERS_ONLY_ERROR ).toBe( 'conference.connectionError.membersOnly' );
@@ -66,7 +66,6 @@ describe( "/JitsiConferenceErrors members", () => {
         expect( JitsiConferenceErrors.CONFERENCE_DESTROYED ).toBe( 'conference.destroyed' );
         expect( JitsiConferenceErrors.CONFERENCE_MAX_USERS ).toBe( 'conference.max_users' );
         expect( JitsiConferenceErrors.CONNECTION_ERROR ).toBe( 'conference.connectionError' );
-        expect( JitsiConferenceErrors.CONFERENCE_RESTARTED ).toBe( 'conference.restarted' );
         expect( JitsiConferenceErrors.DISPLAY_NAME_REQUIRED ).toBe( 'conference.display_name_required' );
         expect( JitsiConferenceErrors.NOT_ALLOWED_ERROR ).toBe( 'conference.connectionError.notAllowed' );
         expect( JitsiConferenceErrors.MEMBERS_ONLY_ERROR ).toBe( 'conference.connectionError.membersOnly' );

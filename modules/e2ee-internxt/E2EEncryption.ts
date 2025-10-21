@@ -1,7 +1,7 @@
-import browser from "../browser";
+import JitsiConference from '../../JitsiConference';
+import browser from '../browser';
 
-import { ManagedKeyHandler } from "./ManagedKeyHandler";
-import JitsiConference from "../../JitsiConference";
+import { ManagedKeyHandler } from './ManagedKeyHandler';
 
 /**
  * This module integrates {@link ManagedKeyHandler} with {@link JitsiConference} in order to enable E2E encryption.
@@ -28,9 +28,9 @@ export class E2EEncryption {
         }
 
         return (
-            browser.supportsInsertableStreams() ||
-            (config.enableEncodedTransformSupport &&
-                browser.supportsEncodedTransform())
+            browser.supportsInsertableStreams()
+            || (config.enableEncodedTransformSupport
+                && browser.supportsEncodedTransform())
         );
     }
 
