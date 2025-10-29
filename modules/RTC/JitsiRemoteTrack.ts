@@ -441,65 +441,68 @@ export default class JitsiRemoteTrack extends JitsiTrack {
      * @param {*} videoTrack
      * @param {*} canvasDecoded
      */
-    applyONNXDecoder(videoTrack, canvasDecoded, muted) {
-        // Frame-grabber to catch frames from the incoming stream
-        const imageCapture = new ImageCapture(videoTrack);
-        // Setting up the aux canvas to paint the caught frames
-        const canvasEncoded = document.createElement('canvas');
-        const ctxEncoded = canvasEncoded.getContext('2d', { willReadFrequently: true });
-        const ctxDecoded = canvasDecoded.getContext('2d', { willReadFrequently: true });
-
-        /*
-         *  Decoded each frame from the incoming stream with decoded images, this function is repeated in loop
+    applyONNXDecoder(videoTrack, canvasDecoded, muted)    /**
+         * Does the decoding phase of the incoming streams 
+         * @param {*} videoTrack 
+         * @param {*} canvasDecoded 
          */
-        async function processFrame() {
-            try {
-                // Getting the current size of the incoming stream
-                const width = videoTrack.getSettings().width;
-                const height = videoTrack.getSettings().height;
-
-                // Adjusting the size of the aux canvas
-                canvasEncoded.width = width;
-                canvasEncoded.height = height;
-                // Capturing a frame and painting it into the aux canvas
-                const frame = await imageCapture.grabFrame();
-
-                ctxEncoded.drawImage(frame, 0, 0, width, height);
-                // Generating tensor from painted frame to be passed to the onnx model
-                const imageEncode = ctxEncoded.getImageData(0, 0, width, height);
-                const imageData = imageEncode.data;
-                const floatArray = Float32Array.from(imageData);
-                // Applying the onnx model
-                const tensor = new ort.Tensor('float32', floatArray, [ 1, height, width, 4 ]);
-                const input = {
-                    input: tensor
-                };
-
-                const results = await decodingSession.run(input);
-
-                // Extracting output data from the onnx model
-                const tensorData = results.output.data;
-
-                // Resizing canvas that will be exported to GUI
-                canvasDecoded.width = width * 2;
-                canvasDecoded.height = height * 2;
-                const imageDataRestore = ctxDecoded.createImageData(canvasDecoded.width, canvasDecoded.height);
-                const dataRestore = imageDataRestore.data;
-
-                dataRestore.set(tensorData);
-                // Setting decoded image in the canvas-sender
-                ctxDecoded.putImageData(imageDataRestore, 0, 0);
-
-            } catch (error) {
-                logger.info('Decoder failed! because: ', error);
+        applyONNXDecoder(videoTrack,canvasDecoded,muted){
+            // Frame-grabber to catch frames from the incoming stream  
+            let imageCapture = new ImageCapture(videoTrack);
+            // Setting up the aux canvas to paint the caught frames
+            const canvasEncoded =  document.createElement('canvas');
+            const ctxEncoded = canvasEncoded.getContext("2d",{willReadFrequently :true});
+            const ctxDecoded = canvasDecoded.getContext('2d',{willReadFrequently :true});
+            /*
+             *  Decoded each frame from the incoming stream with decoded images, this function is repeated in loop
+             */
+            async function processFrame(){
+                try{
+                    if(videoTrack.readyState == "live"){
+                        // Capturing a frame and painting it into the aux canvas
+                        const frame = await imageCapture.grabFrame();
+                        // Getting the current size of the incoming stream
+                        // const width = videoTrack.getSettings().width;
+                        // const height = videoTrack.getSettings().height;
+                        const width = frame.width;
+                        const height = frame.height;
+                        if (width != null || width !== undefined){
+                            // Adjusting the size of the aux canvas
+                            canvasEncoded.width = width;
+                            canvasEncoded.height = height;
+                            ctxEncoded.drawImage(frame, 0, 0, width, height);
+                            //Generating tensor from painted frame to be passed to the onnx model
+                            const imageEncode = ctxEncoded.getImageData(0, 0, width, height);
+                            const imageData = imageEncode.data;
+                            let floatArray = Float32Array.from(imageData)
+                            // Applying the onnx model
+                            const tensor = new ort.Tensor("float32",floatArray,[1,height,width,4]);
+                            const input = {
+                                input: tensor
+                            };
+                            const results = await decodingSession.run(input);
+                            // Extracting output data from the onnx model
+                            const tensorData = results.output.data;
+                            // Resizing canvas that will be exported to GUI
+                            canvasDecoded.width = width*2;
+                            canvasDecoded.height = height*2;
+                            const imageDataRestore = ctxDecoded.createImageData(canvasDecoded.width, canvasDecoded.height);
+                            let dataRestore =  imageDataRestore.data;
+                            dataRestore.set(tensorData)
+                            // Setting decoded image in the canvas-sender
+                            ctxDecoded.putImageData(imageDataRestore, 0, 0);
+                        }
+                    }
+                }
+                catch(error){
+                    logger.info("Decoder failed! because: ",error);
+                }
+                if (muted == false) {
+                    requestAnimationFrame(processFrame);
+                }
             }
-            if (muted == false) {
-                requestAnimationFrame(processFrame);
-            }
+            processFrame();
         }
-        processFrame();
-    }
-
 
     /**
      * Attaches the MediaStream of this track to an HTML container.
