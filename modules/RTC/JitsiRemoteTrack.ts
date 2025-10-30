@@ -1,5 +1,5 @@
 import { getLogger } from '@jitsi/logger';
-import ort from 'onnxruntime-web';
+import * as ort from 'onnxruntime-web';
 
 import JitsiConference from '../../JitsiConference';
 import { JitsiTrackEvents } from '../../JitsiTrackEvents';
