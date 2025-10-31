@@ -464,12 +464,10 @@ export default class JitsiRemoteTrack extends JitsiTrack {
                     // Capturing a frame and painting it into the aux canvas
                     const frame = await imageCapture.grabFrame();
                     // Getting the current size of the incoming stream
-                    // const width = videoTrack.getSettings().width;
-                    // const height = videoTrack.getSettings().height;
                     const width = frame.width;
                     const height = frame.height;
 
-                    if (width != null || width !== undefined) {
+                    if (width != null && width !== undefined) {
                         // Adjusting the size of the aux canvas
                         canvasEncoded.width = width;
                         canvasEncoded.height = height;
@@ -496,6 +494,7 @@ export default class JitsiRemoteTrack extends JitsiTrack {
                         dataRestore.set(tensorData);
                         // Setting decoded image in the canvas-sender
                         ctxDecoded.putImageData(imageDataRestore, 0, 0);
+                        tensor.dispose();
                     }
                 }
             } catch (error) {
