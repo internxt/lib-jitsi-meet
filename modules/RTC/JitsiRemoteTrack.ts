@@ -1,5 +1,4 @@
 import { getLogger } from '@jitsi/logger';
-import * as ort from 'onnxruntime-web';
 
 import JitsiConference from '../../JitsiConference';
 import { JitsiTrackEvents } from '../../JitsiTrackEvents';
@@ -18,6 +17,8 @@ import RTCUtils from './RTCUtils';
 
 const logger = getLogger('rtc:JitsiRemoteTrack');
 
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const ort = require('onnxruntime-web');
 
 ort.env.wasm.wasmPaths = '/libs/dist/';
 

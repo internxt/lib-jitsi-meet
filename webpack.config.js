@@ -14,9 +14,6 @@ module.exports = (_env, argv) => {
             entry: {
                 'lib-jitsi-meet': './index.js'
             },
-            externals: {
-                'onnxruntime-web': 'onnxruntime-web'
-            },
             output: { ...config.output,
                 library: 'JitsiMeetJS',
                 libraryTarget: 'umd',

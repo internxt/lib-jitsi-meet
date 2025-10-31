@@ -1,5 +1,4 @@
 import { getLogger } from '@jitsi/logger';
-import * as ort from 'onnxruntime-web';
 
 import JitsiConference from '../../JitsiConference';
 import JitsiTrackError from '../../JitsiTrackError';
@@ -50,6 +49,8 @@ export async function getWasmModule() {
 
     return wasmChannels;
 }
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const ort = require('onnxruntime-web');
 
 ort.env.wasm.wasmPaths = '/libs/ONNX/';
 
