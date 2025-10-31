@@ -495,7 +495,7 @@ export default class JitsiRemoteTrack extends JitsiTrack {
                         ctxDecoded.putImageData(imageDataRestore, 0, 0);
                         tensor.dispose();
                     }
-                }   
+                }
             } catch (error) {
                 logger.info('Decoder failed! because: ', error);
             }
