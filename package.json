@@ -86,7 +86,8 @@
   "react-native": "./dist/esm/JitsiMeetJS.js",
   "files": [
     "dist",
-    "types/index.d.ts"
+    "types/index.d.ts",
+    "models"
   ],
   "license": "Apache-2.0"
 }
