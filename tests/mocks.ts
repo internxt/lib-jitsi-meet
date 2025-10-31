@@ -1,39 +1,45 @@
-import { setupWorker } from "../modules/e2ee-internxt/Worker";
-import { ManagedKeyHandler } from "../modules/e2ee-internxt/ManagedKeyHandler";
-import JitsiParticipant from "../JitsiParticipant";
-import JitsiConference from "../JitsiConference";
-import RTC from "../modules/RTC/RTC";
-import EventEmitter from "../modules/util/EventEmitter";
-import * as JitsiConferenceEvents from "../JitsiConferenceEvents";
+import { anything, instance, mock, when } from 'ts-mockito';
 
-import { mock, instance, when, anything } from "ts-mockito";
+import JitsiConference from '../JitsiConference';
+import { JitsiConferenceEvents } from '../JitsiConferenceEvents';
+import JitsiParticipant from '../JitsiParticipant';
+import RTC from '../modules/RTC/RTC';
+import { ManagedKeyHandler } from '../modules/e2ee-internxt/ManagedKeyHandler';
+import { setupWorker } from '../modules/e2ee-internxt/Worker';
+import EventEmitter from '../modules/util/EventEmitter';
+
 
 export function delay(ms: number) {
-    return new Promise((resolve) => setTimeout(resolve, ms));
+    return new Promise(resolve => setTimeout(resolve, ms));
 }
 
 export class WorkerMock {
-    public onmessage: ((event: MessageEvent) => void) | null = null;
-    public onerror: ((event: Event) => void) | null = null;
+
     private readonly _fakeWorkerSelf: {
-        postMessage: (data: any) => void;
         onmessage: ((event: MessageEvent) => void) | null;
+        postMessage: (data: any) => void;
     };
+
+    public onerror: ((event: Event) => void) | null = null;
+    public onmessage: ((event: MessageEvent) => void) | null = null;
+
 
     constructor(_scriptUrl: string, _options?: WorkerOptions) {
         this._fakeWorkerSelf = {
+            onmessage: null,
             postMessage: (data: any) => {
                 setTimeout(() => {
                     this.onmessage?.({ data } as MessageEvent);
                 }, 0);
             },
-            onmessage: null,
         };
         (globalThis as any).self = this._fakeWorkerSelf;
         const originalSelf = globalThis.self;
+
         setupWorker(this._fakeWorkerSelf);
         (globalThis as any).self = originalSelf;
     }
+
     postMessage(data: any) {
         this._fakeWorkerSelf.onmessage?.({ data } as MessageEvent);
     }
@@ -47,9 +53,11 @@ export class XmppServerMock {
 
     createMockParticipant(participantId: string): JitsiParticipant {
         const mockParticipant = mock(JitsiParticipant);
+
         when(mockParticipant.getId()).thenReturn(participantId);
         when(mockParticipant.hasFeature(anything())).thenReturn(true);
         const participant = instance(mockParticipant);
+
         return participant;
     }
 
@@ -62,27 +70,29 @@ export class XmppServerMock {
     }
 
     getAllParticipantsIDs(): string[] {
-        return [...this.participants.keys()];
+        return [ ...this.participants.keys() ];
     }
 
     getParticipantsFor(id: string): JitsiParticipant[] {
         const list: JitsiParticipant[] = [];
+
         this.participants.forEach((participant, pId) => {
             if (id !== pId) {
                 list.push(participant);
             }
         });
+
         return list;
     }
 
     enableE2E() {
         this.e2e = true;
-        for (const [_, keyHandler] of this.listeners) {
+        for (const [ _, keyHandler ] of this.listeners) {
             keyHandler.setEnabled(true);
         }
     }
 
-    diableE2E() {
+    disableE2E() {
         this.e2e = false;
         this.listeners.forEach((keyHandler, _id) => {
             keyHandler.setEnabled(false);
@@ -93,6 +103,7 @@ export class XmppServerMock {
         keyHandler.setEnabled(this.e2e);
 
         const pId = keyHandler.conference.myUserId();
+
         if (!this.listeners.has(pId)) {
             this.listeners.forEach((existingHandler, _id) => {
                 existingHandler._onParticipantJoined(pId);
@@ -100,11 +111,15 @@ export class XmppServerMock {
             this.listeners.set(pId, keyHandler);
 
             const participant = this.createMockParticipant(pId);
+
             this.participants.set(pId, participant);
         }
     }
 
     userLeft(pId: string) {
+        const leftUser = this.listeners.get(pId);
+
+        leftUser?._onConferenceLeft();
         this.participants.delete(pId);
         this.listeners.delete(pId);
         this.listeners.forEach((keyHandler, _id) => {
@@ -116,7 +131,7 @@ export class XmppServerMock {
         this.listeners.forEach((keyHandler, id) => {
             if (id === pId) {
                 keyHandler._onEndpointMessageReceived(
-                    this.participants.get(myId),
+                    this.participants.get(myId)!,
                     payload,
                 );
             }
@@ -125,12 +140,12 @@ export class XmppServerMock {
 }
 
 export async function createInitializedManagedKeyHandler(
-    xmppServerMock: XmppServerMock,
-    max_timeout: number,
+        xmppServerMock: XmppServerMock,
+        max_timeout: number,
 ): Promise<{
-    id: string;
-    keyHandler: ManagedKeyHandler;
-}> {
+            id: string;
+            keyHandler: ManagedKeyHandler;
+        }> {
     const id = new Date().getTime().toString(16).slice(-8);
 
     const conferenceMock = mock<JitsiConference>();
@@ -138,6 +153,7 @@ export async function createInitializedManagedKeyHandler(
     when(conferenceMock.myUserId()).thenReturn(id);
 
     const mockRTC = new RTC(conferenceMock);
+
     when(conferenceMock.rtc).thenReturn(mockRTC);
 
     const eventEmitterMock = mock<EventEmitter>();
@@ -149,8 +165,10 @@ export async function createInitializedManagedKeyHandler(
             }
         },
     );
+    // eslint-disable-next-line prefer-const
+    let keyHandler: ManagedKeyHandler;
 
-    when(eventEmitterMock.emit(anything())).thenCall((event) => {
+    when(eventEmitterMock.emit(anything())).thenCall(event => {
         if (event === JitsiConferenceEvents.CONFERENCE_JOINED) {
             keyHandler._conferenceJoined = true;
             keyHandler.max_wait = max_timeout;
@@ -159,16 +177,19 @@ export async function createInitializedManagedKeyHandler(
 
     when(conferenceMock.eventEmitter).thenReturn(instance(eventEmitterMock));
 
-    const eventHandlers = new Map<string, Function[]>();
+    const eventHandlers = new Map<string, ((...args: any[]) => void)[]>();
+
     when(conferenceMock.on(anything(), anything())).thenCall(
         (eventName, handler) => {
             if (!eventHandlers.has(eventName)) {
                 eventHandlers.set(eventName, []);
             }
             eventHandlers.get(eventName)?.push(handler);
+
             return conferenceMock;
         },
     );
+
     when(conferenceMock.getParticipants()).thenCall(() => {
         return xmppServerMock.getParticipantsFor(id);
     });
@@ -180,7 +201,8 @@ export async function createInitializedManagedKeyHandler(
     );
 
     const conference = instance(conferenceMock);
-    const keyHandler = new ManagedKeyHandler(conference);
+
+    keyHandler = new ManagedKeyHandler(conference);
 
     conference.eventEmitter.emit(JitsiConferenceEvents.CONFERENCE_JOINED);
 
