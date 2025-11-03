@@ -199,7 +199,7 @@ export default class JitsiRemoteTrack extends JitsiTrack {
                     const width = frame.width;
                     const height = frame.height;
 
-                    if (width != null || width !== undefined) {
+                    if (width != null && width !== undefined) {
                         // Adjusting the size of the aux canvas
                         canvasEncoded.width = width;
                         canvasEncoded.height = height;
