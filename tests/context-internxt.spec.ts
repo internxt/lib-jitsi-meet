@@ -10,10 +10,10 @@ const videoBytes = [
 /**
  * generates a dummy audio frame
  */
-function makeAudioFrame() {
+function makeAudioFrame(): RTCEncodedAudioFrame {
     return {
         data: new Uint8Array(audioBytes).buffer,
-        type: undefined, // type is undefined for audio frames.
+        timestamp: performance.now() * 1000,
         getMetadata: () => {
             return { synchronizationSource: 123 };
         },
@@ -23,9 +23,10 @@ function makeAudioFrame() {
 /**
  * generates a dummy video frame
  */
-function makeVideoFrame() {
+function makeVideoFrame(): RTCEncodedVideoFrame {
     return {
         data: new Uint8Array(videoBytes).buffer,
+        timestamp: performance.now() * 1000,
         type: "key",
         getMetadata: () => {
             return { synchronizationSource: 321 };
@@ -34,10 +35,10 @@ function makeVideoFrame() {
 }
 
 describe("E2EE Context", () => {
-    let sender;
-    let sendController;
-    let receiver;
-    let receiveController;
+    let sender: Context;
+    let sendController: TransformStreamDefaultController;
+    let receiver: Context;
+    let receiveController: TransformStreamDefaultController;
     const olmKey = new Uint8Array([
         1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
         0, 0, 0, 0, 0, 0, 0, 0,
@@ -62,7 +63,7 @@ describe("E2EE Context", () => {
 
         it("with an audio frame", (done) => {
             sendController = {
-                enqueue: (encodedFrame) => {
+                enqueue: (encodedFrame:  RTCEncodedVideoFrame | RTCEncodedAudioFrame) => {
                     const data = new Uint8Array(encodedFrame.data);
 
                     // An audio frame will have an overhead of 33 bytes and key size:
@@ -71,6 +72,12 @@ describe("E2EE Context", () => {
                     expect(data[0]).toEqual(222);
                     done();
                 },
+                                error(reason) {
+                    this.error = reason || new Error("Unknown error");
+                },
+                terminate() {
+                },
+                desiredSize: 222,
             };
 
             sender.encodeFunction(makeAudioFrame(), sendController);
@@ -78,7 +85,7 @@ describe("E2EE Context", () => {
 
         it("with a video frame", (done) => {
             sendController = {
-                enqueue: (encodedFrame) => {
+                enqueue: (encodedFrame:  RTCEncodedVideoFrame | RTCEncodedAudioFrame) => {
                     const data = new Uint8Array(encodedFrame.data);
 
                     // A video frame will have an overhead of 34 bytes and key size:
@@ -87,6 +94,12 @@ describe("E2EE Context", () => {
                     expect(data[0]).toEqual(222);
                     done();
                 },
+                                 error(reason) {
+                    this.error = reason || new Error("Unknown error");
+                },
+                terminate() {
+                },
+                desiredSize: 222,
             };
 
             sender.encodeFunction(makeVideoFrame(), sendController);
@@ -98,37 +111,55 @@ describe("E2EE Context", () => {
             await sender.setKey(key);
             await receiver.setKey(key);
             sendController = {
-                enqueue: async (encodedFrame) => {
+                enqueue: async (encodedFrame:  RTCEncodedVideoFrame | RTCEncodedAudioFrame) => {
                     await receiver.decodeFunction(
                         encodedFrame,
                         receiveController,
                     );
                 },
+                                 error(reason) {
+                    this.error = reason || new Error("Unknown error");
+                },
+                terminate() {
+                },
+                desiredSize: 222,
             };
         });
 
         it("with an audio frame", (done) => {
             receiveController = {
-                enqueue: (encodedFrame) => {
+                enqueue: (encodedFrame:  RTCEncodedVideoFrame | RTCEncodedAudioFrame) => {
                     const data = new Uint8Array(encodedFrame.data);
 
                     expect(data.byteLength).toEqual(audioBytes.length);
                     expect(Array.from(data)).toEqual(audioBytes);
                     done();
                 },
+                error(reason) {
+                    this.error = reason || new Error("Unknown error");
+                },
+                terminate() {
+                },
+                desiredSize: 222,
             };
             sender.encodeFunction(makeAudioFrame(), sendController);
         });
 
         it("with a video frame", (done) => {
             receiveController = {
-                enqueue: (encodedFrame) => {
+                enqueue: (encodedFrame:  RTCEncodedVideoFrame | RTCEncodedAudioFrame) => {
                     const data = new Uint8Array(encodedFrame.data);
 
                     expect(data.byteLength).toEqual(videoBytes.length);
                     expect(Array.from(data)).toEqual(videoBytes);
                     done();
                 },
+                error(reason) {
+                    this.error = reason || new Error("Unknown error");
+                },
+                terminate() {
+                },
+                desiredSize: 222,
             };
 
             sender.encodeFunction(makeVideoFrame(), sendController);
@@ -136,13 +167,19 @@ describe("E2EE Context", () => {
 
         it("the receiver ratchets forward", (done) => {
             receiveController = {
-                enqueue: (encodedFrame) => {
+                enqueue: (encodedFrame:  RTCEncodedVideoFrame | RTCEncodedAudioFrame) => {
                     const data = new Uint8Array(encodedFrame.data);
 
                     expect(data.byteLength).toEqual(audioBytes.length);
                     expect(Array.from(data)).toEqual(audioBytes);
                     done();
                 },
+                                 error(reason) {
+                    this.error = reason || new Error("Unknown error");
+                },
+                terminate() {
+                },
+                desiredSize: 222,
             };
 
             const encodeFunction = async () => {
