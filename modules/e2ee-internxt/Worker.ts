@@ -103,10 +103,10 @@ class E2EEWorker {
             }
 
             case "setKeysCommitment": {
-                const { participantId, pk, pkKyber } = event.data;
+                const { participantId, commitment } = event.data;
                 const context = this.createParticipantContext(participantId);
                 if (!context) break;
-                await context.setKeyCommitment(pk, pkKyber);
+                await context.setKeyCommitment(commitment);
                 break;
             }
 
