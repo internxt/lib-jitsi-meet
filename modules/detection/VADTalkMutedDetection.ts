@@ -1,8 +1,7 @@
 import EventEmitter from '../util/EventEmitter';
 import { calculateAverage } from '../util/MathUtil';
 
-import { DETECTOR_STATE_CHANGE, VAD_TALK_WHILE_MUTED } from './DetectionEvents';
-
+import { DetectionEvents } from './DetectionEvents';
 
 /**
  * The threshold which the average VAD values for a span of time needs to exceed to trigger an event.
@@ -28,10 +27,21 @@ const VAD_VOICE_LEVEL = 0.9;
  */
 const PROCESS_TIME_FRAME_SPAN_MS = 700;
 
+export interface IVADScore {
+    deviceId: string;
+    score: number;
+    timestamp: number;
+}
+
 /**
  * Detect if provided VAD score which is generated on a muted device is voice and fires an event.
  */
 export default class VADTalkMutedDetection extends EventEmitter {
+    private _processing: boolean;
+    private _scoreArray: number[];
+    private _active: boolean;
+    private _processTimeout?: ReturnType<typeof setTimeout>;
+
     /**
      * Creates <tt>VADTalkMutedDetection</tt>
      * @constructor
@@ -54,7 +64,6 @@ export default class VADTalkMutedDetection extends EventEmitter {
          * Current mute state of the audio track being monitored.
          */
         this._active = false;
-
         this._calculateVADScore = this._calculateVADScore.bind(this);
     }
 
@@ -63,11 +72,11 @@ export default class VADTalkMutedDetection extends EventEmitter {
      * @returns {void}
      * @fires VAD_TALK_WHILE_MUTED
      */
-    _calculateVADScore() {
-        const score = calculateAverage(this._scoreArray);
+    private _calculateVADScore(): void {
+        const score = calculateAverage(new Float32Array(this._scoreArray));
 
         if (score > VAD_AVG_THRESHOLD) {
-            this.emit(VAD_TALK_WHILE_MUTED);
+            this.emit(DetectionEvents.VAD_TALK_WHILE_MUTED);
 
             // Event was fired. Stop event emitter and remove listeners so no residue events kick off after this point
             // and a single VAD_TALK_WHILE_MUTED is generated per mic muted state.
@@ -84,9 +93,9 @@ export default class VADTalkMutedDetection extends EventEmitter {
      * @param {boolean} active
      * @fires DETECTOR_STATE_CHANGE
      */
-    _setActiveState(active) {
+    private _setActiveState(active: boolean): void {
         this._active = active;
-        this.emit(DETECTOR_STATE_CHANGE, this._active);
+        this.emit(DetectionEvents.DETECTOR_STATE_CHANGE, this._active);
     }
 
     /**
@@ -94,7 +103,7 @@ export default class VADTalkMutedDetection extends EventEmitter {
      *
      * @param {boolean} isMuted - Is the device muted or not.
      */
-    changeMuteState(isMuted) {
+    public changeMuteState(isMuted: boolean): void {
         // This service only needs to run when the microphone is muted.
         this._setActiveState(isMuted);
         this.reset();
@@ -105,7 +114,7 @@ export default class VADTalkMutedDetection extends EventEmitter {
      *
      * @returns {boolean}
      */
-    isActive() {
+    public isActive(): boolean {
         return this._active;
     }
 
@@ -113,17 +122,18 @@ export default class VADTalkMutedDetection extends EventEmitter {
      * Listens for {@link TrackVADEmitter} events and processes them.
      *
      * @param {Object} vadScore -VAD score emitted by {@link TrackVADEmitter}
-     * @param {Date}   vadScore.timestamp - Exact time at which processed PCM sample was generated.
+     * @param {number}   vadScore.timestamp - Exact time at which processed PCM sample was generated.
      * @param {number} vadScore.score - VAD score on a scale from 0 to 1 (i.e. 0.7)
      * @param {string} vadScore.deviceId - Device id of the associated track.
      * @listens VAD_SCORE_PUBLISHED
      */
-    processVADScore(vadScore) {
+    public processVADScore(vadScore: IVADScore): void {
         if (!this._active) {
             return;
         }
-
         // There is a processing phase on going, add score to buffer array.
+
+
         if (this._processing) {
             this._scoreArray.push(vadScore.score);
 
@@ -146,7 +156,7 @@ export default class VADTalkMutedDetection extends EventEmitter {
      *
      * @returns {void}
      */
-    reset() {
+    public reset(): void {
         this._processing = false;
         this._scoreArray = [];
         clearTimeout(this._processTimeout);
