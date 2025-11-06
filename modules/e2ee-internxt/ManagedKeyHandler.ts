@@ -495,10 +495,10 @@ export class ManagedKeyHandler extends Listenable {
                     );
 
                     return await result;
-                } catch (error) {
+                } catch (err) {
                     this.log(
                         'error',
-                        `Explicit key update request timed out for ${pId}: ${error}`,
+                        `Explicit key update request timed out for ${pId}: ${err}`,
                     );
                 }
             }

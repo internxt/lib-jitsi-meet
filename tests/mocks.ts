@@ -160,6 +160,9 @@ export async function createInitializedManagedKeyHandler(
         },
     );
 
+    // eslint-disable-next-line prefer-const
+    let keyHandler: ManagedKeyHandler;
+
     when(eventEmitterMock.emit(anything())).thenCall(event => {
         if (event === JitsiConferenceEvents.CONFERENCE_JOINED) {
             keyHandler._conferenceJoined = true;
@@ -169,7 +172,7 @@ export async function createInitializedManagedKeyHandler(
 
     when(conferenceMock.eventEmitter).thenReturn(instance(eventEmitterMock));
 
-    const eventHandlers = new Map<string, Function[]>();
+    const eventHandlers = new Map<string, ((...args: any[]) => void)[]>();
 
     when(conferenceMock.on(anything(), anything())).thenCall(
         (eventName, handler) => {
@@ -192,7 +195,8 @@ export async function createInitializedManagedKeyHandler(
     );
 
     const conference = instance(conferenceMock);
-    const keyHandler = new ManagedKeyHandler(conference);
+
+    keyHandler = new ManagedKeyHandler(conference);
 
     conference.eventEmitter.emit(JitsiConferenceEvents.CONFERENCE_JOINED);
 
