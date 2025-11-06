@@ -47,8 +47,8 @@ export class Context {
         }
     }
 
-    async setKeyCommitment(pk: string, pkKyber: string) {
-        this.commitment = await hash.hashData([this.id, pk, pkKyber]);
+    setKeyCommitment(commitment: string) {
+        this.commitment = commitment;
     }
 
     getHash() {
