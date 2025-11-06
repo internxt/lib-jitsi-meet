@@ -1,30 +1,30 @@
-//vodozemac message types
+// vodozemac message types
 export const PREKEY_MESSAGE = 0;
 export const NORMAL_MESSAGE = 1;
 
-export const OLM_MESSAGE = "olm";
+export const OLM_MESSAGE = 'olm';
 export const OLM_MESSAGE_TYPES = {
-    ERROR: "error",
-    KEY_INFO: "key-info",
-    KEY_UPDATE: "key-update",
-    KEY_UPDATE_REQ: "key-update-request",
-    SESSION_ACK: "session-ack",
-    PQ_SESSION_ACK: "pq-session-ack",
-    SESSION_INIT: "session-init",
-    PQ_SESSION_INIT: "pq-session-init",
-    SESSION_DONE: "session-done",
+    ERROR: 'error',
+    KEY_INFO: 'key-info',
+    KEY_UPDATE: 'key-update',
+    KEY_UPDATE_REQ: 'key-update-request',
+    SESSION_ACK: 'session-ack',
+    PQ_SESSION_ACK: 'pq-session-ack',
+    SESSION_INIT: 'session-init',
+    PQ_SESSION_INIT: 'pq-session-init',
+    SESSION_DONE: 'session-done',
 };
 export type MessageType =
     (typeof OLM_MESSAGE_TYPES)[keyof typeof OLM_MESSAGE_TYPES];
 
 export const PROTOCOL_STATUS = {
-    TERMINATED: "protocol-terminated",
-    READY_TO_START: "ready-to-start",
-    WAITING_SESSION_ACK: "waiting-for-session-ack",
-    WAITING_PQ_SESSION_ACK: "waiting-for-pq-session-ack",
-    WAITING_PQ_SESSION_INIT: "waiting-for-pq-session-init",
-    WAITING_DONE: "waiting-for-done",
-    DONE: "protocol-established",
+    TERMINATED: 'protocol-terminated',
+    READY_TO_START: 'ready-to-start',
+    WAITING_SESSION_ACK: 'waiting-for-session-ack',
+    WAITING_PQ_SESSION_ACK: 'waiting-for-pq-session-ack',
+    WAITING_PQ_SESSION_INIT: 'waiting-for-pq-session-init',
+    WAITING_DONE: 'waiting-for-done',
+    DONE: 'protocol-established',
 };
 
 export type ProtocolStatus =
@@ -32,20 +32,20 @@ export type ProtocolStatus =
 
 // Extend the RTCRtpReceiver interface due to lack of support of streams
 export interface CustomRTCRtpReceiver extends RTCRtpReceiver {
-    kJitsiE2EE: boolean;
     createEncodedStreams?: () => {
         readable: ReadableStream;
         writable: WritableStream;
     };
+    kJitsiE2EE: boolean;
     transform: RTCRtpScriptTransform;
 }
 
 export interface CustomRTCRtpSender extends RTCRtpSender {
-    kJitsiE2EE: boolean;
     createEncodedStreams?: () => {
         readable: ReadableStream;
         writable: WritableStream;
     };
+    kJitsiE2EE: boolean;
     transform: RTCRtpScriptTransform;
 }
 
@@ -57,25 +57,25 @@ export type KeyInfo = {
 };
 
 export type SessionInit = {
+    commitment: string;
     otKey: string;
     publicKey: string;
     publicKyberKey: string;
-    commitment: string;
 };
 export type PQsessionAck = {
-    encapsKyber: string;
     ciphertext: string;
+    encapsKyber: string;
     pqCiphertext: string;
 };
 
 export type PQsessionInit = {
+    ciphertext: string;
     encapsKyber: string;
     publicKey: string;
     publicKyberKey: string;
-    ciphertext: string;
 };
 
 export type ParticipantEvent = {
-    type: "join" | "leave";
     id: string;
+    type: 'join' | 'leave';
 };
