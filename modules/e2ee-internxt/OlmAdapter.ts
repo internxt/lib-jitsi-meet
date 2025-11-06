@@ -14,7 +14,7 @@ import {
 function getError(method: string, error: Error): Error {
     console.error(`E2E: ${error}`);
 
-    return new Error(`E2E: Function ${method} failed:`, { cause: error });
+    return new Error(`E2E: Function ${method} failed: ${error}`);
 }
 
 export class OlmAdapter {

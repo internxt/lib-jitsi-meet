@@ -17,8 +17,6 @@ import E2EEContext from './E2EEContext';
 import { OlmAdapter } from './OlmAdapter';
 import { generateEmojiSas } from './SAS';
 import {
-    CustomRTCRtpReceiver,
-    CustomRTCRtpSender,
     MessageType,
     OLM_MESSAGE,
     OLM_MESSAGE_TYPES,
@@ -347,7 +345,7 @@ export class ManagedKeyHandler extends Listenable {
 
         if (receiver) {
             this.e2eeCtx.handleReceiver(
-                receiver as CustomRTCRtpReceiver,
+                receiver,
                 track.getParticipantId(),
             );
         } else {
@@ -375,7 +373,7 @@ export class ManagedKeyHandler extends Listenable {
 
         if (sender) {
             this.e2eeCtx.handleSender(
-                sender as CustomRTCRtpSender,
+                sender,
                 track.getParticipantId(),
             );
         } else {
@@ -532,8 +530,7 @@ export class ManagedKeyHandler extends Listenable {
             this.updateParticipantKey(pId, key);
         } catch (error) {
             throw new Error(
-                `updateParticipantKey failed for participant ${pId}`,
-                { cause: error },
+                `updateParticipantKey failed for participant ${pId}: ${error}`,
             );
         }
     }
