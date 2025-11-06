@@ -1,10 +1,10 @@
-import { Context } from "./Context";
+import { Context } from './Context';
 
 type WorkerLike = {
-    postMessage: (data: any) => void;
+    RTCTransformEvent?: any;
     onmessage: ((event: MessageEvent) => void) | null;
     onrtctransform?: (event: any) => void;
-    RTCTransformEvent?: any;
+    postMessage: (data: any) => void;
 };
 
 class E2EEWorker {
@@ -23,14 +23,16 @@ class E2EEWorker {
     }
 
     private createParticipantContext(
-        participantId: string,
+            participantId: string,
     ): Context | undefined {
         if (this.contexts.has(participantId)) {
             return undefined;
         }
 
         const context = new Context(participantId);
+
         this.contexts.set(participantId, context);
+
         return context;
     }
 
@@ -39,25 +41,26 @@ class E2EEWorker {
     }
 
     private getCurrentSASMaterial(): string {
-        return [...this.contexts.entries()]
-            .map(([pId, context]) => pId + (context.getHash() || ""))
+        return [ ...this.contexts.entries() ]
+            .map(([ pId, context ]) => pId + (context.getHash() || ''))
             .sort((a, b) => a.localeCompare(b))
-            .join("");
+            .join('');
     }
 
     private handleTransform(
-        context: Context,
-        operation: string,
-        readableStream: ReadableStream,
-        writableStream: WritableStream,
+            context: Context,
+            operation: string,
+            readableStream: ReadableStream,
+            writableStream: WritableStream,
     ): void {
-        if (operation !== "encode" && operation !== "decode") {
+        if (operation !== 'encode' && operation !== 'decode') {
             console.error(`Invalid operation: ${operation}`);
+
             return;
         }
 
-        const transformFn =
-            operation === "encode"
+        const transformFn
+            = operation === 'encode'
                 ? context.encodeFunction
                 : context.decodeFunction;
 
@@ -72,68 +75,74 @@ class E2EEWorker {
         const { operation } = event.data;
 
         switch (operation) {
-            case "encode":
-            case "decode": {
-                const { readableStream, writableStream, participantId } =
-                    event.data;
-                const context = this.getParticipantContext(participantId);
-                if (!context) break;
-                this.handleTransform(
+        case 'encode':
+        case 'decode': {
+            const { readableStream, writableStream, participantId }
+                    = event.data;
+            const context = this.getParticipantContext(participantId);
+
+            if (!context) break;
+            this.handleTransform(
                     context,
                     operation,
                     readableStream,
                     writableStream,
-                );
-                break;
-            }
+            );
+            break;
+        }
 
-            case "setKey": {
-                const { participantId, olmKey, pqKey, index } = event.data;
-                const context = this.getParticipantContext(participantId);
-                if (!context) break;
-                await context.setKey({
-                    olmKey,
-                    pqKey,
-                    index,
-                    userID: participantId,
-                });
-                const sas = this.getCurrentSASMaterial();
-                this._self.postMessage({ operation: "updateSAS", sas });
-                break;
-            }
+        case 'setKey': {
+            const { participantId, olmKey, pqKey, index } = event.data;
+            const context = this.getParticipantContext(participantId);
 
-            case "setKeysCommitment": {
-                const { participantId, commitment } = event.data;
-                const context = this.createParticipantContext(participantId);
-                if (!context) break;
-                await context.setKeyCommitment(commitment);
-                break;
-            }
+            if (!context) break;
+            await context.setKey({
+                olmKey,
+                pqKey,
+                index,
+                userID: participantId,
+            });
+            const sas = this.getCurrentSASMaterial();
 
-            case "ratchetKeys": {
-                const { participantId } = event.data;
-                const context = this.getParticipantContext(participantId);
-                if (!context) break;
-                await context.ratchetKeys();
-                break;
-            }
+            this._self.postMessage({ operation: 'updateSAS', sas });
+            break;
+        }
 
-            case "cleanup": {
-                const { participantId } = event.data;
-                this.contexts.delete(participantId);
-                break;
-            }
+        case 'setKeysCommitment': {
+            const { participantId, commitment } = event.data;
+            const context = this.createParticipantContext(participantId);
 
-            case "cleanupAll": {
-                this.contexts.clear();
-                console.info("Stopped encrypting my frames!");
-                break;
-            }
+            if (!context) break;
+            await context.setKeyCommitment(commitment);
+            break;
+        }
 
-            default:
-                console.error(
+        case 'ratchetKeys': {
+            const { participantId } = event.data;
+            const context = this.getParticipantContext(participantId);
+
+            if (!context) break;
+            await context.ratchetKeys();
+            break;
+        }
+
+        case 'cleanup': {
+            const { participantId } = event.data;
+
+            this.contexts.delete(participantId);
+            break;
+        }
+
+        case 'cleanupAll': {
+            this.contexts.clear();
+            console.info('Stopped encrypting my frames!');
+            break;
+        }
+
+        default:
+            console.error(
                     `Worker received unknown operation: ${operation}`,
-                );
+            );
         }
     }
 
@@ -141,6 +150,7 @@ class E2EEWorker {
         const transformer = event.transformer;
         const { operation, participantId } = transformer.options;
         const context = this.getParticipantContext(participantId);
+
         if (!context) {
             return;
         }

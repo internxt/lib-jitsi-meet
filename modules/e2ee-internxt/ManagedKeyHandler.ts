@@ -1,37 +1,37 @@
 /// <reference types="node" />
 
-import browser from "../browser";
-import JitsiLocalTrack from "../RTC/JitsiLocalTrack";
-import JingleSessionPC from "../xmpp/JingleSessionPC";
-import TraceablePeerConnection from "../RTC/TraceablePeerConnection";
-import E2EEContext from "./E2EEContext";
+import { MediaKeys, hash } from 'internxt-crypto';
 
-import * as JitsiConferenceEvents from "../../JitsiConferenceEvents";
-import JitsiParticipant from "../../JitsiParticipant";
+import JitsiConference from '../../JitsiConference';
+import * as JitsiConferenceEvents from '../../JitsiConferenceEvents';
+import JitsiParticipant from '../../JitsiParticipant';
+import RTCEvents from '../../service/RTC/RTCEvents';
+import JitsiLocalTrack from '../RTC/JitsiLocalTrack';
+import TraceablePeerConnection from '../RTC/TraceablePeerConnection';
+import browser from '../browser';
+import Listenable from '../util/Listenable';
+import JingleSessionPC from '../xmpp/JingleSessionPC';
+import { FEATURE_E2EE, JITSI_MEET_MUC_TYPE } from '../xmpp/xmpp';
 
-import Listenable from "../util/Listenable";
-import { OlmAdapter } from "./OlmAdapter";
-import JitsiConference from "../../JitsiConference";
-import RTCEvents from "../../service/RTC/RTCEvents";
-import { generateEmojiSas } from "./SAS";
-
-import { JITSI_MEET_MUC_TYPE, FEATURE_E2EE } from "../xmpp/xmpp";
+import E2EEContext from './E2EEContext';
+import { OlmAdapter } from './OlmAdapter';
+import { generateEmojiSas } from './SAS';
 import {
-    OLM_MESSAGE,
-    OLM_MESSAGE_TYPES,
-    MessageType,
     CustomRTCRtpReceiver,
     CustomRTCRtpSender,
-    ReplyMessage,
+    MessageType,
+    OLM_MESSAGE,
+    OLM_MESSAGE_TYPES,
     ParticipantEvent,
-} from "./Types";
-import { MediaKeys, hash } from "internxt-crypto";
+    ReplyMessage,
+} from './Types';
+
 
 export const REQ_TIMEOUT = 20 * 1000;
 
 function timeout<T>(ms: number): Promise<T> {
     return new Promise((_, reject) =>
-        setTimeout(() => reject(new Error("Request timed out")), ms),
+        setTimeout(() => reject(new Error('Request timed out')), ms),
     );
 }
 
@@ -52,11 +52,12 @@ export class ManagedKeyHandler extends Listenable {
     private _processingEvents: boolean;
     private readonly _reqs: Map<
         string,
-        { resolve: (args?: unknown) => void; reject?: (args?: unknown) => void }
+        { reject?: (args?: unknown) => void; resolve: (args?: unknown) => void; }
     >;
+
     private readonly update: Map<
         string,
-        { resolve: (args?: unknown) => void; reject?: (args?: unknown) => void }
+        { reject?: (args?: unknown) => void; resolve: (args?: unknown) => void; }
     >;
 
     /**
@@ -118,14 +119,16 @@ export class ManagedKeyHandler extends Listenable {
 
         this._olmAdapter = new OlmAdapter(this.myID);
 
-        this.e2eeCtx.on("sasUpdated", async (sasStr: string) => {
+        this.e2eeCtx.on('sasUpdated', async (sasStr: string) => {
             const sas = await generateEmojiSas(sasStr);
+
             this.conference.eventEmitter.emit(
                 JitsiConferenceEvents.E2EE_SAS_AVAILABLE,
                 sas,
             );
         });
     }
+
     async init() {
         await this._olmAdapter.init();
         this.initialized = true;
@@ -157,16 +160,16 @@ export class ManagedKeyHandler extends Listenable {
         }
 
         if (enabled) {
-            this.log("info", "Enabling e2ee");
+            this.log('info', 'Enabling e2ee');
             await this.enableE2E();
         }
 
         if (!enabled) {
-            this.log("info", "Disabling e2ee");
+            this.log('info', 'Disabling e2ee');
             await this.disableE2E();
         }
 
-        this.conference.setLocalParticipantProperty("e2ee.enabled", enabled);
+        this.conference.setLocalParticipantProperty('e2ee.enabled', enabled);
         this.conference._restartMediaSessions();
     }
 
@@ -196,6 +199,7 @@ export class ManagedKeyHandler extends Listenable {
 
     updateMyKeys() {
         const { olmKey, pqKey, index } = this._olmAdapter.updateMyKeys();
+
         this.setKey(olmKey, pqKey, index);
     }
 
@@ -204,7 +208,7 @@ export class ManagedKeyHandler extends Listenable {
             this.update.set(pId, { resolve, reject });
         });
 
-        return Promise.race([promise, timeout(this.max_wait)]);
+        return Promise.race([ promise, timeout(this.max_wait) ]);
     }
 
     async createSessionPromise(pId: string) {
@@ -212,11 +216,12 @@ export class ManagedKeyHandler extends Listenable {
             this._reqs.set(pId, { resolve, reject });
         });
 
-        return Promise.race([promise, timeout(this.max_wait)]);
+        return Promise.race([ promise, timeout(this.max_wait) ]);
     }
 
     resolveSessionPromise(pId: string) {
         const promise = this._reqs.get(pId);
+
         if (promise) {
             promise.resolve();
             this._reqs.delete(pId);
@@ -232,52 +237,60 @@ export class ManagedKeyHandler extends Listenable {
 
     resolveKeyUpdatePromise(pID: string) {
         const requestPromise = this.update.get(pID);
+
         if (requestPromise) {
             requestPromise.resolve();
             this.update.delete(pID);
         } else
             this.log(
-                "warn",
+                'warn',
                 `Trying to resolve non-esistant key update with ${pID}.`,
             );
     }
+
     /**
      * Enables End-To-End encryption.
      */
     async enableE2E() {
         const localParticipantId = this.myID;
         const { pkKyber, pk } = this._olmAdapter.genMyPublicKeys();
+
         await this.setKeyCommitment(localParticipantId, pk, pkKyber);
         this.updateMyKeys();
 
         const participants = this.conference.getParticipants();
+
         this.log(
-            "info",
-            `There are following IDs in the meeting: [ ${participants.map((p) => p.getId())}]`,
+            'info',
+            `There are following IDs in the meeting: [ ${participants.map(p => p.getId())}]`,
         );
         const list = participants.filter(
-            (participant) =>
-                participant.hasFeature(FEATURE_E2EE) &&
-                localParticipantId > participant.getId(),
+            participant =>
+                participant.hasFeature(FEATURE_E2EE)
+                && localParticipantId > participant.getId(),
         );
         const keys = this._olmAdapter.generateOneTimeKeys(list.length);
+
         this.log(
-            "info",
-            `My ID is ${localParticipantId}, should send session-init to smaller IDs: [ ${list.map((p) => p.getId())}]`,
+            'info',
+            `My ID is ${localParticipantId}, should send session-init to smaller IDs: [ ${list.map(p => p.getId())}]`,
         );
 
         this.initSessions = (async () => {
-            const promises = list.map(async (participant) => {
+            const promises = list.map(async participant => {
                 const pId = participant.getId();
+
                 try {
                     const lastKey = keys.pop();
-                    if (!lastKey) throw new Error("No one time keys");
-                    const data =
-                        await this._olmAdapter.createSessionInitMessage(
+
+                    if (!lastKey) throw new Error('No one time keys');
+                    const data
+                        = await this._olmAdapter.createSessionInitMessage(
                             pId,
                             lastKey,
                         );
-                    this.log("info", `Sent session-init to participant ${pId}`);
+
+                    this.log('info', `Sent session-init to participant ${pId}`);
                     this._sendMessage(
                         OLM_MESSAGE_TYPES.SESSION_INIT,
                         data,
@@ -285,17 +298,20 @@ export class ManagedKeyHandler extends Listenable {
                     );
 
                     const result = await this.createSessionPromise(pId);
+
                     this.log(
-                        "info",
+                        'info',
                         `Session with ${pId} initialized successfully.`,
                     );
+
                     return result;
                 } catch (error) {
-                    const user = {pId, name: participant.getDisplayName()};
-                     this.conference.eventEmitter.emit(
+                    const user = { pId, name: participant.getDisplayName() };
+
+                    this.conference.eventEmitter.emit(
                 JitsiConferenceEvents.E2EE_KEY_SYNC_FAILED, user);
                     this.log(
-                        "error",
+                        'error',
                         `Session initialization request timed out for user with ID ${pId} (${user.name}): ${error}`,
                     );
                 }
@@ -305,6 +321,7 @@ export class ManagedKeyHandler extends Listenable {
         })();
         await this.initSessions;
     }
+
     /**
      * Disables End-To-End encryption.
      */
@@ -319,8 +336,8 @@ export class ManagedKeyHandler extends Listenable {
      * @private
      */
     _setupReceiverE2EEForTrack(
-        tpc: TraceablePeerConnection,
-        track: JitsiLocalTrack,
+            tpc: TraceablePeerConnection,
+            track: JitsiLocalTrack,
     ) {
         if (!this.enabled) {
             return;
@@ -335,7 +352,7 @@ export class ManagedKeyHandler extends Listenable {
             );
         } else {
             this.log(
-                "warn",
+                'warn',
                 `Could not handle E2EE for ${track}: receiver not found in: ${tpc}`,
             );
         }
@@ -363,7 +380,7 @@ export class ManagedKeyHandler extends Listenable {
             );
         } else {
             this.log(
-                "warn",
+                'warn',
                 `Could not handle E2EE for ${track}: sender not found in ${pc}`,
             );
         }
@@ -376,10 +393,10 @@ export class ManagedKeyHandler extends Listenable {
      */
     _trackMuteChanged(track: JitsiLocalTrack) {
         if (
-            browser.doesVideoMuteByStreamRemove() &&
-            track.isLocal() &&
-            track.isVideoTrack() &&
-            !track.isMuted()
+            browser.doesVideoMuteByStreamRemove()
+            && track.isLocal()
+            && track.isVideoTrack()
+            && !track.isMuted()
         ) {
             for (const session of this.conference.getMediaSessions()) {
                 this._setupSenderE2EEForTrack(session, track);
@@ -388,7 +405,7 @@ export class ManagedKeyHandler extends Listenable {
     }
 
     _onParticipantJoined(id: string) {
-        this._queueParticipantEvent("join", id);
+        this._queueParticipantEvent('join', id);
     }
 
     _onParticipantLeft(id: string) {
@@ -397,26 +414,29 @@ export class ManagedKeyHandler extends Listenable {
             if (this.update.get(id)) this.resolveKeyUpdatePromise(id);
         }
 
-        this._queueParticipantEvent("leave", id);
+        this._queueParticipantEvent('leave', id);
     }
+
     /**
      * Advances (using ratcheting) the current key when a new participant joins the conference.
      *
      * @private
      */
     async _handleParticipantJoined(id: string) {
-        this.log("info", `Participant ${id} joined the conference.`);
+        this.log('info', `Participant ${id} joined the conference.`);
         if (!this._conferenceJoined || !this.enabled) return;
         if (!this.initialized) {
             await this.init();
         }
         const participants = this.conference.getParticipants();
         const { olmKey, pqKey, index } = await this._olmAdapter.ratchetMyKeys();
+
         this.setKey(olmKey, pqKey, index);
         for (const participant of participants) {
             const pId = participant.getId();
+
             if (this._olmAdapter.isSessionDone(pId)) {
-                this.log("info", `Ratchted keys of user ${pId}.`);
+                this.log('info', `Ratchted keys of user ${pId}.`);
                 this.e2eeCtx.ratchetKeys(pId);
             }
         }
@@ -427,7 +447,7 @@ export class ManagedKeyHandler extends Listenable {
      * @private
      */
     async _handleParticipantLeft(id: string) {
-        this.log("info", `Participant ${id} left the conference.`);
+        this.log('info', `Participant ${id} left the conference.`);
 
         if (!this.enabled) return;
         if (!this.initialized) {
@@ -438,41 +458,46 @@ export class ManagedKeyHandler extends Listenable {
         if (this.update.get(id)) this.resolveKeyUpdatePromise(id);
         this.updateMyKeys();
         const participants = this.conference.getParticipants();
-        const updateBatch = participants.map(async (participant) => {
+        const updateBatch = participants.map(async participant => {
             const pId = participant.getId();
+
             try {
                 if (this._olmAdapter.isSessionDone(pId)) {
-                    this.log("info", `Sending key update to ${pId}.`);
+                    this.log('info', `Sending key update to ${pId}.`);
                     const result = this.createKeyUpdatePromise(pId);
                     const data = await this._olmAdapter.encryptCurrentKey(pId);
+
                     this._sendMessage(OLM_MESSAGE_TYPES.KEY_UPDATE, data, pId);
                     this.log(
-                        "info",
+                        'info',
                         `Key update with ${pId} finished successfully.`,
                     );
+
                     return await result;
                 }
             } catch (error) {
                 this.log(
-                    "warn",
+                    'warn',
                     `Key update request timed out for ${pId}: ${error}`,
                 );
-                this.log("info", `Explicitly requesting new current key.`);
+                this.log('info', 'Explicitly requesting new current key.');
                 try {
                     const result = this.createKeyUpdatePromise(pId);
+
                     this._sendMessage(
                         OLM_MESSAGE_TYPES.KEY_UPDATE_REQ,
-                        "update",
+                        'update',
                         pId,
                     );
                     this.log(
-                        "info",
+                        'info',
                         `Key update with ${pId} finished successfully.`,
                     );
+
                     return await result;
                 } catch (error) {
                     this.log(
-                        "error",
+                        'error',
                         `Explicit key update request timed out for ${pId}: ${error}`,
                     );
                 }
@@ -485,6 +510,7 @@ export class ManagedKeyHandler extends Listenable {
     clearAllSessions() {
         this.resolveAllSessionPromises();
         const participants = this.conference.getParticipants();
+
         for (const participant of participants) {
             this._olmAdapter.deleteParticipantSession(participant.getId());
         }
@@ -502,6 +528,7 @@ export class ManagedKeyHandler extends Listenable {
                 ciphertext,
                 pqCiphertext,
             );
+
             this.updateParticipantKey(pId, key);
         } catch (error) {
             throw new Error(
@@ -514,165 +541,178 @@ export class ManagedKeyHandler extends Listenable {
     async _onEndpointMessageReceived(participant: JitsiParticipant, payload) {
         try {
             if (
-                !payload.olm ||
-                !participant ||
-                payload[JITSI_MEET_MUC_TYPE] !== OLM_MESSAGE
+                !payload.olm
+                || !participant
+                || payload[JITSI_MEET_MUC_TYPE] !== OLM_MESSAGE
             ) {
-                this.log("error", "Incorrect payload");
+                this.log('error', 'Incorrect payload');
+
                 return;
             }
             if (!this.initialized) {
-                throw new Error("Not initialized");
+                throw new Error('Not initialized');
             }
 
             const msg = payload.olm;
             const pId = participant.getId();
 
             switch (msg.type) {
-                case OLM_MESSAGE_TYPES.SESSION_INIT: {
-                    this.log("info", `Got session-init from ${pId}.`);
-                    const { otKey, publicKey, publicKyberKey, commitment } =
-                        msg.data;
-                    const data =
-                        await this._olmAdapter.createPQsessionInitMessage(
+            case OLM_MESSAGE_TYPES.SESSION_INIT: {
+                this.log('info', `Got session-init from ${pId}.`);
+                const { otKey, publicKey, publicKyberKey, commitment }
+                        = msg.data;
+                const data
+                        = await this._olmAdapter.createPQsessionInitMessage(
                             pId,
                             otKey,
                             publicKey,
                             publicKyberKey,
                             commitment,
                         );
-                    await this.setKeyCommitment(pId, publicKey, publicKyberKey);
-                    this._sendMessage(
+
+                await this.setKeyCommitment(pId, publicKey, publicKyberKey);
+                this._sendMessage(
                         OLM_MESSAGE_TYPES.PQ_SESSION_INIT,
                         data,
                         pId,
-                    );
-                    break;
-                }
+                );
+                break;
+            }
 
-                case OLM_MESSAGE_TYPES.PQ_SESSION_INIT: {
-                    this.log("info", `Got pq-session-init from ${pId}.`);
-                    const {
-                        encapsKyber,
-                        publicKey,
-                        publicKyberKey,
-                        ciphertext,
-                    } = msg.data;
-                    const data =
-                        await this._olmAdapter.createPQsessionAckMessage(
+            case OLM_MESSAGE_TYPES.PQ_SESSION_INIT: {
+                this.log('info', `Got pq-session-init from ${pId}.`);
+                const {
+                    encapsKyber,
+                    publicKey,
+                    publicKyberKey,
+                    ciphertext,
+                } = msg.data;
+                const data
+                        = await this._olmAdapter.createPQsessionAckMessage(
                             pId,
                             encapsKyber,
                             publicKey,
                             publicKyberKey,
                             ciphertext,
                         );
-                    await this.setKeyCommitment(pId, publicKey, publicKyberKey);
-                    this._sendMessage(
+
+                await this.setKeyCommitment(pId, publicKey, publicKyberKey);
+                this._sendMessage(
                         OLM_MESSAGE_TYPES.PQ_SESSION_ACK,
                         data,
                         pId,
-                    );
-                    break;
-                }
-                case OLM_MESSAGE_TYPES.PQ_SESSION_ACK: {
-                    this.log("info", `Got pq-session-ack from ${pId}.`);
-                    const { encapsKyber, ciphertext, pqCiphertext } = msg.data;
+                );
+                break;
+            }
+            case OLM_MESSAGE_TYPES.PQ_SESSION_ACK: {
+                this.log('info', `Got pq-session-ack from ${pId}.`);
+                const { encapsKyber, ciphertext, pqCiphertext } = msg.data;
 
-                    const { data, key } =
-                        await this._olmAdapter.createSessionAckMessage(
+                const { data, key }
+                        = await this._olmAdapter.createSessionAckMessage(
                             pId,
                             encapsKyber,
                             ciphertext,
                             pqCiphertext,
                         );
-                    this.updateParticipantKey(pId, key);
-                    this._sendMessage(OLM_MESSAGE_TYPES.SESSION_ACK, data, pId);
-                    break;
-                }
-                case OLM_MESSAGE_TYPES.SESSION_ACK: {
-                    this.log("info", `Got session-ack from ${pId}.`);
-                    const { ciphertext, pqCiphertext } = msg.data;
-                    const { keyChanged, key } =
-                        await this._olmAdapter.createSessionDoneMessage(
+
+                this.updateParticipantKey(pId, key);
+                this._sendMessage(OLM_MESSAGE_TYPES.SESSION_ACK, data, pId);
+                break;
+            }
+            case OLM_MESSAGE_TYPES.SESSION_ACK: {
+                this.log('info', `Got session-ack from ${pId}.`);
+                const { ciphertext, pqCiphertext } = msg.data;
+                const { keyChanged, key }
+                        = await this._olmAdapter.createSessionDoneMessage(
                             pId,
                             ciphertext,
                             pqCiphertext,
                         );
-                    this.updateParticipantKey(pId, key);
-                    this._sendMessage(
+
+                this.updateParticipantKey(pId, key);
+                this._sendMessage(
                         OLM_MESSAGE_TYPES.SESSION_DONE,
-                        "done",
+                        'done',
                         pId,
-                    );
-                    if (keyChanged) {
-                        const data =
-                            await this._olmAdapter.encryptCurrentKey(pId);
-                        this._sendMessage(
+                );
+                if (keyChanged) {
+                    const data
+                            = await this._olmAdapter.encryptCurrentKey(pId);
+
+                    this._sendMessage(
                             OLM_MESSAGE_TYPES.KEY_INFO,
                             data,
                             pId,
-                        );
-                    }
-                    const requestPromise = this._reqs.get(pId);
-                    if (requestPromise) {
-                        requestPromise.resolve();
-                        this._reqs.delete(pId);
-                    } else {
-                        const user = {pId, name: participant.getDisplayName()};
-                        this.conference.eventEmitter.emit(
+                    );
+                }
+                const requestPromise = this._reqs.get(pId);
+
+                if (requestPromise) {
+                    requestPromise.resolve();
+                    this._reqs.delete(pId);
+                } else {
+                    const user = { pId, name: participant.getDisplayName() };
+
+                    this.conference.eventEmitter.emit(
                         JitsiConferenceEvents.E2EE_KEY_SYNC_AFTER_TIMEOUT, user);
-                        this.log(
-                            "warn",
+                    this.log(
+                            'warn',
                             `Session with ${pId} (${user.name}) was established after reaching time out.`,
-                        );
-                    }
-                    break;
+                    );
                 }
-                case OLM_MESSAGE_TYPES.ERROR: {
-                    this.log("error", msg.data.error);
-                    break;
-                }
-                case OLM_MESSAGE_TYPES.SESSION_DONE: {
-                    this.log("info", `Got session-done from ${pId}.`);
-                    const keyChanged =
-                        this._olmAdapter.processSessionDoneMessage(pId);
-                    if (keyChanged) {
-                        const data =
-                            await this._olmAdapter.encryptCurrentKey(pId);
-                        this._sendMessage(
+                break;
+            }
+            case OLM_MESSAGE_TYPES.ERROR: {
+                this.log('error', msg.data.error);
+                break;
+            }
+            case OLM_MESSAGE_TYPES.SESSION_DONE: {
+                this.log('info', `Got session-done from ${pId}.`);
+                const keyChanged
+                        = this._olmAdapter.processSessionDoneMessage(pId);
+
+                if (keyChanged) {
+                    const data
+                            = await this._olmAdapter.encryptCurrentKey(pId);
+
+                    this._sendMessage(
                             OLM_MESSAGE_TYPES.KEY_INFO,
                             data,
                             pId,
-                        );
-                    }
-                    this.log(
-                        "info",
-                        `Participant ${pId} established E2E channel with us.`,
                     );
-                    break;
                 }
-                case OLM_MESSAGE_TYPES.KEY_INFO: {
-                    this.log("info", `Got key-info from ${pId}.`);
-                    const { ciphertext, pqCiphertext } = msg.data;
-                    await this.updateKey(pId, ciphertext, pqCiphertext);
-                    break;
-                }
-                case OLM_MESSAGE_TYPES.KEY_UPDATE: {
-                    this.log("info", `Got key-update from ${pId}.`);
-                    const { ciphertext, pqCiphertext } = msg.data;
-                    await this.updateKey(pId, ciphertext, pqCiphertext);
-                    this.resolveKeyUpdatePromise(pId);
-                    break;
-                }
-                case OLM_MESSAGE_TYPES.KEY_UPDATE_REQ: {
-                    this.log("info", `Got key-update-req from ${pId}.`);
-                    const data = await this._olmAdapter.encryptCurrentKey(pId);
-                    this._sendMessage(OLM_MESSAGE_TYPES.KEY_UPDATE, data, pId);
-                    break;
-                }
+                this.log(
+                        'info',
+                        `Participant ${pId} established E2E channel with us.`,
+                );
+                break;
+            }
+            case OLM_MESSAGE_TYPES.KEY_INFO: {
+                this.log('info', `Got key-info from ${pId}.`);
+                const { ciphertext, pqCiphertext } = msg.data;
+
+                await this.updateKey(pId, ciphertext, pqCiphertext);
+                break;
+            }
+            case OLM_MESSAGE_TYPES.KEY_UPDATE: {
+                this.log('info', `Got key-update from ${pId}.`);
+                const { ciphertext, pqCiphertext } = msg.data;
+
+                await this.updateKey(pId, ciphertext, pqCiphertext);
+                this.resolveKeyUpdatePromise(pId);
+                break;
+            }
+            case OLM_MESSAGE_TYPES.KEY_UPDATE_REQ: {
+                this.log('info', `Got key-update-req from ${pId}.`);
+                const data = await this._olmAdapter.encryptCurrentKey(pId);
+
+                this._sendMessage(OLM_MESSAGE_TYPES.KEY_UPDATE, data, pId);
+                break;
+            }
             }
         } catch (error) {
-            this.log("error", `Error while processing message: ${error}`);
+            this.log('error', `Error while processing message: ${error}`);
         }
     }
 
@@ -684,6 +724,7 @@ export class ManagedKeyHandler extends Listenable {
             keyCommitment,
         );
     }
+
     /**
      * Set the keys of the current participant.
      * @param {Uint8Array} olmKey - The olm key.
@@ -712,9 +753,9 @@ export class ManagedKeyHandler extends Listenable {
      * @param {string} participantId - The target participant ID.
      */
     _sendMessage(
-        type: MessageType,
-        data: ReplyMessage | "update" | "done",
-        participantId: string,
+            type: MessageType,
+            data: ReplyMessage | 'update' | 'done',
+            participantId: string,
     ) {
         const msg = {
             [JITSI_MEET_MUC_TYPE]: OLM_MESSAGE,
@@ -723,10 +764,11 @@ export class ManagedKeyHandler extends Listenable {
                 data,
             },
         };
+
         this.conference.sendMessage(msg, participantId);
     }
 
-    private _queueParticipantEvent(type: "join" | "leave", id: string) {
+    private _queueParticipantEvent(type: 'join' | 'leave', id: string) {
         this._participantEventQueue.push({
             type,
             id,
@@ -748,9 +790,9 @@ export class ManagedKeyHandler extends Listenable {
             while (this._participantEventQueue.length > 0) {
                 const event = this._participantEventQueue.shift();
 
-                if (event?.type === "join") {
+                if (event?.type === 'join') {
                     await this._handleParticipantJoined(event.id);
-                } else if (event?.type === "leave") {
+                } else if (event?.type === 'leave') {
                     await this._handleParticipantLeft(event.id);
                     this.e2eeCtx.cleanup(event.id);
                 }
@@ -760,7 +802,7 @@ export class ManagedKeyHandler extends Listenable {
         }
     }
 
-    private log(level: "info" | "error" | "warn", message: string) {
+    private log(level: 'info' | 'error' | 'warn', message: string) {
         console[level](`E2E: User ${this.myID}: ${message}`);
     }
 }
