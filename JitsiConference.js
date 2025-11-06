@@ -16,7 +16,7 @@ import { SS_DEFAULT_FRAME_RATE } from './modules/RTC/ScreenObtainer';
 import browser from './modules/browser';
 import ConnectionQuality from './modules/connectivity/ConnectionQuality';
 import IceFailedHandling from './modules/connectivity/IceFailedHandling';
-import * as DetectionEvents from './modules/detection/DetectionEvents';
+import { DetectionEvents } from './modules/detection/DetectionEvents';
 import NoAudioSignalDetection from './modules/detection/NoAudioSignalDetection';
 import P2PDominantSpeakerDetection from './modules/detection/P2PDominantSpeakerDetection';
 import VADAudioAnalyser from './modules/detection/VADAudioAnalyser';
