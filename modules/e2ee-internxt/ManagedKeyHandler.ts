@@ -25,7 +25,7 @@ import {
     ReplyMessage,
     ParticipantEvent,
 } from "./Types";
-import { MediaKeys } from "internxt-crypto";
+import { MediaKeys, hash } from "internxt-crypto";
 
 export const REQ_TIMEOUT = 20 * 1000;
 
@@ -223,6 +223,13 @@ export class ManagedKeyHandler extends Listenable {
         }
     }
 
+    resolveAllSessionPromises() {
+        for (const promise of this.update.values()) {
+            promise?.resolve();
+        }
+        this._reqs.clear();
+    }
+
     resolveKeyUpdatePromise(pID: string) {
         const requestPromise = this.update.get(pID);
         if (requestPromise) {
@@ -240,7 +247,7 @@ export class ManagedKeyHandler extends Listenable {
     async enableE2E() {
         const localParticipantId = this.myID;
         const { pkKyber, pk } = this._olmAdapter.genMyPublicKeys();
-        this.e2eeCtx.setKeysCommitment(localParticipantId, pk, pkKyber);
+        await this.setKeyCommitment(localParticipantId, pk, pkKyber);
         this.updateMyKeys();
 
         const participants = this.conference.getParticipants();
@@ -476,6 +483,7 @@ export class ManagedKeyHandler extends Listenable {
     }
 
     clearAllSessions() {
+        this.resolveAllSessionPromises();
         const participants = this.conference.getParticipants();
         for (const participant of participants) {
             this._olmAdapter.deleteParticipantSession(participant.getId());
@@ -533,11 +541,7 @@ export class ManagedKeyHandler extends Listenable {
                             publicKyberKey,
                             commitment,
                         );
-                    this.e2eeCtx.setKeysCommitment(
-                        pId,
-                        publicKey,
-                        publicKyberKey,
-                    );
+                    await this.setKeyCommitment(pId, publicKey, publicKyberKey);
                     this._sendMessage(
                         OLM_MESSAGE_TYPES.PQ_SESSION_INIT,
                         data,
@@ -562,11 +566,7 @@ export class ManagedKeyHandler extends Listenable {
                             publicKyberKey,
                             ciphertext,
                         );
-                    this.e2eeCtx.setKeysCommitment(
-                        pId,
-                        publicKey,
-                        publicKyberKey,
-                    );
+                    await this.setKeyCommitment(pId, publicKey, publicKyberKey);
                     this._sendMessage(
                         OLM_MESSAGE_TYPES.PQ_SESSION_ACK,
                         data,
@@ -601,7 +601,7 @@ export class ManagedKeyHandler extends Listenable {
                     this.updateParticipantKey(pId, key);
                     this._sendMessage(
                         OLM_MESSAGE_TYPES.SESSION_DONE,
-                        "update",
+                        "done",
                         pId,
                     );
                     if (keyChanged) {
@@ -676,6 +676,14 @@ export class ManagedKeyHandler extends Listenable {
         }
     }
 
+    async setKeyCommitment(pId: string, publicKey: string, publicKyberKey: string) {
+        const keyCommitment = await hash.hashData([ pId, publicKey, publicKyberKey ]);
+
+        this.e2eeCtx.setKeysCommitment(
+            pId,
+            keyCommitment,
+        );
+    }
     /**
      * Set the keys of the current participant.
      * @param {Uint8Array} olmKey - The olm key.
@@ -705,7 +713,7 @@ export class ManagedKeyHandler extends Listenable {
      */
     _sendMessage(
         type: MessageType,
-        data: ReplyMessage | "update",
+        data: ReplyMessage | "update" | "done",
         participantId: string,
     ) {
         const msg = {
