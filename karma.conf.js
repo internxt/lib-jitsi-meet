@@ -42,13 +42,6 @@ module.exports = function(config) {
                 served: true,
                 watched: false
             },
-            {
-                included: false,
-                nocache: false,
-                pattern: 'wasm/RTC/*',
-                served: true,
-                watched: false
-            },
             'node_modules/core-js/index.js',
             './modules/**/*.spec.ts',
             './service/**/*.spec.ts',
