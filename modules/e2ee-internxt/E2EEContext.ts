@@ -3,7 +3,6 @@ import { getLogger } from '@jitsi/logger';
 
 import Listenable from '../util/Listenable';
 
-import { CustomRTCRtpReceiver, CustomRTCRtpSender } from './Types';
 const logger = getLogger('modules/e2ee-internxt/E2EEContext');
 
 /**
@@ -76,7 +75,7 @@ export default class E2EEcontext extends Listenable {
      * @param {RTCRtpReceiver} receiver - The receiver which will get the decoding function injected.
      * @param {string} participantId - The participant id that this receiver belongs to.
      */
-    handleReceiver(receiver: CustomRTCRtpReceiver, participantId: string) {
+    handleReceiver(receiver: RTCRtpReceiver, participantId: string) {
         if (receiver.kJitsiE2EE) return;
         receiver.kJitsiE2EE = true;
 
@@ -111,7 +110,7 @@ export default class E2EEcontext extends Listenable {
      * @param {RTCRtpSender} sender - The sender which will get the encoding function injected.
      * @param {string} participantId - The participant id that this sender belongs to.
      */
-    handleSender(sender: CustomRTCRtpSender, participantId: string) {
+    handleSender(sender: RTCRtpSender, participantId: string) {
         if (sender.kJitsiE2EE) return;
         sender.kJitsiE2EE = true;
 
