@@ -28,12 +28,20 @@ export class OlmAdapter {
 
     constructor(id: string) {
         this._mediaKey = {
+            index: -1,
             olmKey: new Uint8Array(),
             pqKey: new Uint8Array(),
-            index: -1,
             userID: id,
         };
         this._olmDataMap = new Map<string, SessionData>();
+    }
+
+    private _getParticipantOlmData(pId: string): SessionData {
+        if (!this._olmDataMap.has(pId)) {
+            this._olmDataMap.set(pId, new SessionData(this._mediaKey));
+        }
+
+        return this._olmDataMap.get(pId);
     }
 
     async init() {
@@ -51,7 +59,7 @@ export class OlmAdapter {
             this._publicKyberKeyBase64 = publicKeyBase64;
             this._privateKyberKey = secretKey;
 
-            return { pkKyber: publicKeyBase64, pk: this._publicCurve25519Key };
+            return { pk: this._publicCurve25519Key, pkKyber: publicKeyBase64 };
         } catch (error) {
             throw getError('genMyPublicKeys', error);
         }
@@ -93,9 +101,9 @@ export class OlmAdapter {
     updateMyKeys(): MediaKeys {
         try {
             const newMediaKey = {
+                index: this._mediaKey.index + 1,
                 olmKey: symmetric.genSymmetricKey(),
                 pqKey: symmetric.genSymmetricKey(),
-                index: this._mediaKey.index + 1,
                 userID: this._mediaKey.userID,
             };
 
@@ -134,14 +142,6 @@ export class OlmAdapter {
         }
     }
 
-    private _getParticipantOlmData(pId: string): SessionData {
-        if (!this._olmDataMap.has(pId)) {
-            this._olmDataMap.set(pId, new SessionData(this._mediaKey));
-        }
-
-        return this._olmDataMap.get(pId);
-    }
-
     async clearMySession() {
         this._olmAccount?.free();
     }
@@ -172,10 +172,10 @@ export class OlmAdapter {
             olmData.setStatus(PROTOCOL_STATUS.WAITING_PQ_SESSION_ACK);
 
             return {
+                ciphertext: ciphertext,
                 encapsKyber: encapsulatedBase64,
                 publicKey: this._publicCurve25519Key,
                 publicKyberKey: this._publicKyberKeyBase64,
-                ciphertext: ciphertext,
             };
         } catch (error) {
             throw getError('createPQsessionInitMessage', error);
@@ -219,8 +219,8 @@ export class OlmAdapter {
             olmData.setStatus(PROTOCOL_STATUS.WAITING_SESSION_ACK);
 
             return {
-                encapsKyber: encapsulatedBase64,
                 ciphertext: olmEncKeyInfo,
+                encapsKyber: encapsulatedBase64,
                 pqCiphertext: pqEncKeyInfo,
             };
         } catch (error) {
@@ -300,7 +300,7 @@ export class OlmAdapter {
 
             olmData.setDone();
 
-            return { keyChanged, key };
+            return { key, keyChanged };
         } catch (error) {
             throw getError('createSessionDoneMessage', error);
         }
@@ -352,10 +352,10 @@ export class OlmAdapter {
             olmData.setStatus(PROTOCOL_STATUS.WAITING_PQ_SESSION_INIT);
 
             return {
+                commitment,
                 otKey,
                 publicKey: this._publicCurve25519Key,
                 publicKyberKey: this._publicKyberKeyBase64,
-                commitment,
             };
         } catch (error) {
             throw getError('createSessionInitMessage', error);

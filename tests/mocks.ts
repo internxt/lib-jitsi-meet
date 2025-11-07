@@ -14,21 +14,22 @@ export function delay(ms: number) {
 }
 
 export class WorkerMock {
-    public onmessage: ((event: MessageEvent) => void) | null = null;
-    public onerror: ((event: Event) => void) | null = null;
     private readonly _fakeWorkerSelf: {
         onmessage: ((event: MessageEvent) => void) | null;
         postMessage: (data: any) => void;
     };
 
+    public onmessage: ((event: MessageEvent) => void) | null = null;
+    public onerror: ((event: Event) => void) | null = null;
+
     constructor(_scriptUrl: string, _options?: WorkerOptions) {
         this._fakeWorkerSelf = {
+            onmessage: null,
             postMessage: (data: any) => {
                 setTimeout(() => {
                     this.onmessage?.({ data } as MessageEvent);
                 }, 0);
             },
-            onmessage: null,
         };
         (globalThis as any).self = this._fakeWorkerSelf;
         const originalSelf = globalThis.self;
@@ -114,6 +115,9 @@ export class XmppServerMock {
     }
 
     userLeft(pId: string) {
+        const leftUser = this.listeners.get(pId);
+        leftUser?.leaveConference();
+
         this.participants.delete(pId);
         this.listeners.delete(pId);
         this.listeners.forEach((keyHandler, _id) => {
@@ -124,7 +128,7 @@ export class XmppServerMock {
     sendMessage(myId: string, pId: string, payload: any) {
         this.listeners.forEach((keyHandler, id) => {
             if (id === pId) {
-                keyHandler._onEndpointMessageReceived(
+                keyHandler.messageReceived(
                     this.participants.get(myId),
                     payload,
                 );

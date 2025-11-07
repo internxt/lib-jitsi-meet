@@ -107,9 +107,9 @@ export class SessionData {
         this.commitment = '';
         this.kemSecret = new Uint8Array();
         this.keyToSend = {
+            index: -1,
             olmKey: new Uint8Array(),
             pqKey: new Uint8Array(),
-            index: -1,
             userID: '',
         };
     }
@@ -171,9 +171,9 @@ export class SessionData {
             AUX,
         );
         const mediaKey = {
+            index,
             olmKey: key,
             pqKey,
-            index,
             userID: pId,
         };
 
