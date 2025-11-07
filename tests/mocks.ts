@@ -14,15 +14,13 @@ export function delay(ms: number) {
 }
 
 export class WorkerMock {
-
     private readonly _fakeWorkerSelf: {
         onmessage: ((event: MessageEvent) => void) | null;
         postMessage: (data: any) => void;
     };
 
-    public onerror: ((event: Event) => void) | null = null;
     public onmessage: ((event: MessageEvent) => void) | null = null;
-
+    public onerror: ((event: Event) => void) | null = null;
 
     constructor(_scriptUrl: string, _options?: WorkerOptions) {
         this._fakeWorkerSelf = {
@@ -118,8 +116,8 @@ export class XmppServerMock {
 
     userLeft(pId: string) {
         const leftUser = this.listeners.get(pId);
+        leftUser?.leaveConference();
 
-        leftUser?._onConferenceLeft();
         this.participants.delete(pId);
         this.listeners.delete(pId);
         this.listeners.forEach((keyHandler, _id) => {
@@ -130,8 +128,8 @@ export class XmppServerMock {
     sendMessage(myId: string, pId: string, payload: any) {
         this.listeners.forEach((keyHandler, id) => {
             if (id === pId) {
-                keyHandler._onEndpointMessageReceived(
-                    this.participants.get(myId)!,
+                keyHandler.messageReceived(
+                    this.participants.get(myId),
                     payload,
                 );
             }
@@ -165,6 +163,7 @@ export async function createInitializedManagedKeyHandler(
             }
         },
     );
+
     // eslint-disable-next-line prefer-const
     let keyHandler: ManagedKeyHandler;
 
@@ -189,7 +188,6 @@ export async function createInitializedManagedKeyHandler(
             return conferenceMock;
         },
     );
-
     when(conferenceMock.getParticipants()).thenCall(() => {
         return xmppServerMock.getParticipantsFor(id);
     });

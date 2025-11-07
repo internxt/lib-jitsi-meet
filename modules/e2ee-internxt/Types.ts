@@ -25,12 +25,10 @@ export const PROTOCOL_STATUS = {
     WAITING_PQ_SESSION_ACK: 'waiting-for-pq-session-ack',
     WAITING_PQ_SESSION_INIT: 'waiting-for-pq-session-init',
     WAITING_SESSION_ACK: 'waiting-for-session-ack',
-
 };
 
 export type ProtocolStatus =
     (typeof PROTOCOL_STATUS)[keyof typeof PROTOCOL_STATUS];
-
 
 export type ReplyMessage = KeyInfo | SessionInit | PQsessionInit | PQsessionAck;
 

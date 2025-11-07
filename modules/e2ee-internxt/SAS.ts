@@ -69,6 +69,7 @@ export const emojiMapping = [
     [ '📌', 'pin' ],
 ];
 
+
 /**
  * Generates a SAS composed of emojies.
  * Borrowed from the Matrix JS SDK.
@@ -91,3 +92,4 @@ export async function generateEmojiSas(data: string): Promise<string[][]> {
 
     return emojis.map(num => emojiMapping[num]);
 }
+

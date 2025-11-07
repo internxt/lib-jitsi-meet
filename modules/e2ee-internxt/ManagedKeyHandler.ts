@@ -50,12 +50,12 @@ export class ManagedKeyHandler extends Listenable {
         { reject?: (args?: unknown) => void; resolve: (args?: unknown) => void; }
     >;
 
+    max_wait: number;
     conference: JitsiConference;
     e2eeCtx: E2EEContext;
     enabled: boolean;
     initialized: boolean;
     initSessions: Promise<unknown[]>;
-    max_wait: number;
     _olmAdapter: OlmAdapter;
     _conferenceJoined: boolean;
 
@@ -128,86 +128,9 @@ export class ManagedKeyHandler extends Listenable {
         });
     }
 
-    private log(level: 'info' | 'error' | 'warn', message: string) {
-        console[level](`E2E: User ${this.myID}: ${message}`);
-    }
-
-    private _queueParticipantEvent(type: 'join' | 'leave', id: string) {
-        this._participantEventQueue.push({
-            id,
-            type,
-        });
-
-        if (!this._processingEvents) {
-            this._processParticipantEvents();
-        }
-    }
-
-    private async _processParticipantEvents() {
-        if (this._processingEvents) {
-            return;
-        }
-
-        this._processingEvents = true;
-
-        try {
-            while (this._participantEventQueue.length > 0) {
-                const event = this._participantEventQueue.shift();
-
-                if (event?.type === 'join') {
-                    await this._handleParticipantJoined(event.id);
-                } else if (event?.type === 'leave') {
-                    await this._handleParticipantLeft(event.id);
-                    this.e2eeCtx.cleanup(event.id);
-                }
-            }
-        } finally {
-            this._processingEvents = false;
-        }
-    }
-
-    async init() {
+    private async init() {
         await this._olmAdapter.init();
         this.initialized = true;
-    }
-
-    /**
-     * Indicates whether E2EE is currently enabled or not.
-     *
-     * @returns {boolean}
-     */
-    isEnabled() {
-        return this.enabled;
-    }
-
-    /**
-     * Enables / disables End-To-End encryption.
-     *
-     * @param {boolean} enabled - whether E2EE should be enabled or not.
-     * @returns {void}
-     */
-    async setEnabled(enabled: boolean) {
-        if (enabled === this.enabled) {
-            return;
-        }
-        this.enabled = enabled;
-
-        if (!this.initialized) {
-            await this.init();
-        }
-
-        if (enabled) {
-            this.log('info', 'Enabling e2ee');
-            await this.enableE2E();
-        }
-
-        if (!enabled) {
-            this.log('info', 'Disabling e2ee');
-            await this.disableE2E();
-        }
-
-        this.conference.setLocalParticipantProperty('e2ee.enabled', enabled.toString());
-        this.conference.restartMediaSessions();
     }
 
     /**
@@ -215,7 +138,7 @@ export class ManagedKeyHandler extends Listenable {
      * @param {JitsiLocalTrack} track - the new track that's being added to the conference.
      * @private
      */
-    _onLocalTrackAdded(track: JitsiLocalTrack) {
+    private _onLocalTrackAdded(track: JitsiLocalTrack) {
         for (const session of this.conference.getMediaSessions()) {
             this._setupSenderE2EEForTrack(session, track);
         }
@@ -226,7 +149,7 @@ export class ManagedKeyHandler extends Listenable {
      * @param {JingleSessionPC} session - the new media session.
      * @private
      */
-    _onMediaSessionStarted(session: JingleSessionPC) {
+    private _onMediaSessionStarted(session: JingleSessionPC) {
         const localTracks = this.conference.getLocalTracks();
 
         for (const track of localTracks) {
@@ -234,13 +157,13 @@ export class ManagedKeyHandler extends Listenable {
         }
     }
 
-    updateMyKeys() {
+    private updateMyKeys() {
         const { olmKey, pqKey, index } = this._olmAdapter.updateMyKeys();
 
         this.setKey(olmKey, pqKey, index);
     }
 
-    async createKeyUpdatePromise(pId: string) {
+    private async createKeyUpdatePromise(pId: string) {
         const promise = new Promise((resolve, reject) => {
             this.update.set(pId, { reject, resolve });
         });
@@ -248,7 +171,7 @@ export class ManagedKeyHandler extends Listenable {
         return Promise.race([ promise, timeout(this.max_wait) ]);
     }
 
-    async createSessionPromise(pId: string) {
+    private async createSessionPromise(pId: string) {
         const promise = new Promise((resolve, reject) => {
             this._reqs.set(pId, { reject, resolve });
         });
@@ -256,7 +179,7 @@ export class ManagedKeyHandler extends Listenable {
         return Promise.race([ promise, timeout(this.max_wait) ]);
     }
 
-    resolveSessionPromise(pId: string) {
+    private resolveSessionPromise(pId: string) {
         const promise = this._reqs.get(pId);
 
         if (promise) {
@@ -265,14 +188,14 @@ export class ManagedKeyHandler extends Listenable {
         }
     }
 
-    resolveAllSessionPromises() {
+    private resolveAllSessionPromises() {
         for (const promise of this.update.values()) {
             promise?.resolve();
         }
         this._reqs.clear();
     }
 
-    resolveKeyUpdatePromise(pID: string) {
+    private resolveKeyUpdatePromise(pID: string) {
         const requestPromise = this.update.get(pID);
 
         if (requestPromise) {
@@ -286,93 +209,11 @@ export class ManagedKeyHandler extends Listenable {
     }
 
     /**
-     * Enables End-To-End encryption.
-     */
-    async enableE2E() {
-        const localParticipantId = this.myID;
-        const { pkKyber, pk } = this._olmAdapter.genMyPublicKeys();
-
-        await this.setKeyCommitment(localParticipantId, pk, pkKyber);
-        this.updateMyKeys();
-
-        const participants = this.conference.getParticipants();
-
-        this.log(
-            'info',
-            `There are following IDs in the meeting: [ ${participants.map(p => p.getId())}]`,
-        );
-        const list = participants.filter(
-            participant =>
-                participant.hasFeature(FEATURE_E2EE)
-                && localParticipantId > participant.getId(),
-        );
-        const keys = this._olmAdapter.generateOneTimeKeys(list.length);
-
-        this.log(
-            'info',
-            `My ID is ${localParticipantId}, should send session-init to smaller IDs: [ ${list.map(p => p.getId())}]`,
-        );
-
-        this.initSessions = (async () => {
-            const promises = list.map(async participant => {
-                const pId = participant.getId();
-
-                try {
-                    const lastKey = keys.pop();
-
-                    if (!lastKey) throw new Error('No one time keys');
-                    const data
-                        = await this._olmAdapter.createSessionInitMessage(
-                            pId,
-                            lastKey,
-                        );
-
-                    this.log('info', `Sent session-init to participant ${pId}`);
-                    this._sendMessage(
-                        OLM_MESSAGE_TYPES.SESSION_INIT,
-                        data,
-                        pId,
-                    );
-
-                    const result = await this.createSessionPromise(pId);
-
-                    this.log(
-                        'info',
-                        `Session with ${pId} initialized successfully.`,
-                    );
-
-                    return result;
-                } catch (error) {
-                    const user = { name: participant.getDisplayName(), pId };
-
-                    this.conference.eventEmitter.emit(
-                JitsiConferenceEvents.E2EE_KEY_SYNC_FAILED, user);
-                    this.log(
-                        'error',
-                        `Session initialization request timed out for user with ID ${pId} (${user.name}): ${error}`,
-                    );
-                }
-            });
-
-            return Promise.all(promises);
-        })();
-        await this.initSessions;
-    }
-
-    /**
-     * Disables End-To-End encryption.
-     */
-    async disableE2E() {
-        this.e2eeCtx.cleanupAll();
-        this.clearAllSessions();
-    }
-
-    /**
      * Setup E2EE for the receiving side.
      *
      * @private
      */
-    _setupReceiverE2EEForTrack(
+    private _setupReceiverE2EEForTrack(
             tpc: TraceablePeerConnection,
             track: JitsiLocalTrack,
     ) {
@@ -402,7 +243,7 @@ export class ManagedKeyHandler extends Listenable {
      * @param {JitsiLocalTrack} track - the local track for which e2e encoder will be configured.
      * @private
      */
-    _setupSenderE2EEForTrack(session: JingleSessionPC, track: JitsiLocalTrack) {
+    private _setupSenderE2EEForTrack(session: JingleSessionPC, track: JitsiLocalTrack) {
         if (!this.enabled) {
             return;
         }
@@ -428,7 +269,7 @@ export class ManagedKeyHandler extends Listenable {
      * @param {JitsiLocalTrack} track - the track for which muted status has changed.
      * @private
      */
-    _trackMuteChanged(track: JitsiLocalTrack) {
+    private _trackMuteChanged(track: JitsiLocalTrack) {
         if (
             browser.doesVideoMuteByStreamRemove()
             && track.isLocal()
@@ -441,25 +282,12 @@ export class ManagedKeyHandler extends Listenable {
         }
     }
 
-    _onParticipantJoined(id: string) {
-        this._queueParticipantEvent('join', id);
-    }
-
-    _onParticipantLeft(id: string) {
-        if (this.enabled && this.initialized) {
-            this._olmAdapter.clearParticipantSession(id);
-            if (this.update.get(id)) this.resolveKeyUpdatePromise(id);
-        }
-
-        this._queueParticipantEvent('leave', id);
-    }
-
     /**
      * Advances (using ratcheting) the current key when a new participant joins the conference.
      *
      * @private
      */
-    async _handleParticipantJoined(id: string) {
+    private async _handleParticipantJoined(id: string) {
         this.log('info', `Participant ${id} joined the conference.`);
         if (!this._conferenceJoined || !this.enabled) return;
         if (!this.initialized) {
@@ -483,7 +311,7 @@ export class ManagedKeyHandler extends Listenable {
      * Rotates the current key when a participant leaves the conference.
      * @private
      */
-    async _handleParticipantLeft(id: string) {
+    private async _handleParticipantLeft(id: string) {
         this.log('info', `Participant ${id} left the conference.`);
 
         if (!this.enabled) return;
@@ -544,7 +372,7 @@ export class ManagedKeyHandler extends Listenable {
         await Promise.allSettled(updateBatch);
     }
 
-    clearAllSessions() {
+    private clearAllSessions() {
         this.resolveAllSessionPromises();
         const participants = this.conference.getParticipants();
 
@@ -553,12 +381,12 @@ export class ManagedKeyHandler extends Listenable {
         }
     }
 
-    _onConferenceLeft() {
+    private _onConferenceLeft() {
         this.clearAllSessions();
         this._olmAdapter.clearMySession();
     }
 
-    async updateKey(pId: string, ciphertext: string, pqCiphertext: string) {
+    private async updateKey(pId: string, ciphertext: string, pqCiphertext: string) {
         try {
             const key = await this._olmAdapter.decryptKey(
                 pId,
@@ -569,12 +397,12 @@ export class ManagedKeyHandler extends Listenable {
             this.updateParticipantKey(pId, key);
         } catch (error) {
             throw new Error(
-                `updateParticipantKey failed for participant ${pId}: ${error}`
+                `updateParticipantKey failed for participant ${pId}: ${error}`,
             );
         }
     }
 
-    async _onEndpointMessageReceived(participant: JitsiParticipant, payload) {
+    private async _onEndpointMessageReceived(participant: JitsiParticipant, payload) {
         try {
             if (
                 !payload.olm
@@ -752,7 +580,7 @@ export class ManagedKeyHandler extends Listenable {
         }
     }
 
-    async setKeyCommitment(pId: string, publicKey: string, publicKyberKey: string) {
+    private async setKeyCommitment(pId: string, publicKey: string, publicKyberKey: string) {
         const keyCommitment = await hash.hashData([ pId, publicKey, publicKyberKey ]);
 
         this.e2eeCtx.setKeysCommitment(
@@ -762,22 +590,12 @@ export class ManagedKeyHandler extends Listenable {
     }
 
     /**
-     * Set the keys of the current participant.
-     * @param {Uint8Array} olmKey - The olm key.
-     * @param {Uint8Array} pqKey - The pq key.
-     * @param {number} index - The keys index.
-     */
-    setKey(olmKey: Uint8Array, pqKey: Uint8Array, index: number) {
-        this.e2eeCtx.setKey(this.myID, olmKey, pqKey, index);
-    }
-
-    /**
      * Updates a participant's key.
      *
      * @param {string} id - The participant ID.
      * @param {MediaKey} key - The new key of the participant.
      */
-    updateParticipantKey(id: string, key: MediaKeys) {
+    private updateParticipantKey(id: string, key: MediaKeys) {
         this.e2eeCtx.setKey(id, key.olmKey, key.pqKey, key.index);
     }
 
@@ -788,7 +606,7 @@ export class ManagedKeyHandler extends Listenable {
      * @param {ReplyMessage} data - The message data.
      * @param {string} participantId - The target participant ID.
      */
-    _sendMessage(
+    private _sendMessage(
             type: MessageType,
             data: ReplyMessage | 'update' | 'done',
             participantId: string,
@@ -804,5 +622,194 @@ export class ManagedKeyHandler extends Listenable {
         this.conference.sendMessage(msg, participantId);
     }
 
+    private _queueParticipantEvent(type: 'join' | 'leave', id: string) {
+        this._participantEventQueue.push({
+            id,
+            type,
 
+        });
+
+        if (!this._processingEvents) {
+            this._processParticipantEvents();
+        }
+    }
+
+    private async _processParticipantEvents() {
+        if (this._processingEvents) {
+            return;
+        }
+
+        this._processingEvents = true;
+
+        try {
+            while (this._participantEventQueue.length > 0) {
+                const event = this._participantEventQueue.shift();
+
+                if (event?.type === 'join') {
+                    await this._handleParticipantJoined(event.id);
+                } else if (event?.type === 'leave') {
+                    await this._handleParticipantLeft(event.id);
+                    this.e2eeCtx.cleanup(event.id);
+                }
+            }
+        } finally {
+            this._processingEvents = false;
+        }
+    }
+
+    private log(level: 'info' | 'error' | 'warn', message: string) {
+        console[level](`E2E: User ${this.myID}: ${message}`);
+    }
+
+    _onParticipantJoined(id: string) {
+        this._queueParticipantEvent('join', id);
+    }
+
+    _onParticipantLeft(id: string) {
+        if (this.enabled && this.initialized) {
+            this._olmAdapter.clearParticipantSession(id);
+            if (this.update.get(id)) this.resolveKeyUpdatePromise(id);
+        }
+
+        this._queueParticipantEvent('leave', id);
+    }
+
+    /**
+     * Set the keys of the current participant.
+     * @param {Uint8Array} olmKey - The olm key.
+     * @param {Uint8Array} pqKey - The pq key.
+     * @param {number} index - The keys index.
+     */
+    setKey(olmKey: Uint8Array, pqKey: Uint8Array, index: number) {
+        this.e2eeCtx.setKey(this.myID, olmKey, pqKey, index);
+    }
+
+    /**
+     * Indicates whether E2EE is currently enabled or not.
+     *
+     * @returns {boolean}
+     */
+    isEnabled() {
+        return this.enabled;
+    }
+
+    /**
+     * Enables End-To-End encryption.
+     */
+    async enableE2E() {
+        const localParticipantId = this.myID;
+        const { pkKyber, pk } = this._olmAdapter.genMyPublicKeys();
+
+        await this.setKeyCommitment(localParticipantId, pk, pkKyber);
+        this.updateMyKeys();
+
+        const participants = this.conference.getParticipants();
+
+        this.log(
+            'info',
+            `There are following IDs in the meeting: [ ${participants.map(p => p.getId())}]`,
+        );
+        const list = participants.filter(
+            participant =>
+                participant.hasFeature(FEATURE_E2EE)
+                && localParticipantId > participant.getId(),
+        );
+        const keys = this._olmAdapter.generateOneTimeKeys(list.length);
+
+        this.log(
+            'info',
+            `My ID is ${localParticipantId}, should send session-init to smaller IDs: [ ${list.map(p => p.getId())}]`,
+        );
+
+        this.initSessions = (async () => {
+            const promises = list.map(async participant => {
+                const pId = participant.getId();
+
+                try {
+                    const lastKey = keys.pop();
+
+                    if (!lastKey) throw new Error('No one time keys');
+                    const data
+                        = await this._olmAdapter.createSessionInitMessage(
+                            pId,
+                            lastKey,
+                        );
+
+                    this.log('info', `Sent session-init to participant ${pId}`);
+                    this._sendMessage(
+                        OLM_MESSAGE_TYPES.SESSION_INIT,
+                        data,
+                        pId,
+                    );
+
+                    const result = await this.createSessionPromise(pId);
+
+                    this.log(
+                        'info',
+                        `Session with ${pId} initialized successfully.`,
+                    );
+
+                    return result;
+                } catch (error) {
+                    const user = { name: participant.getDisplayName(), pId };
+
+                    this.conference.eventEmitter.emit(
+                JitsiConferenceEvents.E2EE_KEY_SYNC_FAILED, user);
+                    this.log(
+                        'error',
+                        `Session initialization request timed out for user with ID ${pId} (${user.name}): ${error}`,
+                    );
+                }
+            });
+
+            return Promise.all(promises);
+        })();
+        await this.initSessions;
+    }
+
+    /**
+     * Disables End-To-End encryption.
+     */
+    async disableE2E() {
+        this.e2eeCtx.cleanupAll();
+        this.clearAllSessions();
+    }
+
+    /**
+     * Enables / disables End-To-End encryption.
+     *
+     * @param {boolean} enabled - whether E2EE should be enabled or not.
+     * @returns {void}
+     */
+    async setEnabled(enabled: boolean) {
+        if (enabled === this.enabled) {
+            return;
+        }
+        this.enabled = enabled;
+
+        if (!this.initialized) {
+            await this.init();
+        }
+
+        if (enabled) {
+            this.log('info', 'Enabling e2ee');
+            await this.enableE2E();
+        }
+
+        if (!enabled) {
+            this.log('info', 'Disabling e2ee');
+            await this.disableE2E();
+        }
+
+        this.conference.setLocalParticipantProperty('e2ee.enabled', enabled);
+        this.conference._restartMediaSessions();
+    }
+
+    async messageReceived(participant: JitsiParticipant, payload) {
+        this._onEndpointMessageReceived(participant, payload);
+    }
+
+    leaveConference() {
+        this._onConferenceLeft();
+    }
 }

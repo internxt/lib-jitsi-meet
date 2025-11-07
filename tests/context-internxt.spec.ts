@@ -72,7 +72,7 @@ describe("E2EE Context", () => {
                     expect(data[0]).toEqual(222);
                     done();
                 },
-                error(reason) {
+                                error(reason) {
                     this.error = reason || new Error("Unknown error");
                 },
                 terminate() {
@@ -94,7 +94,7 @@ describe("E2EE Context", () => {
                     expect(data[0]).toEqual(222);
                     done();
                 },
-                 error(reason) {
+                                 error(reason) {
                     this.error = reason || new Error("Unknown error");
                 },
                 terminate() {
@@ -117,7 +117,7 @@ describe("E2EE Context", () => {
                         receiveController,
                     );
                 },
-                 error(reason) {
+                                 error(reason) {
                     this.error = reason || new Error("Unknown error");
                 },
                 terminate() {
@@ -128,14 +128,14 @@ describe("E2EE Context", () => {
 
         it("with an audio frame", (done) => {
             receiveController = {
-                enqueue: (encodedFrame) => {
+                enqueue: (encodedFrame:  RTCEncodedVideoFrame | RTCEncodedAudioFrame) => {
                     const data = new Uint8Array(encodedFrame.data);
 
                     expect(data.byteLength).toEqual(audioBytes.length);
                     expect(Array.from(data)).toEqual(audioBytes);
                     done();
                 },
-                 error(reason) {
+                error(reason) {
                     this.error = reason || new Error("Unknown error");
                 },
                 terminate() {
@@ -154,7 +154,7 @@ describe("E2EE Context", () => {
                     expect(Array.from(data)).toEqual(videoBytes);
                     done();
                 },
-                 error(reason) {
+                error(reason) {
                     this.error = reason || new Error("Unknown error");
                 },
                 terminate() {
@@ -174,7 +174,7 @@ describe("E2EE Context", () => {
                     expect(Array.from(data)).toEqual(audioBytes);
                     done();
                 },
-                 error(reason) {
+                                 error(reason) {
                     this.error = reason || new Error("Unknown error");
                 },
                 terminate() {
