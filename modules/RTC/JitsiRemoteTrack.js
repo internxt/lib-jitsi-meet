@@ -12,6 +12,8 @@ import { decode } from 'punycode';
 
 const ort = require('onnxruntime-web');
 ort.env.wasm.wasmPaths = '/libs/dist/';
+ort.env.wasm.numThreads = 1;
+ort.env.wasm.proxy = true;  
 
 const logger = require('@jitsi/logger').getLogger(__filename);
 let timer = false;
@@ -26,16 +28,21 @@ export let decodingSession = null;
  */
 async function loadDecoder(){
     try{
-        decodingSession = await ort.InferenceSession.create('/libs/models/Decoder.onnx', {executionProviders: ['wasm'], freeDimensionOverrides: {
-            batch: 1,
-          }});
-        console.log("Decoder model has been loaded");
+        decodingSession = await ort.InferenceSession.create('/libs/models/Decoder.onnx', 
+            {
+                executionProviders: ['wasm'], 
+                graphOptimizationLevel: 'disable',
+                freeDimensionOverrides: {
+                    batch: 1,
+                }
+            }
+    );
+        console.info("Decoder model has been loaded");
     }
     catch (error){
         console.error("Decoder model could not be loaded!: ", error);
     }
 }
-console.log('ORT EPs available:', ort.env.wasm.wasmPaths);
 loadDecoder()
 
 /**
@@ -198,7 +205,6 @@ export default class JitsiRemoteTrack extends JitsiTrack {
                     // const height = videoTrack.getSettings().height;
                     const width = frame.width;
                     const height = frame.height;
-
                     if (width != null && width !== undefined) {
                         // Adjusting the size of the aux canvas
                         canvasEncoded.width = width;
@@ -230,7 +236,7 @@ export default class JitsiRemoteTrack extends JitsiTrack {
                     }
                 }
             } catch (error) {
-                logger.info('Decoder failed! because: ', error);
+                logger.info('Decoder routine could not finish because: ', error);
             }
             if (muted == false) {
                 requestAnimationFrame(processFrame);
