@@ -28,31 +28,10 @@ import JitsiTrack from './JitsiTrack';
 import RTCUtils from './RTCUtils';
 import TraceablePeerConnection from './TraceablePeerConnection';
 
-let wasmChannels = null;
-
-/**
- * Creates a module which is able to call the wasm routines for channels ordering
- * @returns channels wasm module
- */
-export async function getWasmModule() {
-    if (!wasmChannels) {
-        wasmChannels = channels({
-            locateFile: path => {
-                if (path.endsWith('.wasm')) {
-                    return '/libs/channels.wasm';
-                }
-
-                return path;
-            }
-        });
-    }
-
-    return wasmChannels;
-}
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const ort = require('onnxruntime-web');
 
-ort.env.wasm.wasmPaths = '/libs/ONNX/';
+ort.env.wasm.wasmPaths = '/libs/dist/';
 
 export let encodingSession = null;
 /**
@@ -68,56 +47,7 @@ export async function loadEncoder() {
         console.error('Encoder model could not be loaded!: ', error);
     }
 }
-loadEncoder();
-
-/**
- * Uses wasm binaries that transform HWC channel-order used by Javascript to CHW channel order used by python
- * @param {data} data Javascript data container
- * @param {number} width image width
- * @param {number} height image height
- * @returns FloatA32Array
- */
-export async function js2py(data, width, height) {
-    const Module = await getWasmModule();
-    const ptr = Module._malloc(data.length);
-
-    Module.HEAPU8.set(data, ptr);
-    // Call the C++ reorder function
-
-    Module._vjs2py(ptr, width, height);
-    // Read back the result
-    const result = Module.HEAPU8.subarray(ptr, ptr + data.length);
-
-    Module._free(ptr);
-
-    return Float32Array.from(result);
-}
-
-/**
- * Uses wasm binaries that transform CHW channel-order used by python to HWC channel order used by javascript
- * @param {data} data Javascript data container
- * @param {data} tensorData Tensor data from ort module
- * @param {number} width image width
- * @param {number} height image height
- * @returns data
- */
-export async function py2js(data, tensorData, width, height) {
-    const Module = await getWasmModule();
-
-    const int8Tensor = Uint8ClampedArray.from(tensorData);
-    const ptr = Module._malloc(int8Tensor.length);
-
-    Module.HEAPU8.set(int8Tensor, ptr);
-    // Call the C++ reorder function
-    Module._vpy2js(ptr, width, height);
-    // Read back the result
-    const result = Module.HEAPU8.subarray(ptr, ptr + int8Tensor.length);
-
-    data.set(result);
-    Module._free(ptr);
-
-    return data;
-}
+// loadEncoder();
 
 const logger = getLogger('rtc:JitsiLocalTrack');
 
