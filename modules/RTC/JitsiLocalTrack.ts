@@ -16,7 +16,6 @@ import {
     AnalyticsEvents,
     createNoDataFromSourceEvent
 } from '../../service/statistics/AnalyticsEvents';
-import channels from '../../wasm/RTC/channels.js';
 import RTCStats from '../RTCStats/RTCStats';
 import { RTCStatsEvents } from '../RTCStats/RTCStatsEvents';
 import browser from '../browser';
