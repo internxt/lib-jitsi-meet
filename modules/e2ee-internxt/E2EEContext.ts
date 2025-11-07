@@ -55,6 +55,10 @@ export default class E2EEcontext extends Listenable {
         return new Worker(workerUrl, { name: 'E2EE Worker' });
     }
 
+    private async updateSAS(sas: string[]) {
+        this.emit('sasUpdated', sas);
+    }
+
     cleanup(participantId: string) {
         this._worker.postMessage({
             operation: 'cleanup',
@@ -142,18 +146,18 @@ export default class E2EEcontext extends Listenable {
             index: number,
     ) {
         this._worker.postMessage({
-            operation: 'setKey',
-            olmKey,
-            pqKey,
             index,
+            olmKey,
+            operation: 'setKey',
             participantId,
+            pqKey,
         });
     }
 
     setKeysCommitment(participantId: string, commitment: string) {
         this._worker.postMessage({
-            operation: 'setKeysCommitment',
             commitment,
+            operation: 'setKeysCommitment',
             participantId,
         });
     }
@@ -165,7 +169,4 @@ export default class E2EEcontext extends Listenable {
         });
     }
 
-    private async updateSAS(sas: string[]) {
-        this.emit('sasUpdated', sas);
-    }
 }

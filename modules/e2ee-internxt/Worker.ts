@@ -97,9 +97,9 @@ class E2EEWorker {
 
             if (!context) break;
             await context.setKey({
+                index,
                 olmKey,
                 pqKey,
-                index,
                 userID: participantId,
             });
             const sas = this.getCurrentSASMaterial();
@@ -113,7 +113,7 @@ class E2EEWorker {
             const context = this.createParticipantContext(participantId);
 
             if (!context) break;
-            await context.setKeyCommitment(commitment);
+            context.setKeyCommitment(commitment);
             break;
         }
 
