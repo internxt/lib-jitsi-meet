@@ -116,6 +116,7 @@ export class XmppServerMock {
 
     userLeft(pId: string) {
         const leftUser = this.listeners.get(pId);
+
         leftUser?.leaveConference();
 
         this.participants.delete(pId);
