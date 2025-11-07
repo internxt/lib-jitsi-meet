@@ -12,8 +12,8 @@ import { decode } from 'punycode';
 
 const ort = require('onnxruntime-web');
 ort.env.wasm.wasmPaths = '/libs/dist/';
-ort.env.wasm.numThreads = 1;
 ort.env.wasm.proxy = true;  
+ort.env.wasm.simd = false;  
 
 const logger = require('@jitsi/logger').getLogger(__filename);
 let timer = false;
