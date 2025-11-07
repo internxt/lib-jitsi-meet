@@ -801,7 +801,7 @@ export class ManagedKeyHandler extends Listenable {
             await this.disableE2E();
         }
 
-        this.conference.setLocalParticipantProperty('e2ee.enabled', enabled);
+        this.conference.setLocalParticipantProperty('e2ee.enabled', enabled.toString());
         this.conference._restartMediaSessions();
     }
 
