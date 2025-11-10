@@ -1,7 +1,7 @@
 import { anything, instance, mock, when } from 'ts-mockito';
 
 import JitsiConference from '../JitsiConference';
-import * as JitsiConferenceEvents from '../JitsiConferenceEvents';
+import { JitsiConferenceEvents } from '../JitsiConferenceEvents';
 import JitsiParticipant from '../JitsiParticipant';
 import RTC from '../modules/RTC/RTC';
 import { ManagedKeyHandler } from '../modules/e2ee-internxt/ManagedKeyHandler';
@@ -116,6 +116,7 @@ export class XmppServerMock {
 
     userLeft(pId: string) {
         const leftUser = this.listeners.get(pId);
+
         leftUser?.leaveConference();
 
         this.participants.delete(pId);

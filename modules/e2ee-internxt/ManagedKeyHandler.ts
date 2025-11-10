@@ -3,9 +3,9 @@
 import { MediaKeys, hash } from 'internxt-crypto';
 
 import JitsiConference from '../../JitsiConference';
-import * as JitsiConferenceEvents from '../../JitsiConferenceEvents';
+import { JitsiConferenceEvents } from '../../JitsiConferenceEvents';
 import JitsiParticipant from '../../JitsiParticipant';
-import RTCEvents from '../../service/RTC/RTCEvents';
+import { RTCEvents } from '../../service/RTC/RTCEvents';
 import JitsiLocalTrack from '../RTC/JitsiLocalTrack';
 import TraceablePeerConnection from '../RTC/TraceablePeerConnection';
 import browser from '../browser';
@@ -801,8 +801,8 @@ export class ManagedKeyHandler extends Listenable {
             await this.disableE2E();
         }
 
-        this.conference.setLocalParticipantProperty('e2ee.enabled', enabled);
-        this.conference._restartMediaSessions();
+        this.conference.setLocalParticipantProperty('e2ee.enabled', enabled.toString());
+        this.conference.restartMediaSessions();
     }
 
     async messageReceived(participant: JitsiParticipant, payload) {

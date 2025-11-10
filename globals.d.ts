@@ -14,10 +14,11 @@ declare global {
         createEncodedStreams?: () => {
             readable: ReadableStream<RTCEncodedAudioFrame | RTCEncodedVideoFrame>;
             writable: WritableStream<RTCEncodedAudioFrame | RTCEncodedVideoFrame>;
-        };
+        }
         kJitsiE2EE?: boolean;
         transform: RTCRtpScriptTransform| null;
     }
+
     interface RTCRtpSender {
         createEncodedStreams?: () => {
             readable: ReadableStream;
@@ -28,5 +29,10 @@ declare global {
     }
     interface MediaStream {
         oninactive?: ((this: MediaStream, ev: Event) => void) | ((this: MediaStreamTrack, ev: Event) => void) | null;
+    }
+    class ImageCapture {
+        constructor(track: MediaStreamTrack);
+        grabFrame(): Promise<ImageBitmap>;
+        takePhoto(): Promise<Blob>;
     }
 }
