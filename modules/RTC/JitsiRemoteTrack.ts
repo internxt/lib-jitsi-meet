@@ -21,6 +21,7 @@ const logger = getLogger('rtc:JitsiRemoteTrack');
 const ort = require('onnxruntime-web');
 
 ort.env.wasm.wasmPaths = '/libs/dist/';
+ort.env.wasm.numThreads = 1;
 
 let ttfmTrackerAudioAttached = false;
 let ttfmTrackerVideoAttached = false;
@@ -31,9 +32,15 @@ export let decodingSession = null;
  */
 async function loadDecoder() {
     try {
-        decodingSession = await ort.InferenceSession.create('/libs/models/Decoder.onnx', { freeDimensionOverrides: {
-            batch: 1,
-        } });
+        decodingSession = await ort.InferenceSession.create('/libs/models/Decoder.onnx',
+            {
+                executionProviders: [ 'wasm' ],
+                freeDimensionOverrides: {
+                    batch: 1,
+                }
+            }
+        );
+        console.info('Decoder model has been loaded');
     } catch (error) {
         console.error('Decoder model could not be loaded!: ', error);
     }
@@ -442,11 +449,6 @@ export default class JitsiRemoteTrack extends JitsiTrack {
      * @param {*} videoTrack
      * @param {*} canvasDecoded
      */
-    applyONNXDecoder(videoTrack, canvasDecoded, muted); /**
-         * Does the decoding phase of the incoming streams
-         * @param {*} videoTrack
-         * @param {*} canvasDecoded
-         */
     applyONNXDecoder(videoTrack, canvasDecoded, muted) {
         // Frame-grabber to catch frames from the incoming stream
         const imageCapture = new ImageCapture(videoTrack);
@@ -464,6 +466,8 @@ export default class JitsiRemoteTrack extends JitsiTrack {
                     // Capturing a frame and painting it into the aux canvas
                     const frame = await imageCapture.grabFrame();
                     // Getting the current size of the incoming stream
+                    // const width = videoTrack.getSettings().width;
+                    // const height = videoTrack.getSettings().height;
                     const width = frame.width;
                     const height = frame.height;
 
