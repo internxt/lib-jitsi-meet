@@ -8,12 +8,10 @@ import Statistics from '../statistics/statistics';
 import RTCUtils from './RTCUtils';
     
 import JitsiTrack from './JitsiTrack';  
-import { decode } from 'punycode';
 
 const ort = require('onnxruntime-web');
 ort.env.wasm.wasmPaths = '/libs/dist/';
-ort.env.wasm.proxy = true;  
-ort.env.wasm.simd = false;  
+ort.env.wasm.numThreads = 1;
 
 const logger = require('@jitsi/logger').getLogger(__filename);
 let timer = false;
@@ -31,7 +29,6 @@ async function loadDecoder(){
         decodingSession = await ort.InferenceSession.create('/libs/models/Decoder.onnx', 
             {
                 executionProviders: ['wasm'], 
-                graphOptimizationLevel: 'disable',
                 freeDimensionOverrides: {
                     batch: 1,
                 }
