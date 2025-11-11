@@ -41,6 +41,13 @@ module.exports = (minimize, analyzeBundle) => {
                     ]
                 },
                 test: /\.(js|ts)$/
+            }, {
+                // Fix vodozemac dependency
+                generator: {
+                    filename: 'vodozemac.wasm'
+                },
+                test: /\.wasm$/,
+                type: 'asset/resource'
             } ]
         },
         optimization: {

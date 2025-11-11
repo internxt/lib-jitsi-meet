@@ -83,7 +83,10 @@
     "validate": "npm ls",
     "watch": "npm run gen-version && webpack --config webpack.config.js --watch --mode development"
   },
-  "browser": "dist/umd/lib-jitsi-meet.min.js",
+  "browser": {
+     "dist/umd/lib-jitsi-meet.min.js": "dist/umd/lib-jitsi-meet.min.js",
+     "vodozemac.wasm": "dist/umd/vodozemac.wasm"
+  },
   "module": "dist/esm/JitsiMeetJS.js",
   "react-native": "./dist/esm/JitsiMeetJS.js",
   "files": [
