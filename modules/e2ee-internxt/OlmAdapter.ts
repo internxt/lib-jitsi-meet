@@ -1,6 +1,6 @@
 import initVodozemac, { Account } from 'vodozemac-wasm';
 
-import { ratchetMediaKey } from './CryptoUtils';
+import { genSymmetricKey, ratchetMediaKey } from './CryptoUtils';
 import { SessionData } from './SessionData';
 import {
     KeyInfo,
@@ -10,7 +10,7 @@ import {
     PROTOCOL_STATUS,
     SessionInit,
 } from './Types';
-import { base64ToUint8Array, decapsulateKyber, encapsulateKyber, genSymmetricKey, generateKyberKeys, uint8ArrayToBase64 } from './Utils';
+import { base64ToUint8Array, decapsulateKyber, encapsulateKyber, generateKyberKeys, uint8ArrayToBase64 } from './Utils';
 
 
 function getError(method: string, error: Error): Error {
@@ -169,7 +169,10 @@ export class OlmAdapter {
                 commitment,
             );
 
-            const encapsulatedBase64 = olmData.encapsulate(publicKyberKey);
+            const publicKeyArray = base64ToUint8Array(publicKyberKey);
+            const { cipherText, sharedSecret } = encapsulateKyber(publicKeyArray);
+
+            olmData.setSecret(sharedSecret);
             const commitmentToKeys = await olmData.keyCommitment();
             const ciphertext = olmData.encryptKeyCommitment(commitmentToKeys);
 
@@ -177,7 +180,7 @@ export class OlmAdapter {
 
             return {
                 ciphertext: ciphertext,
-                encapsKyber: encapsulatedBase64,
+                encapsKyber: uint8ArrayToBase64(cipherText),
                 publicKey: this._publicCurve25519Key,
                 publicKyberKey: this._publicKyberKey,
             };

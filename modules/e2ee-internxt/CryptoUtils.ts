@@ -1,5 +1,5 @@
 import { blake3 } from '@noble/hashes/blake3.js';
-import { bytesToHex, randomBytes, utf8ToBytes } from '@noble/hashes/utils.js';
+import { bytesToHex, concatBytes, randomBytes, utf8ToBytes } from '@noble/hashes/utils.js';
 
 import { MediaKeys } from './Types';
 
@@ -9,8 +9,7 @@ const CONTEXT_RATCHET = 'Internxt Meet Web App 2025-11-12 17:09:10 ratchet media
 const AES_ALGORITHM = 'AES-GCM';
 const AES_KEY_BIT_LENGTH = 256;
 const KEY_FORMAT = 'raw';
-
-export const IV_LEN_BYTES = 16;
+const IV_LEN_BYTES = 16;
 
 export function hashData(data: string[]): Uint8Array {
     const hasher = blake3.create();
@@ -106,13 +105,13 @@ export async function encryptSymmetrically(
         message: Uint8Array,
         additionalData: Uint8Array,
         freeField?: string,
-): Promise<{ ciphertext: Uint8Array; iv: Uint8Array; }> {
+): Promise<Uint8Array> {
     try {
         const iv = createNISTbasedIV(freeField);
         const encrypted = await crypto.subtle.encrypt({ additionalData: additionalData as BufferSource, iv: iv as BufferSource, name: AES_ALGORITHM }, encryptionKey, message as BufferSource);
         const ciphertext = new Uint8Array(encrypted);
 
-        return { ciphertext, iv };
+        return concatBytes(ciphertext, iv);
     } catch (error) {
         throw new Error(`Failed to encrypt symmetrically: ${error}`);
     }
@@ -120,11 +119,13 @@ export async function encryptSymmetrically(
 
 export async function decryptSymmetrically(
         encryptionKey: CryptoKey,
-        ciphertext: Uint8Array,
-        iv: Uint8Array,
+        combined: Uint8Array,
         additionalData: Uint8Array,
 ): Promise<Uint8Array> {
     try {
+        const ciphertext = combined.slice(0, combined.length - IV_LEN_BYTES);
+        const iv = combined.slice(combined.length - IV_LEN_BYTES);
+
         const decrypted = await crypto.subtle.decrypt(
             { additionalData: additionalData as BufferSource, iv: iv as BufferSource, name: AES_ALGORITHM },
             encryptionKey,
@@ -136,4 +137,8 @@ export async function decryptSymmetrically(
     } catch (error) {
         throw new Error(`Failed to decrypt symmetrically: ${error}`);
     }
+}
+
+export function genSymmetricKey(): Uint8Array {
+    return randomBytes(AES_KEY_BIT_LENGTH / 8);
 }

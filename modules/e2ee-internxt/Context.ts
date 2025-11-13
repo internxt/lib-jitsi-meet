@@ -1,4 +1,4 @@
-import { IV_LEN_BYTES, commitToMediaKey, decryptSymmetrically, deriveSymmetricCryptoKeyFromTwoKeys, encryptSymmetrically, importSymmetricCryptoKey, ratchetMediaKey } from './CryptoUtils';
+import { commitToMediaKey, decryptSymmetrically, deriveSymmetricCryptoKeyFromTwoKeys, encryptSymmetrically, importSymmetricCryptoKey, ratchetMediaKey } from './CryptoUtils';
 import { MediaKeys } from './Types';
 
 // We copy the first bytes of the VP8 payload unencrypted.
@@ -144,7 +144,7 @@ export class Context {
                 encodedFrame.getMetadata().synchronizationSource,
                 encodedFrame.timestamp,
             ].toString();
-            const { iv, ciphertext } = await encryptSymmetrically(
+            const ciphertext = await encryptSymmetrically(
                 key,
                 data,
                 additionalData,
@@ -154,16 +154,14 @@ export class Context {
             const newUint8 = new Uint8Array(
                 UNENCRYPTED_BYTES_NUMBER
                     + ciphertext.byteLength
-                    + IV_LEN_BYTES
                     + 1,
             );
 
             newUint8.set(unencryptedPart); // copy undencrypted byte.
             newUint8.set(ciphertext, UNENCRYPTED_BYTES_NUMBER); // add ciphertext.
-            newUint8.set(iv, UNENCRYPTED_BYTES_NUMBER + ciphertext.byteLength); // append IV.
             newUint8.set(
                 keyIndex,
-                UNENCRYPTED_BYTES_NUMBER + ciphertext.byteLength + IV_LEN_BYTES,
+                UNENCRYPTED_BYTES_NUMBER + ciphertext.byteLength,
             ); // append key index.
 
             encodedFrame.data = newUint8.buffer;
@@ -210,15 +208,10 @@ export class Context {
         const encryptionKey = this.encryptionKey;
 
         try {
-            const iv = new Uint8Array(
-                encodedFrame.data,
-                encodedFrame.data.byteLength - IV_LEN_BYTES - 1,
-                IV_LEN_BYTES,
-            );
 
             const cipherTextLength
                 = encodedFrame.data.byteLength
-                - (UNENCRYPTED_BYTES_NUMBER + IV_LEN_BYTES + 1);
+                - (UNENCRYPTED_BYTES_NUMBER + 1);
 
             const additionalData = new Uint8Array(
                 encodedFrame.data,
@@ -233,7 +226,6 @@ export class Context {
             const plainText = await decryptSymmetrically(
                 encryptionKey,
                 ciphertext,
-                iv,
                 additionalData,
             );
 

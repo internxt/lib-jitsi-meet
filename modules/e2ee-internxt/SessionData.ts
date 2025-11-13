@@ -9,7 +9,7 @@ import {
     PROTOCOL_STATUS,
     ProtocolStatus,
 } from './Types';
-import { base64ToCiphertext, base64ToUint8Array, ciphertextToBase64, encapsulateKyber, uint8ArrayToBase64 } from './Utils';
+import { base64ToUint8Array, uint8ArrayToBase64 } from './Utils';
 
 
 const AUX = new Uint8Array([ 1, 2, 3 ]);
@@ -56,13 +56,8 @@ export class SessionData {
         this.session = account.create_outbound_session(publicKey, otKey);
     }
 
-    encapsulate(publicKyberKey: string): string {
-        const publicKey = base64ToUint8Array(publicKyberKey);
-        const { cipherText, sharedSecret } = encapsulateKyber(publicKey);
-
+    setSecret(sharedSecret: Uint8Array) {
         this.kemSecret = sharedSecret;
-
-        return uint8ArrayToBase64(cipherText);
     }
 
     isDone(): boolean {
@@ -116,12 +111,12 @@ export class SessionData {
 
     async createKeyInfoMessage(key: MediaKeys): Promise<KeyInfo> {
         const ciphertext = this.encryptGivenKeyInfo(key.olmKey, key.index);
-        const { ciphertext: cipher, iv } = await encryptSymmetrically(
+        const cipher = await encryptSymmetrically(
             this.pqSessionKey,
             key.pqKey,
             AUX,
         );
-        const pqCiphertext = ciphertextToBase64(cipher, iv);
+        const pqCiphertext = uint8ArrayToBase64(cipher);
 
         return {
             ciphertext,
@@ -142,12 +137,12 @@ export class SessionData {
             this.keyToSend.olmKey,
             this.keyToSend.index,
         );
-        const { ciphertext: cipher, iv } = await encryptSymmetrically(
+        const cipher = await encryptSymmetrically(
             this.pqSessionKey,
             this.keyToSend.pqKey,
             AUX,
         );
-        const pqCiphertext = ciphertextToBase64(cipher, iv);
+        const pqCiphertext = uint8ArrayToBase64(cipher);
 
         return { ciphertext, pqCiphertext };
     }
@@ -160,11 +155,10 @@ export class SessionData {
         const result = this.session.decrypt(NORMAL_MESSAGE, ciphertext);
         const index = result[result.length - 1];
         const key = result.slice(0, -1);
-        const { ciphertext: pqCipher, iv } = base64ToCiphertext(pqCiphertext);
+        const pqCipher = base64ToUint8Array(pqCiphertext);
         const pqKey = await decryptSymmetrically(
             this.pqSessionKey,
             pqCipher,
-            iv,
             AUX,
         );
         const mediaKey = {
