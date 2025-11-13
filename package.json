@@ -23,6 +23,7 @@
     "@jitsi/rtcstats": "9.7.0",
     "@noble/ciphers": "^2.0.1",
     "@noble/hashes": "^2.0.1",
+    "@noble/post-quantum": "^0.5.2",
     "@testrtc/watchrtc-sdk": "1.38.2",
     "async-es": "3.2.4",
     "base64-js": "1.5.1",
