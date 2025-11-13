@@ -35,6 +35,18 @@ export function commitToMediaKey(keys: MediaKeys, commitment: Uint8Array): strin
     return bytesToHex(result);
 }
 
+export async function hashKey(keys: MediaKeys): Promise<string> {
+    const hasher = blake3.create();
+
+    hasher.update(keys.olmKey);
+    hasher.update(keys.pqKey);
+    hasher.update(new Uint8Array(keys.index));
+    hasher.update(utf8ToBytes(keys.userID));
+    const result = hasher.digest();
+
+    return bytesToHex(result);
+}
+
 export function getBitsFromString(byteLen: number, data: string): Uint8Array {
     return blake3(utf8ToBytes(data), { dkLen: byteLen });
 }

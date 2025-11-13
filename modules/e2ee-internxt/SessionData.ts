@@ -1,9 +1,6 @@
-import {
-    hash,
-} from 'internxt-crypto';
 import { Account, Session } from 'vodozemac-wasm';
 
-import { decryptSymmetrically, deriveSymmetricCryptoKeyFromTwoKeys, encryptSymmetrically, importSymmetricCryptoKey } from './CryptoUtils';
+import { decryptSymmetrically, deriveSymmetricCryptoKeyFromTwoKeys, encryptSymmetrically, hashKey, importSymmetricCryptoKey } from './CryptoUtils';
 import {
     KeyInfo,
     MediaKeys,
@@ -83,7 +80,7 @@ export class SessionData {
     }
 
     async validateCommitment(key: MediaKeys) {
-        const commitment = await hash.comitToMediaKey(key);
+        const commitment = await hashKey(key);
 
         if (this.commitment !== commitment)
             throw new Error('Keys do not match the commitment.');
@@ -114,7 +111,7 @@ export class SessionData {
     }
 
     async keyCommitment(): Promise<string> {
-        return hash.comitToMediaKey(this.keyToSend);
+        return hashKey(this.keyToSend);
     }
 
     async createKeyInfoMessage(key: MediaKeys): Promise<KeyInfo> {
