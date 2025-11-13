@@ -184,7 +184,7 @@ describe("E2EE Context", () => {
 
             const encodeFunction = async () => {
                 // Ratchet the key for both
-                const newKey = await ratchetMediaKey({
+                const newKey = ratchetMediaKey({
                     olmKey: olmKey,
                     pqKey,
                     index: 0,

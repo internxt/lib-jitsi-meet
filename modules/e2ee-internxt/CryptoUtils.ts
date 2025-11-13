@@ -71,7 +71,7 @@ export async function importSymmetricCryptoKey(keyData: Uint8Array | ArrayBuffer
 }
 
 
-export async function ratchetMediaKey(key: MediaKeys): Promise<MediaKeys> {
+export function ratchetMediaKey(key: MediaKeys): MediaKeys {
     const olmKey = blake3(key.olmKey, { context: utf8ToBytes(CONTEXT_RATCHET) });
     const pqKey = blake3(key.pqKey, { context: utf8ToBytes(CONTEXT_RATCHET) });
     const index = key.index + 1;

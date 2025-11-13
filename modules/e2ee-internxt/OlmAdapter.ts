@@ -80,11 +80,13 @@ export class OlmAdapter {
         }
     }
 
-    async ratchetMyKeys(): Promise<MediaKeys> {
+    ratchetMyKeys(): MediaKeys {
         try {
-            this._mediaKey = await ratchetMediaKey(this._mediaKey);
+            const key = ratchetMediaKey(this._mediaKey);
 
-            return this._mediaKey;
+            this._mediaKey = key;
+
+            return key;
         } catch (error) {
             throw getError('ratchetMyKeys', error);
         }

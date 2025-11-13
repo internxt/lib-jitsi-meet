@@ -294,7 +294,7 @@ export class ManagedKeyHandler extends Listenable {
             await this.init();
         }
         const participants = this.conference.getParticipants();
-        const { olmKey, pqKey, index } = await this._olmAdapter.ratchetMyKeys();
+        const { olmKey, pqKey, index } = this._olmAdapter.ratchetMyKeys();
 
         this.setKey(olmKey, pqKey, index);
         for (const participant of participants) {

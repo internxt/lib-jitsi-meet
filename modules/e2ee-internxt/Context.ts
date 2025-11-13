@@ -34,9 +34,9 @@ export class Context {
         this.hash = '';
     }
 
-    async ratchetKeys() {
+    ratchetKeys() {
         if (this.key.index >= 0) {
-            const key = await ratchetMediaKey(this.key);
+            const key = ratchetMediaKey(this.key);
 
             this.setKey(key);
         }

@@ -122,7 +122,7 @@ class E2EEWorker {
             const context = this.getParticipantContext(participantId);
 
             if (!context) break;
-            await context.ratchetKeys();
+            context.ratchetKeys();
             break;
         }
 
