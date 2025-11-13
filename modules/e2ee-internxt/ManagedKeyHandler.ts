@@ -711,9 +711,11 @@ export class ManagedKeyHandler extends Listenable {
         );
         const list = participants.filter(
             participant =>
-                participant.hasFeature(FEATURE_E2EE)
-                && localParticipantId > participant.getId(),
-        );
+                (participant.hasFeature(FEATURE_E2EE)
+                || participant.getProperty('e2ee.enabled') === 'true')
+                    && localParticipantId > participant.getId());
+
+
         const keys = this._olmAdapter.generateOneTimeKeys(list.length);
 
         this.log(
