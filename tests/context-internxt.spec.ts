@@ -1,6 +1,6 @@
 /* eslint-disable no-bitwise */
 import { Context } from "../modules/e2ee-internxt/Context";
-import { deriveKey } from "internxt-crypto";
+import { ratchetMediaKey } from '../modules/e2ee-internxt/CryptoUtils';
 
 const audioBytes = [0xde, 0xad, 0xbe, 0xef];
 const videoBytes = [
@@ -184,7 +184,7 @@ describe("E2EE Context", () => {
 
             const encodeFunction = async () => {
                 // Ratchet the key for both
-                const newKey = await deriveKey.ratchetMediaKey({
+                const newKey = await ratchetMediaKey({
                     olmKey: olmKey,
                     pqKey,
                     index: 0,

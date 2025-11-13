@@ -1,14 +1,8 @@
-import {
-    IV_LEN_BYTES,
-    MediaKeys,
-    deriveKey,
-    hash,
-    symmetric,
-    utils,
-} from 'internxt-crypto';
+import { IV_LEN_BYTES, commitToMediaKey, decryptSymmetrically, deriveSymmetricCryptoKeyFromTwoKeys, encryptSymmetrically, importSymmetricCryptoKey, ratchetMediaKey } from './CryptoUtils';
+import { MediaKeys } from './Types';
 
 // We copy the first bytes of the VP8 payload unencrypted.
-// This allows the bridge to continue detecting keyframes (only one byte needed in the JVB)
+// This allows the bridge to continue detecting keyframes (only one byte neseded in the JVB)
 //    https://tools.ietf.org/html/rfc6386#section-9.1
 //
 // For audio (where frame.type is not set) we do not encrypt the opus TOC byte:
@@ -25,7 +19,7 @@ export class Context {
     private encryptionKey: CryptoKey;
     private key: MediaKeys;
     private hash: string;
-    private commitment: string;
+    private commitment: Uint8Array;
 
     constructor(id: string) {
         this.encryptionKey = null as any;
@@ -36,19 +30,19 @@ export class Context {
             userID: id,
         };
         this.id = id;
-        this.commitment = '';
+        this.commitment = new Uint8Array();
         this.hash = '';
     }
 
     async ratchetKeys() {
         if (this.key.index >= 0) {
-            const key = await deriveKey.ratchetMediaKey(this.key);
+            const key = await ratchetMediaKey(this.key);
 
             this.setKey(key);
         }
     }
 
-    setKeyCommitment(commitment: string) {
+    setKeyCommitment(commitment: Uint8Array) {
         this.commitment = commitment;
     }
 
@@ -62,14 +56,15 @@ export class Context {
      */
     async setKey(key: MediaKeys) {
         this.key = key;
-        this.encryptionKey
-            = await deriveKey.deriveSymmetricCryptoKeyFromTwoKeys(
+        const encryptionKey = deriveSymmetricCryptoKeyFromTwoKeys(
                 this.key.olmKey,
                 this.key.pqKey,
-            );
-        const keyBase64 = utils.mediaKeysToBase64(this.key);
+        );
 
-        this.hash = await hash.hashData([ keyBase64, this.commitment ]);
+        this.encryptionKey
+            = await importSymmetricCryptoKey(encryptionKey);
+
+        this.hash = commitToMediaKey(this.key, this.commitment);
     }
 
     /**
@@ -149,10 +144,10 @@ export class Context {
                 encodedFrame.getMetadata().synchronizationSource,
                 encodedFrame.timestamp,
             ].toString();
-            const { iv, ciphertext } = await symmetric.encryptSymmetrically(
+            const { iv, ciphertext } = await encryptSymmetrically(
                 key,
                 data,
-                additionalData.toString(),
+                additionalData,
                 freeField,
             );
 
@@ -235,10 +230,11 @@ export class Context {
                 UNENCRYPTED_BYTES_NUMBER,
                 cipherTextLength,
             );
-            const plainText = await symmetric.decryptSymmetrically(
+            const plainText = await decryptSymmetrically(
                 encryptionKey,
-                { ciphertext, iv },
-                additionalData.toString(),
+                ciphertext,
+                iv,
+                additionalData,
             );
 
             const newData = new ArrayBuffer(

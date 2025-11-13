@@ -1,7 +1,5 @@
 /// <reference types="node" />
 
-import { MediaKeys, hash } from 'internxt-crypto';
-
 import JitsiConference from '../../JitsiConference';
 import { JitsiConferenceEvents } from '../../JitsiConferenceEvents';
 import JitsiParticipant from '../../JitsiParticipant';
@@ -13,10 +11,12 @@ import Listenable from '../util/Listenable';
 import JingleSessionPC from '../xmpp/JingleSessionPC';
 import { FEATURE_E2EE, JITSI_MEET_MUC_TYPE } from '../xmpp/xmpp';
 
+import { hashData } from './CryptoUtils';
 import E2EEContext from './E2EEContext';
 import { OlmAdapter } from './OlmAdapter';
 import { generateEmojiSas } from './SAS';
 import {
+    MediaKeys,
     MessageType,
     OLM_MESSAGE,
     OLM_MESSAGE_TYPES,
@@ -118,8 +118,8 @@ export class ManagedKeyHandler extends Listenable {
 
         this._olmAdapter = new OlmAdapter(this.myID);
 
-        this.e2eeCtx.on('sasUpdated', async (sasStr: string) => {
-            const sas = await generateEmojiSas(sasStr);
+        this.e2eeCtx.on('sasUpdated', (sasStr: string) => {
+            const sas = generateEmojiSas(sasStr);
 
             this.conference.eventEmitter.emit(
                 JitsiConferenceEvents.E2EE_SAS_AVAILABLE,
@@ -434,7 +434,7 @@ export class ManagedKeyHandler extends Listenable {
                             commitment,
                         );
 
-                await this.setKeyCommitment(pId, publicKey, publicKyberKey);
+                this.setKeyCommitment(pId, publicKey, publicKyberKey);
                 this._sendMessage(
                         OLM_MESSAGE_TYPES.PQ_SESSION_INIT,
                         data,
@@ -460,7 +460,7 @@ export class ManagedKeyHandler extends Listenable {
                             ciphertext,
                         );
 
-                await this.setKeyCommitment(pId, publicKey, publicKyberKey);
+                this.setKeyCommitment(pId, publicKey, publicKyberKey);
                 this._sendMessage(
                         OLM_MESSAGE_TYPES.PQ_SESSION_ACK,
                         data,
@@ -580,8 +580,8 @@ export class ManagedKeyHandler extends Listenable {
         }
     }
 
-    private async setKeyCommitment(pId: string, publicKey: string, publicKyberKey: string) {
-        const keyCommitment = await hash.hashData([ pId, publicKey, publicKyberKey ]);
+    private setKeyCommitment(pId: string, publicKey: string, publicKyberKey: string) {
+        const keyCommitment = hashData([ pId, publicKey, publicKyberKey ]);
 
         this.e2eeCtx.setKeysCommitment(
             pId,
@@ -700,7 +700,7 @@ export class ManagedKeyHandler extends Listenable {
         const localParticipantId = this.myID;
         const { pkKyber, pk } = this._olmAdapter.genMyPublicKeys();
 
-        await this.setKeyCommitment(localParticipantId, pk, pkKyber);
+        this.setKeyCommitment(localParticipantId, pk, pkKyber);
         this.updateMyKeys();
 
         const participants = this.conference.getParticipants();

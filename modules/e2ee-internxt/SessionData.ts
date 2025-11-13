@@ -1,22 +1,21 @@
 import {
-    MediaKeys,
-    deriveKey,
     hash,
-    pq,
-    symmetric,
-    utils,
 } from 'internxt-crypto';
 import { Account, Session } from 'vodozemac-wasm';
 
+import { decryptSymmetrically, deriveSymmetricCryptoKeyFromTwoKeys, encryptSymmetrically, importSymmetricCryptoKey } from './CryptoUtils';
 import {
     KeyInfo,
+    MediaKeys,
     NORMAL_MESSAGE,
     PREKEY_MESSAGE,
     PROTOCOL_STATUS,
     ProtocolStatus,
 } from './Types';
+import { base64ToCiphertext, base64ToUint8Array, ciphertextToBase64, encapsulateKyber, uint8ArrayToBase64 } from './Utils';
 
-const AUX = 'KeyInfoPQ';
+
+const AUX = new Uint8Array([ 1, 2, 3 ]);
 
 export class SessionData {
     private status: ProtocolStatus;
@@ -61,12 +60,12 @@ export class SessionData {
     }
 
     encapsulate(publicKyberKey: string): string {
-        const publicKey = utils.base64ToUint8Array(publicKyberKey);
-        const { cipherText, sharedSecret } = pq.encapsulateKyber(publicKey);
+        const publicKey = base64ToUint8Array(publicKyberKey);
+        const { cipherText, sharedSecret } = encapsulateKyber(publicKey);
 
         this.kemSecret = sharedSecret;
 
-        return utils.uint8ArrayToBase64(cipherText);
+        return uint8ArrayToBase64(cipherText);
     }
 
     isDone(): boolean {
@@ -120,12 +119,12 @@ export class SessionData {
 
     async createKeyInfoMessage(key: MediaKeys): Promise<KeyInfo> {
         const ciphertext = this.encryptGivenKeyInfo(key.olmKey, key.index);
-        const result = await symmetric.encryptSymmetrically(
+        const { ciphertext: cipher, iv } = await encryptSymmetrically(
             this.pqSessionKey,
             key.pqKey,
             AUX,
         );
-        const pqCiphertext = utils.ciphertextToBase64(result);
+        const pqCiphertext = ciphertextToBase64(cipher, iv);
 
         return {
             ciphertext,
@@ -146,12 +145,12 @@ export class SessionData {
             this.keyToSend.olmKey,
             this.keyToSend.index,
         );
-        const result = await symmetric.encryptSymmetrically(
+        const { ciphertext: cipher, iv } = await encryptSymmetrically(
             this.pqSessionKey,
             this.keyToSend.pqKey,
             AUX,
         );
-        const pqCiphertext = utils.ciphertextToBase64(result);
+        const pqCiphertext = ciphertextToBase64(cipher, iv);
 
         return { ciphertext, pqCiphertext };
     }
@@ -164,10 +163,11 @@ export class SessionData {
         const result = this.session.decrypt(NORMAL_MESSAGE, ciphertext);
         const index = result[result.length - 1];
         const key = result.slice(0, -1);
-        const pqCipher = utils.base64ToCiphertext(pqCiphertext);
-        const pqKey = await symmetric.decryptSymmetrically(
+        const { ciphertext: pqCipher, iv } = base64ToCiphertext(pqCiphertext);
+        const pqKey = await decryptSymmetrically(
             this.pqSessionKey,
             pqCipher,
+            iv,
             AUX,
         );
         const mediaKey = {
@@ -192,10 +192,11 @@ export class SessionData {
 
     async deriveSharedPQkey(key1: Uint8Array, key2?: Uint8Array) {
         const secret = key2 || this.kemSecret;
-
-        this.pqSessionKey = await deriveKey.deriveSymmetricCryptoKeyFromTwoKeys(
+        const key = deriveSymmetricCryptoKeyFromTwoKeys(
             key1,
             secret,
         );
+
+        this.pqSessionKey = await importSymmetricCryptoKey(key);
     }
 }

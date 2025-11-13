@@ -16,10 +16,13 @@
   "author": "",
   "readmeFilename": "README.md",
   "dependencies": {
+    "@hexagon/base64": "^2.0.4",
     "@jitsi/js-utils": "^2.6.7",
     "@jitsi/logger": "2.1.1",
     "@jitsi/precall-test": "1.0.6",
     "@jitsi/rtcstats": "9.7.0",
+    "@noble/ciphers": "^2.0.1",
+    "@noble/hashes": "^2.0.1",
     "@testrtc/watchrtc-sdk": "1.38.2",
     "async-es": "3.2.4",
     "base64-js": "1.5.1",
@@ -73,7 +76,7 @@
     "gen-version": "node tools/gen-version.js",
     "lint": "eslint . --max-warnings 0 && tsc --noEmit",
     "lint-fix": "eslint . --max-warnings 0 --fix",
-    "prepack": "npm run build && npm run gen-types",
+    "prepack": "npm run build && npm  run gen-types",
     "test": "npm run test:native && npm run test:polyfill",
     "test:native": "karma start karma.conf.js",
     "test:polyfill": "karma start karma-polyfill.conf.js",
@@ -84,8 +87,8 @@
     "watch": "npm run gen-version && webpack --config webpack.config.js --watch --mode development"
   },
   "browser": {
-     "dist/umd/lib-jitsi-meet.min.js": "dist/umd/lib-jitsi-meet.min.js",
-     "vodozemac.wasm": "dist/umd/vodozemac.wasm"
+    "dist/umd/lib-jitsi-meet.min.js": "dist/umd/lib-jitsi-meet.min.js",
+    "vodozemac.wasm": "dist/umd/vodozemac.wasm"
   },
   "module": "dist/esm/JitsiMeetJS.js",
   "react-native": "./dist/esm/JitsiMeetJS.js",
