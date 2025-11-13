@@ -2,7 +2,7 @@ import { IV_LEN_BYTES, commitToMediaKey, decryptSymmetrically, deriveSymmetricCr
 import { MediaKeys } from './Types';
 
 // We copy the first bytes of the VP8 payload unencrypted.
-// This allows the bridge to continue detecting keyframes (only one byte neseded in the JVB)
+// This allows the bridge to continue detecting keyframes (only one byte needed in the JVB)
 //    https://tools.ietf.org/html/rfc6386#section-9.1
 //
 // For audio (where frame.type is not set) we do not encrypt the opus TOC byte:

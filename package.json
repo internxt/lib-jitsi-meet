@@ -75,7 +75,7 @@
     "gen-version": "node tools/gen-version.js",
     "lint": "eslint . --max-warnings 0 && tsc --noEmit",
     "lint-fix": "eslint . --max-warnings 0 --fix",
-    "prepack": "npm run build && npm  run gen-types",
+    "prepack": "npm run build && npm run gen-types",
     "test": "npm run test:native && npm run test:polyfill",
     "test:native": "karma start karma.conf.js",
     "test:polyfill": "karma start karma-polyfill.conf.js",
