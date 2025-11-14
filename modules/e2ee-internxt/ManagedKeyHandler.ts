@@ -707,11 +707,12 @@ export class ManagedKeyHandler extends Listenable {
 
         this.log(
             'info',
-            `There are following IDs in the meeting: [ ${participants.map(p => p.getId())}]`,
+            `There are following IDs in the meeting: [ ${participants.map(p => `${p.getId()} (FEATURE_E2EE: ${p.hasFeature(FEATURE_E2EE)}, 'e2ee.enabled': ${p.getProperty('e2ee.enabled')})`).join(', ')}]`,
         );
         const list = participants.filter(
             participant =>
-                participant.hasFeature(FEATURE_E2EE)
+                (participant.hasFeature(FEATURE_E2EE)
+                || participant.getProperty('e2ee.enabled') === 'true')
                 && localParticipantId > participant.getId(),
         );
         const keys = this._olmAdapter.generateOneTimeKeys(list.length);
