@@ -1,14 +1,16 @@
-import { MediaKeys, deriveKey, pq, symmetric, utils } from 'internxt-crypto';
 import initVodozemac, { Account } from 'vodozemac-wasm';
 
+import { genSymmetricKey, ratchetMediaKey } from './CryptoUtils';
 import { SessionData } from './SessionData';
 import {
     KeyInfo,
+    MediaKeys,
     PQsessionAck,
     PQsessionInit,
     PROTOCOL_STATUS,
     SessionInit,
 } from './Types';
+import { base64ToUint8Array, decapsulateKyber, encapsulateKyber, generateKyberKeys, uint8ArrayToBase64 } from './Utils';
 
 
 function getError(method: string, error: Error): Error {
@@ -20,7 +22,7 @@ function getError(method: string, error: Error): Error {
 export class OlmAdapter {
     private _mediaKey: MediaKeys;
 
-    private _publicKyberKeyBase64: string = '';
+    private _publicKyberKey: string = '';
     private _privateKyberKey: Uint8Array = new Uint8Array();
     private _olmAccount: Account;
     private _publicCurve25519Key: string = '';
@@ -53,10 +55,10 @@ export class OlmAdapter {
             this._olmAccount = new Account();
             this._publicCurve25519Key = this._olmAccount.curve25519_key;
 
-            const { publicKey, secretKey } = pq.generateKyberKeys();
-            const publicKeyBase64 = utils.uint8ArrayToBase64(publicKey);
+            const { publicKey, secretKey } = generateKyberKeys();
+            const publicKeyBase64 = uint8ArrayToBase64(publicKey);
 
-            this._publicKyberKeyBase64 = publicKeyBase64;
+            this._publicKyberKey = publicKeyBase64;
             this._privateKyberKey = secretKey;
 
             return { pk: this._publicCurve25519Key, pkKyber: publicKeyBase64 };
@@ -78,11 +80,13 @@ export class OlmAdapter {
         }
     }
 
-    async ratchetMyKeys(): Promise<MediaKeys> {
+    ratchetMyKeys(): MediaKeys {
         try {
-            this._mediaKey = await deriveKey.ratchetMediaKey(this._mediaKey);
+            const key = ratchetMediaKey(this._mediaKey);
 
-            return this._mediaKey;
+            this._mediaKey = key;
+
+            return key;
         } catch (error) {
             throw getError('ratchetMyKeys', error);
         }
@@ -102,8 +106,8 @@ export class OlmAdapter {
         try {
             const newMediaKey = {
                 index: this._mediaKey.index + 1,
-                olmKey: symmetric.genSymmetricKey(),
-                pqKey: symmetric.genSymmetricKey(),
+                olmKey: genSymmetricKey(),
+                pqKey: genSymmetricKey(),
                 userID: this._mediaKey.userID,
             };
 
@@ -165,7 +169,10 @@ export class OlmAdapter {
                 commitment,
             );
 
-            const encapsulatedBase64 = olmData.encapsulate(publicKyberKey);
+            const publicKeyArray = base64ToUint8Array(publicKyberKey);
+            const { cipherText, sharedSecret } = encapsulateKyber(publicKeyArray);
+
+            olmData.setSecret(sharedSecret);
             const commitmentToKeys = await olmData.keyCommitment();
             const ciphertext = olmData.encryptKeyCommitment(commitmentToKeys);
 
@@ -173,9 +180,9 @@ export class OlmAdapter {
 
             return {
                 ciphertext: ciphertext,
-                encapsKyber: encapsulatedBase64,
+                encapsKyber: uint8ArrayToBase64(cipherText),
                 publicKey: this._publicCurve25519Key,
-                publicKyberKey: this._publicKyberKeyBase64,
+                publicKyberKey: this._publicKyberKey,
             };
         } catch (error) {
             throw getError('createPQsessionInitMessage', error);
@@ -200,16 +207,16 @@ export class OlmAdapter {
                 ciphertext,
             );
 
-            const decapsArray = utils.base64ToUint8Array(encapsKyber);
-            const decapsulatedSecret = pq.decapsulateKyber(
+            const decapsArray = base64ToUint8Array(encapsKyber);
+            const decapsulatedSecret = decapsulateKyber(
                 decapsArray,
                 this._privateKyberKey,
             );
 
-            const publicKeyArray = utils.base64ToUint8Array(publicKyberKey);
+            const publicKeyArray = base64ToUint8Array(publicKyberKey);
             const { cipherText, sharedSecret }
-                = pq.encapsulateKyber(publicKeyArray);
-            const encapsulatedBase64 = utils.uint8ArrayToBase64(cipherText);
+                = encapsulateKyber(publicKeyArray);
+            const encapsulatedBase64 = uint8ArrayToBase64(cipherText);
 
             await olmData.deriveSharedPQkey(sharedSecret, decapsulatedSecret);
 
@@ -242,8 +249,8 @@ export class OlmAdapter {
 
             olmData.validateStatus(PROTOCOL_STATUS.WAITING_PQ_SESSION_ACK);
 
-            const decapsArray = utils.base64ToUint8Array(encapsKyber);
-            const decapsulatedSecret = pq.decapsulateKyber(
+            const decapsArray = base64ToUint8Array(encapsKyber);
+            const decapsulatedSecret = decapsulateKyber(
                 decapsArray,
                 this._privateKyberKey,
             );
@@ -355,7 +362,7 @@ export class OlmAdapter {
                 commitment,
                 otKey,
                 publicKey: this._publicCurve25519Key,
-                publicKyberKey: this._publicKyberKeyBase64,
+                publicKyberKey: this._publicKyberKey,
             };
         } catch (error) {
             throw getError('createSessionInitMessage', error);

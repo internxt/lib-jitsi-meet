@@ -60,3 +60,10 @@ export type ParticipantEvent = {
     id: string;
     type: 'join' | 'leave';
 };
+
+export type MediaKeys = {
+    index: number;
+    olmKey: Uint8Array;
+    pqKey: Uint8Array;
+    userID: string;
+};

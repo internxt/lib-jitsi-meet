@@ -1,6 +1,6 @@
-import { hash } from 'internxt-crypto';
+import { getBitsFromString } from './CryptoUtils';
 
-const SAS_BIT_LENGTH = 48;
+const SAS_BYTE_LENGTH = 6;
 
 export const emojiMapping = [
     [ '🐶', 'dog' ],
@@ -77,8 +77,8 @@ export const emojiMapping = [
  * @param {string} data - The string from which to generate SAS.
  * @returns {Promise<string[][]>} The SAS emojies.
  */
-export async function generateEmojiSas(data: string): Promise<string[][]> {
-    const sasBytes = await hash.getBitsFromString(SAS_BIT_LENGTH, data);
+export function generateEmojiSas(data: string): string[][] {
+    const sasBytes = getBitsFromString(SAS_BYTE_LENGTH, data);
     // Just like base64.
     const emojis = [
         sasBytes[0] >> 2,
