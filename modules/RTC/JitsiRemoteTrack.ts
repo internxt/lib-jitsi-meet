@@ -460,48 +460,49 @@ export default class JitsiRemoteTrack extends JitsiTrack {
              *  Decoded each frame from the incoming stream with decoded images, this function is repeated in loop
              */
         async function processFrame() {
-            try {
-                if (videoTrack.readyState == 'live') {
-                    // Capturing a frame and painting it into the aux canvas
-                    const frame = await imageCapture.grabFrame();
-                    // Getting the current size of the incoming stream
-                    // const width = videoTrack.getSettings().width;
-                    // const height = videoTrack.getSettings().height;
-                    const width = frame.width;
-                    const height = frame.height;
 
-                    if (width != null && width !== undefined) {
-                        // Adjusting the size of the aux canvas
-                        canvasEncoded.width = width;
-                        canvasEncoded.height = height;
-                        ctxEncoded.drawImage(frame, 0, 0, width, height);
-                        // Generating tensor from painted frame to be passed to the onnx model
-                        const imageEncode = ctxEncoded.getImageData(0, 0, width, height);
-                        const imageData = imageEncode.data;
-                        const floatArray = Float32Array.from(imageData);
-                        // Applying the onnx model
-                        const tensor = new ort.Tensor('float32', floatArray, [ 1, height, width, 4 ]);
-                        const input = {
-                            input: tensor
-                        };
-                        const results = await decodingSession.run(input);
-                        // Extracting output data from the onnx model
-                        const tensorData = results.output.data;
+            if (videoTrack.readyState == 'live') {
+                logger.info("Decoder: VideoTrack status is 'live'");
+                // Capturing a frame and painting it into the aux canvas
+                const frame = await imageCapture.grabFrame();
+                logger.info("Decoder: Frame caught", frame);
+                // Getting the current size of the incoming stream
+                // const width = videoTrack.getSettings().width;
+                // const height = videoTrack.getSettings().height;
+                const width = frame.width;
+                const height = frame.height;
 
-                        // Resizing canvas that will be exported to GUI
-                        canvasDecoded.width = width * 2;
-                        canvasDecoded.height = height * 2;
-                        const imageDataRestore = ctxDecoded.createImageData(canvasDecoded.width, canvasDecoded.height);
-                        const dataRestore = imageDataRestore.data;
+                if (width != null && width !== undefined) {
+                    logger.info("Decoder: Frame width and height is not zero: ", width);
+                    // Adjusting the size of the aux canvas
+                    canvasEncoded.width = width;
+                    canvasEncoded.height = height;
+                    ctxEncoded.drawImage(frame, 0, 0, width, height);
+                    // Generating tensor from painted frame to be passed to the onnx model
+                    const imageEncode = ctxEncoded.getImageData(0, 0, width, height);
+                    const imageData = imageEncode.data;
+                    const floatArray = Float32Array.from(imageData);
+                    // Applying the onnx model
+                    const tensor = new ort.Tensor('float32', floatArray, [ 1, height, width, 4 ]);
+                    const input = {
+                        input: tensor
+                    };
+                    const results = await decodingSession.run(input);
+                    logger.info("Decoder: Inference session finished", results.output.data);
+                    // Extracting output data from the onnx model
+                    const tensorData = results.output.data;
 
-                        dataRestore.set(tensorData);
-                        // Setting decoded image in the canvas-sender
-                        ctxDecoded.putImageData(imageDataRestore, 0, 0);
-                        tensor.dispose();
-                    }
+                    // Resizing canvas that will be exported to GUI
+                    canvasDecoded.width = width * 2;
+                    canvasDecoded.height = height * 2;
+                    const imageDataRestore = ctxDecoded.createImageData(canvasDecoded.width, canvasDecoded.height);
+                    const dataRestore = imageDataRestore.data;
+                    
+                    dataRestore.set(tensorData);
+                    // Setting decoded image in the canvas-sender
+                    ctxDecoded.putImageData(imageDataRestore, 0, 0);
+                    tensor.dispose();
                 }
-            } catch (error) {
-                logger.info('Decoder skipped frame: ', error);
             }
             if (muted == false) {
                 requestAnimationFrame(processFrame);
