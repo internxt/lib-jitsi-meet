@@ -21,7 +21,6 @@ const logger = getLogger('rtc:JitsiRemoteTrack');
 const ort = require('onnxruntime-web');
 
 ort.env.wasm.wasmPaths = '/libs/dist/';
-ort.env.wasm.numThreads = 1;
 
 let ttfmTrackerAudioAttached = false;
 let ttfmTrackerVideoAttached = false;
@@ -502,7 +501,7 @@ export default class JitsiRemoteTrack extends JitsiTrack {
                     }
                 }
             } catch (error) {
-                logger.info('Decoder failed! because: ', error);
+                logger.info('Decoder skipped frame: ', error);
             }
             if (muted == false) {
                 requestAnimationFrame(processFrame);
@@ -528,12 +527,14 @@ export default class JitsiRemoteTrack extends JitsiTrack {
         if (this.type === MediaType.VIDEO) {
             if (this.videoType === VideoType.CAMERA) {
                 if (decode) {
+                    logger.info("Decoder: ON");
                     this.decodingRoutine();
                 }
                 if (this._decodedStream) {
                     this._onTrackAttach(container);
                     result = RTCUtils.attachMediaStream(container, this._decodedStream);
                 } else if (this.stream) {
+                    logger.info("Decoder: OFF");
                     this._onTrackAttach(container);
                     result = RTCUtils.attachMediaStream(container, this.stream);
                 }
