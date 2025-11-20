@@ -14,7 +14,6 @@ import { isValidNumber } from '../util/MathUtil';
 import JitsiTrack from './JitsiTrack';
 import RTC from './RTC';
 import RTCUtils from './RTCUtils';
-import { NONAME } from 'dns';
 
 const logger = getLogger('rtc:JitsiRemoteTrack');
 
@@ -458,19 +457,21 @@ export default class JitsiRemoteTrack extends JitsiTrack {
         const ctxEncoded = canvasEncoded.getContext('2d', { willReadFrequently: true });
         const ctxDecoded = canvasDecoded.getContext('2d', { willReadFrequently: true });
         let deleted = true;
+
         /*
              *  Decoded each frame from the incoming stream with decoded images, this function is repeated in loop
              */
         async function processFrame() {
-            if (videoTrack.readyState == 'live' && deleted == true && muted== false) {
+            if (videoTrack.readyState == 'live' && deleted == true && muted == false) {
                 let frame = null;
-                try{
+
+                try {
                     // Capturing a frame and painting it into the aux canvas
                     frame = await imageCapture.grabFrame();
-                }
-                catch(error){
-                    logger.info("Could not caught frame: ", error);
-                    return
+                } catch (error) {
+                    logger.info('Could not caught frame: ', error);
+
+                    return;
                 }
                 // Getting the current size of the incoming stream
                 // const width = videoTrack.getSettings().width;
@@ -489,25 +490,27 @@ export default class JitsiRemoteTrack extends JitsiTrack {
                     const floatArray = Float32Array.from(imageData);
                     // Applying the onnx model
                     let input = null;
-                    let tensor = null
-                    try{
+                    let tensor = null;
+
+                    try {
                         tensor = new ort.Tensor('float32', floatArray, [ 1, height, width, 4 ]);
                         deleted = false;
                         input = {
                             input: tensor
                         };
+                    } catch (error) {
+                        logger.info('Could not create tensor: ', error);
+
+                        return;
                     }
-                    catch(error){
-                        logger.info("Could not create tensor: ", error);
-                        return 
-                    }
-                    let results = null
-                    try{
+                    let results = null;
+
+                    try {
                         results = await decodingSession.run(input);
-                    }
-                    catch(error){
-                        logger.info("Could not run onnx session ", error)
-                        return
+                    } catch (error) {
+                        logger.info('Could not run onnx session ', error);
+
+                        return;
                     }
                     // Extracting output data from the onnx model
                     const tensorData = results.output.data;
@@ -517,16 +520,16 @@ export default class JitsiRemoteTrack extends JitsiTrack {
                     canvasDecoded.height = height * 2;
                     const imageDataRestore = ctxDecoded.createImageData(canvasDecoded.width, canvasDecoded.height);
                     const dataRestore = imageDataRestore.data;
-                    
+
                     dataRestore.set(tensorData);
                     // Setting decoded image in the canvas-sender
                     ctxDecoded.putImageData(imageDataRestore, 0, 0);
-                    try{
-                    tensor.dispose();
-                    }
-                    catch(error){
-                        logger.info("Could not delete tensor ", error)
-                        return 
+                    try {
+                        tensor.dispose();
+                    } catch (error) {
+                        logger.info('Could not delete tensor ', error);
+
+                        return;
                     }
                     deleted = true;
                 }
@@ -551,18 +554,19 @@ export default class JitsiRemoteTrack extends JitsiTrack {
      */
     override attach(container, decode) {
         let result = Promise.resolve();
+
         if (this.type === MediaType.VIDEO) {
             if (this.videoType === VideoType.CAMERA) {
-                if (decode && this._muted==false) {
-                    logger.info("Decoder: ON");
-                    logger.info("Decoder, videotrack to decoder:",  this.stream.getVideoTracks()[0]);
+                if (decode && this._muted == false) {
+                    logger.info('Decoder: ON');
+                    logger.info('Decoder, videotrack to decoder:', this.stream.getVideoTracks()[0]);
                     this.decodingRoutine();
                 }
                 if (this._decodedStream) {
                     this._onTrackAttach(container);
                     result = RTCUtils.attachMediaStream(container, this._decodedStream);
                 } else if (this.stream) {
-                    logger.info("Decoder: OFF");
+                    logger.info('Decoder: OFF');
                     this._onTrackAttach(container);
                     result = RTCUtils.attachMediaStream(container, this.stream);
                 }
