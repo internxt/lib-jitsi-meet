@@ -14,6 +14,7 @@ import { isValidNumber } from '../util/MathUtil';
 import JitsiTrack from './JitsiTrack';
 import RTC from './RTC';
 import RTCUtils from './RTCUtils';
+import { NONAME } from 'dns';
 
 const logger = getLogger('rtc:JitsiRemoteTrack');
 
@@ -21,7 +22,7 @@ const logger = getLogger('rtc:JitsiRemoteTrack');
 const ort = require('onnxruntime-web');
 
 ort.env.wasm.wasmPaths = '/libs/dist/';
-ort.env.wasm.numThreads = 2;
+ort.env.wasm.numThreads = 1;
 
 let ttfmTrackerAudioAttached = false;
 let ttfmTrackerVideoAttached = false;
@@ -461,9 +462,16 @@ export default class JitsiRemoteTrack extends JitsiTrack {
              *  Decoded each frame from the incoming stream with decoded images, this function is repeated in loop
              */
         async function processFrame() {
-            if (videoTrack.readyState == 'live' && deleted == true) {
-                // Capturing a frame and painting it into the aux canvas
-                const frame = await imageCapture.grabFrame();
+            if (videoTrack.readyState == 'live' && deleted == true && muted== false) {
+                let frame = null;
+                try{
+                    // Capturing a frame and painting it into the aux canvas
+                    frame = await imageCapture.grabFrame();
+                }
+                catch(error){
+                    logger.info("Could not caught frame: ", error);
+                    return
+                }
                 // Getting the current size of the incoming stream
                 // const width = videoTrack.getSettings().width;
                 // const height = videoTrack.getSettings().height;
@@ -480,12 +488,27 @@ export default class JitsiRemoteTrack extends JitsiTrack {
                     const imageData = imageEncode.data;
                     const floatArray = Float32Array.from(imageData);
                     // Applying the onnx model
-                    const tensor = new ort.Tensor('float32', floatArray, [ 1, height, width, 4 ]);
-                    deleted = false;
-                    const input = {
-                        input: tensor
-                    };
-                    const results = await decodingSession.run(input);
+                    let input = null;
+                    let tensor = null
+                    try{
+                        tensor = new ort.Tensor('float32', floatArray, [ 1, height, width, 4 ]);
+                        deleted = false;
+                        input = {
+                            input: tensor
+                        };
+                    }
+                    catch(error){
+                        logger.info("Could not create tensor: ", error);
+                        return 
+                    }
+                    let results = null
+                    try{
+                        results = await decodingSession.run(input);
+                    }
+                    catch(error){
+                        logger.info("Could not run onnx session ", error)
+                        return
+                    }
                     // Extracting output data from the onnx model
                     const tensorData = results.output.data;
 
@@ -498,7 +521,13 @@ export default class JitsiRemoteTrack extends JitsiTrack {
                     dataRestore.set(tensorData);
                     // Setting decoded image in the canvas-sender
                     ctxDecoded.putImageData(imageDataRestore, 0, 0);
+                    try{
                     tensor.dispose();
+                    }
+                    catch(error){
+                        logger.info("Could not delete tensor ", error)
+                        return 
+                    }
                     deleted = true;
                 }
             }
@@ -524,8 +553,9 @@ export default class JitsiRemoteTrack extends JitsiTrack {
         let result = Promise.resolve();
         if (this.type === MediaType.VIDEO) {
             if (this.videoType === VideoType.CAMERA) {
-                if (true) {
+                if (decode && this._muted==false) {
                     logger.info("Decoder: ON");
+                    logger.info("Decoder, videotrack to decoder:",  this.stream.getVideoTracks()[0]);
                     this.decodingRoutine();
                 }
                 if (this._decodedStream) {
