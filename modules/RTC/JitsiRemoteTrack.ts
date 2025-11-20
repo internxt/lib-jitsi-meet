@@ -21,6 +21,7 @@ const logger = getLogger('rtc:JitsiRemoteTrack');
 const ort = require('onnxruntime-web');
 
 ort.env.wasm.wasmPaths = '/libs/dist/';
+ort.env.wasm.numThreads = 2;
 
 let ttfmTrackerAudioAttached = false;
 let ttfmTrackerVideoAttached = false;
@@ -455,17 +456,14 @@ export default class JitsiRemoteTrack extends JitsiTrack {
         const canvasEncoded = document.createElement('canvas');
         const ctxEncoded = canvasEncoded.getContext('2d', { willReadFrequently: true });
         const ctxDecoded = canvasDecoded.getContext('2d', { willReadFrequently: true });
-
+        let deleted = true;
         /*
              *  Decoded each frame from the incoming stream with decoded images, this function is repeated in loop
              */
         async function processFrame() {
-
-            if (videoTrack.readyState == 'live') {
-                logger.info("Decoder: VideoTrack status is 'live'");
+            if (videoTrack.readyState == 'live' && deleted == true) {
                 // Capturing a frame and painting it into the aux canvas
                 const frame = await imageCapture.grabFrame();
-                logger.info("Decoder: Frame caught", frame);
                 // Getting the current size of the incoming stream
                 // const width = videoTrack.getSettings().width;
                 // const height = videoTrack.getSettings().height;
@@ -473,7 +471,6 @@ export default class JitsiRemoteTrack extends JitsiTrack {
                 const height = frame.height;
 
                 if (width != null && width !== undefined) {
-                    logger.info("Decoder: Frame width and height is not zero: ", width);
                     // Adjusting the size of the aux canvas
                     canvasEncoded.width = width;
                     canvasEncoded.height = height;
@@ -484,11 +481,11 @@ export default class JitsiRemoteTrack extends JitsiTrack {
                     const floatArray = Float32Array.from(imageData);
                     // Applying the onnx model
                     const tensor = new ort.Tensor('float32', floatArray, [ 1, height, width, 4 ]);
+                    deleted = false;
                     const input = {
                         input: tensor
                     };
                     const results = await decodingSession.run(input);
-                    logger.info("Decoder: Inference session finished", results.output.data);
                     // Extracting output data from the onnx model
                     const tensorData = results.output.data;
 
@@ -502,6 +499,7 @@ export default class JitsiRemoteTrack extends JitsiTrack {
                     // Setting decoded image in the canvas-sender
                     ctxDecoded.putImageData(imageDataRestore, 0, 0);
                     tensor.dispose();
+                    deleted = true;
                 }
             }
             if (muted == false) {
@@ -524,10 +522,9 @@ export default class JitsiRemoteTrack extends JitsiTrack {
      */
     override attach(container, decode) {
         let result = Promise.resolve();
-
         if (this.type === MediaType.VIDEO) {
             if (this.videoType === VideoType.CAMERA) {
-                if (decode) {
+                if (true) {
                     logger.info("Decoder: ON");
                     this.decodingRoutine();
                 }
