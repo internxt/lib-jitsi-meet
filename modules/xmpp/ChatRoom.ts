@@ -65,6 +65,7 @@ export interface IChatRoomOptions {
     deploymentInfo?: any;
     disableDiscoInfo?: boolean;
     disableFocus?: boolean;
+    disableRoomCreationRetry?: boolean;
     enableLobby?: boolean;
     hiddenDomain?: string;
     hiddenFromRecorderFeatureEnabled?: boolean;
@@ -1275,6 +1276,8 @@ export default class ChatRoom extends Listenable {
                 reason = getText(reasonSelect);
             }
 
+            logger.info(`Kicked by ${from}`);
+
             // we first fire the kicked so we can show the participant
             // who kicked, before notifying that participant left
             // we fire kicked for us and for any participant kicked
@@ -1550,21 +1553,23 @@ export default class ChatRoom extends Listenable {
                 if (txt === 'Room creation is restricted') {
                     type = AUTH_ERROR_TYPES.ROOM_CREATION_RESTRICTION;
 
-                    if (!this._roomCreationRetries) {
-                        this._roomCreationRetries = 0;
-                    }
-                    this._roomCreationRetries++;
+                    if (!this.options.disableRoomCreationRetry) {
+                        if (!this._roomCreationRetries) {
+                            this._roomCreationRetries = 0;
+                        }
+                        this._roomCreationRetries++;
 
-                    if (this._roomCreationRetries <= 3) {
-                        const retryDelay = getJitterDelay(
-                            /* retry */ this._roomCreationRetries,
-                            /* minDelay */ 500,
-                            1.5);
+                        if (this._roomCreationRetries <= 3) {
+                            const retryDelay = getJitterDelay(
+                                /* retry */ this._roomCreationRetries,
+                                /* minDelay */ 500,
+                                1.5);
 
-                        // let's retry inviting jicofo and joining the room, retries will take between 1 and 3 seconds
-                        setTimeout(() => this.join(this.password, this.replaceParticipant), retryDelay);
+                            // let's retry inviting jicofo and joining the room, retries will take between 1 and 3 seconds
+                            setTimeout(() => this.join(this.password, this.replaceParticipant), retryDelay);
 
-                        return;
+                            return;
+                        }
                     }
                 } else if (exists(pres,
                     ':scope>error[type="cancel"]>authentication-required[*|xmlns="http://jitsi.org/jitmeet"]')) {
