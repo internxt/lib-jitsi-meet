@@ -21,7 +21,7 @@ const logger = getLogger('rtc:JitsiRemoteTrack');
 const ort = require('onnxruntime-web');
 
 ort.env.wasm.wasmPaths = '/libs/dist/';
-ort.env.wasm.numThreads = 1;
+ort.env.wasm.numThreads = 2;
 
 let ttfmTrackerAudioAttached = false;
 let ttfmTrackerVideoAttached = false;
@@ -40,9 +40,9 @@ async function loadDecoder() {
                 }
             }
         );
-        console.info('Decoder model has been loaded');
+        logger.info('Decoder model has been loaded');
     } catch (error) {
-        console.error('Decoder model could not be loaded!: ', error);
+        logger.error('Decoder model could not be loaded!: ', error);
     }
 }
 loadDecoder();
@@ -456,82 +456,82 @@ export default class JitsiRemoteTrack extends JitsiTrack {
         const canvasEncoded = document.createElement('canvas');
         const ctxEncoded = canvasEncoded.getContext('2d', { willReadFrequently: true });
         const ctxDecoded = canvasDecoded.getContext('2d', { willReadFrequently: true });
-        let deleted = true;
+        let inputTensor = null;
+        let tensorOutput = null;
+        let imageDataOutput = null;
+        let dataOutput = null;
+        const input = {
+            input: null
+        };
+        let frame = null;
+        let width = 0;
+        let height = 0;
+        let inputBuffer = null;
+        let results = null;
 
-        /*
-             *  Decoded each frame from the incoming stream with decoded images, this function is repeated in loop
-             */
         async function processFrame() {
-            if (videoTrack.readyState == 'live' && deleted == true && muted == false) {
-                let frame = null;
-
+            if (videoTrack.readyState == 'live' && muted == false) {
                 try {
                     // Capturing a frame and painting it into the aux canvas
                     frame = await imageCapture.grabFrame();
                 } catch (error) {
-                    logger.info('Could not caught frame: ', error);
+                    logger.info('Decoder: could not caught frame: ', error);
 
                     return;
                 }
                 // Getting the current size of the incoming stream
-                // const width = videoTrack.getSettings().width;
-                // const height = videoTrack.getSettings().height;
-                const width = frame.width;
-                const height = frame.height;
+                const nwidth = frame.width;
+                const nheight = frame.height;
 
-                if (width != null && width !== undefined) {
-                    // Adjusting the size of the aux canvas
-                    canvasEncoded.width = width;
-                    canvasEncoded.height = height;
+                if (nwidth != null && nwidth !== undefined && nwidth > 0) {
+                    if (nheight != null && nheight !== undefined && nheight > 0) {
+                        if (width != nwidth || height != nheight) {
+                            canvasEncoded.width = nwidth;
+                            canvasEncoded.height = nheight;
+                            canvasDecoded.width = nwidth * 2;
+                            canvasDecoded.height = nheight * 2;
+                            imageDataOutput = ctxDecoded.createImageData(nwidth * 2, nheight * 2);
+                            dataOutput = imageDataOutput.data;
+                            inputBuffer = new Float32Array(4 * nwidth * nheight);
+                            inputTensor = new ort.Tensor('float32', inputBuffer, [ 1, nheight, nwidth, 4 ]);
+                            input.input = inputTensor;
+                            width = nwidth;
+                            height = nheight;
+                            logger.log('Frame size: ', width, height);
+                        }
+                    }
+                }
+                if (width != null && width !== undefined && width > 0) {
                     ctxEncoded.drawImage(frame, 0, 0, width, height);
-                    // Generating tensor from painted frame to be passed to the onnx model
                     const imageEncode = ctxEncoded.getImageData(0, 0, width, height);
                     const imageData = imageEncode.data;
-                    const floatArray = Float32Array.from(imageData);
-                    // Applying the onnx model
-                    let input = null;
-                    let tensor = null;
 
                     try {
-                        tensor = new ort.Tensor('float32', floatArray, [ 1, height, width, 4 ]);
-                        deleted = false;
-                        input = {
-                            input: tensor
-                        };
+                        inputBuffer.set(imageData);
                     } catch (error) {
-                        logger.info('Could not create tensor: ', error);
+                        logger.info('Decoder: float32 buffer could not be set: ', error);
 
                         return;
                     }
-                    let results = null;
-
+                    
                     try {
                         results = await decodingSession.run(input);
                     } catch (error) {
-                        logger.info('Could not run onnx session ', error);
+                        logger.info('Decoder: could not run onnx session: ', error);
 
                         return;
                     }
-                    // Extracting output data from the onnx model
-                    const tensorData = results.output.data;
 
-                    // Resizing canvas that will be exported to GUI
-                    canvasDecoded.width = width * 2;
-                    canvasDecoded.height = height * 2;
-                    const imageDataRestore = ctxDecoded.createImageData(canvasDecoded.width, canvasDecoded.height);
-                    const dataRestore = imageDataRestore.data;
-
-                    dataRestore.set(tensorData);
-                    // Setting decoded image in the canvas-sender
-                    ctxDecoded.putImageData(imageDataRestore, 0, 0);
                     try {
-                        tensor.dispose();
+                        tensorOutput = results.output.data;
+                        dataOutput.set(tensorOutput);
                     } catch (error) {
-                        logger.info('Could not delete tensor ', error);
+                        logger.info('Decoder: output frame could not be set: ', error);
 
                         return;
                     }
-                    deleted = true;
+                    // Setting decoded image in the canvas-sender
+                    ctxDecoded.putImageData(imageDataOutput, 0, 0);
                 }
             }
             if (muted == false) {
