@@ -513,7 +513,7 @@ export default class JitsiRemoteTrack extends JitsiTrack {
 
                         return;
                     }
-                                        
+
                     try {
                         results = await decodingSession.run(input);
                     } catch (error) {
