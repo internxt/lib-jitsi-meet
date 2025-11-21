@@ -34,6 +34,7 @@ export function commitToMediaKey(keys: MediaKeys, commitment: Uint8Array): strin
     return bytesToHex(result);
 }
 
+// This funcion must remain async for tests to work
 export async function hashKey(keys: MediaKeys): Promise<string> {
     const hasher = blake3.create();
 
