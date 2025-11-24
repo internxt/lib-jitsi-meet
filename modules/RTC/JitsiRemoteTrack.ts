@@ -497,14 +497,13 @@ export default class JitsiRemoteTrack extends JitsiTrack {
                             input.input = inputTensor;
                             width = nwidth;
                             height = nheight;
-                            logger.log('Frame size: ', width, height);
                         }
                     }
                 }
                 if (width != null && width !== undefined && width > 0) {
                     ctxEncoded.drawImage(frame, 0, 0, width, height);
-                    const imageEncode = ctxEncoded.getImageData(0, 0, width, height);
-                    const imageData = imageEncode.data;
+                    let imageEncode = ctxEncoded.getImageData(0, 0, width, height);
+                    let imageData = imageEncode.data;
 
                     try {
                         inputBuffer.set(imageData);
@@ -532,6 +531,9 @@ export default class JitsiRemoteTrack extends JitsiTrack {
                     }
                     // Setting decoded image in the canvas-sender
                     ctxDecoded.putImageData(imageDataOutput, 0, 0);
+                    imageEncode = null;
+                    imageData = null;
+                    results = null;
                 }
             }
             if (muted == false) {
