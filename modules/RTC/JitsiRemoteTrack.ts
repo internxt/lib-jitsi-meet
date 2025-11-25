@@ -6,10 +6,10 @@ import { MediaType } from '../../service/RTC/MediaType';
 import { RTCEvents } from '../../service/RTC/RTCEvents';
 import { VideoType } from '../../service/RTC/VideoType';
 import { createTtfmEvent } from '../../service/statistics/AnalyticsEvents';
+import browser from '../browser';
 import TrackStreamingStatusImpl, { TrackStreamingStatus } from '../connectivity/TrackStreamingStatus';
 import Statistics from '../statistics/statistics';
 import { isValidNumber } from '../util/MathUtil';
-
 
 import JitsiTrack from './JitsiTrack';
 import RTC from './RTC';
@@ -21,7 +21,11 @@ const logger = getLogger('rtc:JitsiRemoteTrack');
 const ort = require('onnxruntime-web');
 
 ort.env.wasm.wasmPaths = '/libs/dist/';
-ort.env.wasm.numThreads = 2;
+ort.env.wasm.numThreads = 1;
+if (browser.isSafari() == true) {
+    ort.env.proxy = true;
+    ort.env.wasm.simd = false;
+}
 
 let ttfmTrackerAudioAttached = false;
 let ttfmTrackerVideoAttached = false;
@@ -34,10 +38,12 @@ async function loadDecoder() {
     try {
         decodingSession = await ort.InferenceSession.create('/libs/models/Decoder.onnx',
             {
+                enableCpuMemArena: false,
                 executionProviders: [ 'wasm' ],
                 freeDimensionOverrides: {
                     batch: 1,
-                }
+                },
+                graphOptimizationLevel: 'extended',
             }
         );
         logger.info('Decoder model has been loaded');
@@ -438,7 +444,7 @@ export default class JitsiRemoteTrack extends JitsiTrack {
             const videoTrack = this.stream.getVideoTracks()[0];
 
             // Applying onnx model to incoming stream and saving the output in the canvas-sender
-            this.applyONNXDecoder(videoTrack, canvasDecoded, this._muted);
+            this.applyONNXDecoder(videoTrack, canvasDecoded);
         } catch (error) {
             logger.error('Error on decoder phase: ', error);
         }
@@ -449,7 +455,7 @@ export default class JitsiRemoteTrack extends JitsiTrack {
      * @param {*} videoTrack
      * @param {*} canvasDecoded
      */
-    applyONNXDecoder(videoTrack, canvasDecoded, muted) {
+    applyONNXDecoder(videoTrack, canvasDecoded) {
         // Frame-grabber to catch frames from the incoming stream
         const imageCapture = new ImageCapture(videoTrack);
         // Setting up the aux canvas to paint the caught frames
@@ -470,7 +476,7 @@ export default class JitsiRemoteTrack extends JitsiTrack {
         let results = null;
 
         async function processFrame() {
-            if (videoTrack.readyState == 'live' && muted == false) {
+            if (videoTrack.readyState == 'live') {
                 try {
                     // Capturing a frame and painting it into the aux canvas
                     frame = await imageCapture.grabFrame();
@@ -536,9 +542,7 @@ export default class JitsiRemoteTrack extends JitsiTrack {
                     results = null;
                 }
             }
-            if (muted == false) {
-                requestAnimationFrame(processFrame);
-            }
+            requestAnimationFrame(processFrame);
         }
         processFrame();
     }
@@ -559,12 +563,12 @@ export default class JitsiRemoteTrack extends JitsiTrack {
 
         if (this.type === MediaType.VIDEO) {
             if (this.videoType === VideoType.CAMERA) {
-                if (decode && this._muted == false) {
+                if (decode && browser.isSafari() == false) {
                     logger.info('Decoder: ON');
-                    logger.info('Decoder, videotrack to decoder:', this.stream.getVideoTracks()[0]);
+                    logger.info('Decoder, videotrack to decode:', this.stream.getVideoTracks()[0]);
                     this.decodingRoutine();
                 }
-                if (this._decodedStream) {
+                if (this._decodedStream && browser.isSafari() == false) {
                     this._onTrackAttach(container);
                     result = RTCUtils.attachMediaStream(container, this._decodedStream);
                 } else if (this.stream) {
