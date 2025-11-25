@@ -10,6 +10,8 @@ import { MediaType } from '../../service/RTC/MediaType';
 import { VideoType } from '../../service/RTC/VideoType';
 import { AuthenticationEvents } from '../../service/authentication/AuthenticationEvents';
 import { XMPPEvents } from '../../service/xmpp/XMPPEvents';
+import { decryptSymmetrically, encryptSymmetrically, importSymmetricCryptoKey } from '../e2ee-internxt/CryptoUtils';
+import { base64ToUint8Array, uint8ArrayToBase64 } from '../e2ee-internxt/Utils';
 import Settings from '../settings/Settings';
 import EventEmitterForwarder from '../util/EventEmitterForwarder';
 import Listenable from '../util/Listenable';
@@ -25,6 +27,8 @@ import RoomMetadata from './RoomMetadata';
 import { handleStropheError } from './StropheErrorHandler';
 import XmppConnection, { ErrorCallback } from './XmppConnection';
 import XMPP, { FEATURE_TRANSCRIBER } from './xmpp';
+
+const CHAT_AUX = new TextEncoder().encode('Group Chat Message');
 
 // Callback types
 type SuccessCallback = () => void;
@@ -222,6 +226,7 @@ function extractIdentityInformation(node: IPresenceNode, hiddenFromRecorderFeatu
  */
 export default class ChatRoom extends Listenable {
 
+    private encyptionKey?: CryptoKey;
     private password?: string;
     private replaceParticipant: boolean;
     private members: Record<string, IRoomMember>;
@@ -433,6 +438,12 @@ export default class ChatRoom extends Listenable {
      */
     private _parseReplyMessage(msg: Element): string | null {
         return getAttribute(findFirst(msg, ':scope>reply'), 'to');
+    }
+
+    public async setEncryptionKey(key: Uint8Array): Promise<void> {
+        const cryptoKey = await importSymmetricCryptoKey(key);
+
+        this.encyptionKey = cryptoKey;
     }
 
     /**
@@ -1122,11 +1133,19 @@ export default class ChatRoom extends Listenable {
      * @param elementName
      * @param replyToId
      */
-    public sendMessage(message: string, elementName: string, replyToId?: string): void {
+    public async sendMessage(message: string, elementName: string, replyToId?: string): Promise<void> {
         const msg = $msg({
             to: this.roomjid,
             type: 'groupchat'
         });
+
+        if (this.encyptionKey) {
+            const payload = typeof message === 'object' ? JSON.stringify(message) : message;
+            const messageBuffer = new TextEncoder().encode(payload);
+            const cipher = await encryptSymmetrically(this.encyptionKey, messageBuffer, CHAT_AUX);
+
+            message = uint8ArrayToBase64(cipher);
+        }
 
         // We are adding the message in a packet extension. If this element
         // is different from 'body', we add a custom namespace.
@@ -1349,7 +1368,7 @@ export default class ChatRoom extends Listenable {
      * @param from
      * @internal
      */
-    onMessage(msg: Element, from: string): boolean {
+    async onMessage(msg: Element, from: string): Promise<boolean> {
         const type = msg.getAttribute('type');
 
         if (type === 'error') {
@@ -1499,10 +1518,19 @@ export default class ChatRoom extends Listenable {
                 }
                 const source = isVisitorMessage ? undefined : sourceAttrValue;
 
+                let chatMessage = txt;
+
+                if (this.encyptionKey) {
+                    const cipherBuffer = base64ToUint8Array(txt);
+                    const message = await decryptSymmetrically(this.encyptionKey, cipherBuffer, CHAT_AUX);
+
+                    chatMessage = new TextDecoder().decode(message);
+                }
+
                 // we will fire explicitly that this is a visitor(isVisitor:true) to the conference
                 // a message with explicit name set
                 this.eventEmitter.emit(XMPPEvents.MESSAGE_RECEIVED,
-                    from, txt, this.myroomjid, stamp, displayName, isVisitorMessage, messageId, source, replyToId);
+                    from, chatMessage, this.myroomjid, stamp, displayName, isVisitorMessage, messageId, source, replyToId);
             }
         }
     }
