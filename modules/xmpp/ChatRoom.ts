@@ -10,8 +10,6 @@ import { MediaType } from '../../service/RTC/MediaType';
 import { VideoType } from '../../service/RTC/VideoType';
 import { AuthenticationEvents } from '../../service/authentication/AuthenticationEvents';
 import { XMPPEvents } from '../../service/xmpp/XMPPEvents';
-import { decryptSymmetrically, encryptSymmetrically, importSymmetricCryptoKey } from '../e2ee-internxt/CryptoUtils';
-import { base64ToUint8Array, uint8ArrayToBase64 } from '../e2ee-internxt/Utils';
 import Settings from '../settings/Settings';
 import EventEmitterForwarder from '../util/EventEmitterForwarder';
 import Listenable from '../util/Listenable';
@@ -20,6 +18,7 @@ import { exists, findAll, findFirst, getAttribute, getText } from '../util/XMLUt
 
 import AVModeration from './AVModeration';
 import BreakoutRooms from './BreakoutRooms';
+import { decryptSymmetricallySync, encryptSymmetricallySync } from './ChetRoomCrypto';
 import FileSharing from './FileSharing';
 import Lobby from './Lobby';
 import Polls from './Polls';
@@ -27,8 +26,6 @@ import RoomMetadata from './RoomMetadata';
 import { handleStropheError } from './StropheErrorHandler';
 import XmppConnection, { ErrorCallback } from './XmppConnection';
 import XMPP, { FEATURE_TRANSCRIBER } from './xmpp';
-
-const CHAT_AUX = new TextEncoder().encode('Group Chat Message');
 
 // Callback types
 type SuccessCallback = () => void;
@@ -226,7 +223,7 @@ function extractIdentityInformation(node: IPresenceNode, hiddenFromRecorderFeatu
  */
 export default class ChatRoom extends Listenable {
 
-    private encyptionKey?: CryptoKey;
+    private encyptionKey?: Uint8Array;
     private password?: string;
     private replaceParticipant: boolean;
     private members: Record<string, IRoomMember>;
@@ -440,10 +437,8 @@ export default class ChatRoom extends Listenable {
         return getAttribute(findFirst(msg, ':scope>reply'), 'to');
     }
 
-    public async setEncryptionKey(key: Uint8Array): Promise<void> {
-        const cryptoKey = await importSymmetricCryptoKey(key);
-
-        this.encyptionKey = cryptoKey;
+    public setEncryptionKey(key: Uint8Array): void {
+        this.encyptionKey = key;
     }
 
     /**
@@ -1133,7 +1128,7 @@ export default class ChatRoom extends Listenable {
      * @param elementName
      * @param replyToId
      */
-    public async sendMessage(message: string, elementName: string, replyToId?: string): Promise<void> {
+    public sendMessage(message: string, elementName: string, replyToId?: string): void {
         const msg = $msg({
             to: this.roomjid,
             type: 'groupchat'
@@ -1141,10 +1136,8 @@ export default class ChatRoom extends Listenable {
 
         if (this.encyptionKey) {
             const payload = typeof message === 'object' ? JSON.stringify(message) : message;
-            const messageBuffer = new TextEncoder().encode(payload);
-            const cipher = await encryptSymmetrically(this.encyptionKey, messageBuffer, CHAT_AUX);
 
-            message = uint8ArrayToBase64(cipher);
+            message = encryptSymmetricallySync(payload, this.encyptionKey);
         }
 
         // We are adding the message in a packet extension. If this element
@@ -1368,7 +1361,7 @@ export default class ChatRoom extends Listenable {
      * @param from
      * @internal
      */
-    async onMessage(msg: Element, from: string): Promise<boolean> {
+    onMessage(msg: Element, from: string): boolean {
         const type = msg.getAttribute('type');
 
         if (type === 'error') {
@@ -1518,14 +1511,7 @@ export default class ChatRoom extends Listenable {
                 }
                 const source = isVisitorMessage ? undefined : sourceAttrValue;
 
-                let chatMessage = txt;
-
-                if (this.encyptionKey) {
-                    const cipherBuffer = base64ToUint8Array(txt);
-                    const message = await decryptSymmetrically(this.encyptionKey, cipherBuffer, CHAT_AUX);
-
-                    chatMessage = new TextDecoder().decode(message);
-                }
+                const chatMessage = this.encyptionKey ? decryptSymmetricallySync(txt, this.encyptionKey) : txt;
 
                 // we will fire explicitly that this is a visitor(isVisitor:true) to the conference
                 // a message with explicit name set

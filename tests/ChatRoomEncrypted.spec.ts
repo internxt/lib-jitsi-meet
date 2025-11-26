@@ -3,8 +3,8 @@ import ChatRoom from '../modules/xmpp/ChatRoom';
 import Moderator from '../modules/xmpp/moderator';
 import XMPP from '../modules/xmpp/xmpp';
 import XmppConnection from '../modules/xmpp/XmppConnection';
-import { decryptSymmetrically, encryptSymmetrically, importSymmetricCryptoKey, genSymmetricKey } from '../modules/e2ee-internxt/CryptoUtils';
-import { base64ToUint8Array, uint8ArrayToBase64 } from '../modules/e2ee-internxt/Utils';
+import { genSymmetricKey } from '../modules/e2ee-internxt/CryptoUtils';
+import { decryptSymmetricallySync, encryptSymmetricallySync } from '../modules/xmpp/ChetRoomCrypto';
 
 // Mock XMPP interface for tests
 interface IMockXMPP {
@@ -15,7 +15,6 @@ interface IMockXMPP {
 
 // Jasmine types for spies
 declare let spyOn: (object: any, method: string) => jasmine.Spy;
-declare let jasmine: any;
 
 // This rule makes creating the xml elements take up way more
 // space than necessary.
@@ -24,15 +23,14 @@ declare let jasmine: any;
 /* eslint-disable operator-linebreak, max-len */
 
 describe('ChatRoomEncrypted', () => {
-    const aux = new TextEncoder().encode('Group Chat Message');
     
     describe('EncryptedChat: sendMessage', () => {
         let room: ChatRoom;
         let connectionSpy: jasmine.Spy;
-        let key: Uint8Array;
+        const key: Uint8Array = genSymmetricKey();
         let cryptoKey: CryptoKey;
 
-        beforeEach(async () => {
+        beforeEach(() => {
             const xmpp: IMockXMPP = {
                 moderator: new Moderator({
                     options: {}
@@ -48,14 +46,11 @@ describe('ChatRoomEncrypted', () => {
                 'password',
                 xmpp as any as XMPP,
                 {} /* options */);
-            
-            key = genSymmetricKey();
-            cryptoKey = await importSymmetricCryptoKey(key);
-            await room.setEncryptionKey(key);
+            room.setEncryptionKey(key);
             connectionSpy = spyOn(room.connection, 'send');
         });
-        it('EncryptedChat: sends a string msg with elementName body correctly', async () => {
-            await room.sendMessage('string message', 'body');
+        it('EncryptedChat: sends a string msg with elementName body correctly', () => {
+            room.sendMessage('string message', 'body');
             const xml = connectionSpy.calls.argsFor(0).toString();
 
             expect(xml).not.toBe(
@@ -70,16 +65,12 @@ describe('ChatRoomEncrypted', () => {
 
             const match = xml.match(/<body>([\s\S]*?)<\/body>/);
             const ciphertext = match ? match[1] : null;
-            const decrypted = await decryptSymmetrically(
-                cryptoKey,
-                base64ToUint8Array(ciphertext!),
-                aux);
-            const decryptedText = new TextDecoder().decode(decrypted);
+            const decryptedText = decryptSymmetricallySync(ciphertext!, key);
             expect(decryptedText).toBe('string message');
 
         });
-        it('EncryptedChat: sends a object msg with elementName body correctly', async () => {
-            await room.sendMessage({ object: 'message' } as any, 'body');
+        it('EncryptedChat: sends a object msg with elementName body correctly', () => {
+            room.sendMessage({ object: 'message' } as any, 'body');
             const xml = connectionSpy.calls.argsFor(0).toString();
             expect(xml).not.toBe(
                 '<message to="jid" type="groupchat" xmlns="jabber:client">' +
@@ -93,16 +84,12 @@ describe('ChatRoomEncrypted', () => {
             const match = xml.match(/<body>([\s\S]*?)<\/body>/);
             const ciphertext = match ? match[1] : null;
 
-            const decrypted = await decryptSymmetrically(
-                cryptoKey,
-                base64ToUint8Array(ciphertext!),
-                aux);
-            const decryptedText = new TextDecoder().decode(decrypted);
+            const decryptedText = decryptSymmetricallySync(ciphertext!, key);
             expect(decryptedText).toBe('{"object":"message"}');
             
         });
-        it('EncryptedChat: sends a string msg with elementName json-message correctly', async () => {
-            await room.sendMessage('string message', 'json-message');
+        it('EncryptedChat: sends a string msg with elementName json-message correctly', () => {
+            room.sendMessage('string message', 'json-message');
             const xml = connectionSpy.calls.argsFor(0).toString();
             expect(xml).not.toBe(
                 '<message to="jid" type="groupchat" xmlns="jabber:client">' +
@@ -117,15 +104,11 @@ describe('ChatRoomEncrypted', () => {
             const match = xml.match(/<json-message xmlns="http:\/\/jitsi.org\/jitmeet">([\s\S]*?)<\/json-message>/);
             const ciphertext = match ? match[1] : null;
 
-            const decrypted = await decryptSymmetrically(
-                cryptoKey,
-                base64ToUint8Array(ciphertext!),
-                aux);
-            const decryptedText = new TextDecoder().decode(decrypted);
+            const decryptedText = decryptSymmetricallySync(ciphertext!, key);
             expect(decryptedText).toBe('string message');
         });
-        it('EncryptedChat: sends a object msg with elementName json-message correctly', async () => {
-            await room.sendMessage({ object: 'message' } as any, 'json-message');
+        it('EncryptedChat: sends a object msg with elementName json-message correctly', () => {
+            room.sendMessage({ object: 'message' } as any, 'json-message');
             const xml = connectionSpy.calls.argsFor(0).toString();
             expect(xml).not.toBe(
                 '<message to="jid" type="groupchat" xmlns="jabber:client">' +
@@ -139,11 +122,7 @@ describe('ChatRoomEncrypted', () => {
             const match = xml.match(/<json-message xmlns="http:\/\/jitsi.org\/jitmeet">([\s\S]*?)<\/json-message>/);
             const ciphertext = match ? match[1] : null;
 
-            const decrypted = await decryptSymmetrically(
-                cryptoKey,
-                base64ToUint8Array(ciphertext!),
-                aux);
-            const decryptedText = new TextDecoder().decode(decrypted);
+            const decryptedText = decryptSymmetricallySync(ciphertext!, key);
             expect(decryptedText).toBe('{"object":"message"}');
         });
     });
@@ -151,10 +130,10 @@ describe('ChatRoomEncrypted', () => {
     describe('EncryptedChat: onMessage - group messages with display-name extension', () => {
         let room: ChatRoom;
         let emitterSpy: jasmine.Spy;
-        let key: Uint8Array;
+        const key: Uint8Array = genSymmetricKey();
         let cryptoKey: CryptoKey;
 
-        beforeEach(async () => {
+        beforeEach(() => {
             const xmpp = {
                 moderator: new Moderator({
                     options: {}
@@ -169,20 +148,14 @@ describe('ChatRoomEncrypted', () => {
                 'password',
                 xmpp,
                 {} /* options */);
-            
-            key = genSymmetricKey();
-            cryptoKey = await importSymmetricCryptoKey(key);
-            await room.setEncryptionKey(key);
+        
+            room.setEncryptionKey(key);
             emitterSpy = spyOn(room.eventEmitter, 'emit');
         });
 
-        it('EncryptedChat: parses group message with display-name extension correctly', async () => {
+        it('EncryptedChat: parses group message with display-name extension correctly', () => {
             const message = 'Hello from visitor to group';
-            const cipher = await encryptSymmetrically(
-                cryptoKey,
-                new TextEncoder().encode(message),
-                aux);
-            const ciphertext = uint8ArrayToBase64(cipher);
+            const ciphertext = encryptSymmetricallySync(message, key);
             const msgStr = '' +
                 '<message to="jid" from="fromjid" type="groupchat" id="msg126" xmlns="jabber:client">' +
                     '<body>'+ ciphertext + '</body>' +
@@ -190,7 +163,7 @@ describe('ChatRoomEncrypted', () => {
                 '</message>';
             const msg = new DOMParser().parseFromString(msgStr, 'text/xml').documentElement;
 
-            await room.onMessage(msg, 'fromjid');
+            room.onMessage(msg, 'fromjid');
             expect(emitterSpy.calls.count()).toEqual(1);
             expect(emitterSpy).toHaveBeenCalledWith(
                 XMPPEvents.MESSAGE_RECEIVED,
@@ -205,13 +178,9 @@ describe('ChatRoomEncrypted', () => {
                 null); // replyToId
         });
 
-        it('parses group message with display-name extension source=token correctly', async () => {
+        it('parses group message with display-name extension source=token correctly', () => {
             const message = 'Hello from token user';
-            const cipher = await encryptSymmetrically(
-                cryptoKey,
-                new TextEncoder().encode(message),
-                aux);
-            const ciphertext = uint8ArrayToBase64(cipher);
+            const ciphertext = encryptSymmetricallySync(message, key);
             const msgStr = '' +
                 '<message to="jid" from="fromjid" type="groupchat" id="msg127" xmlns="jabber:client">' +
                     '<body>'+ ciphertext + '</body>' +
@@ -219,7 +188,7 @@ describe('ChatRoomEncrypted', () => {
                 '</message>';
             const msg = new DOMParser().parseFromString(msgStr, 'text/xml').documentElement;
 
-            await room.onMessage(msg, 'fromjid');
+            room.onMessage(msg, 'fromjid');
             expect(emitterSpy.calls.count()).toEqual(1);
             expect(emitterSpy).toHaveBeenCalledWith(
                 XMPPEvents.MESSAGE_RECEIVED,
@@ -234,13 +203,9 @@ describe('ChatRoomEncrypted', () => {
                 null); // replyToId
         });
 
-        it('parses group message with display-name extension source=guest correctly', async () => {
+        it('parses group message with display-name extension source=guest correctly', () => {
             const message = 'Hello from guest user';
-            const cipher = await encryptSymmetrically(
-                cryptoKey,
-                new TextEncoder().encode(message),
-                aux);
-            const ciphertext = uint8ArrayToBase64(cipher);
+            const ciphertext = encryptSymmetricallySync(message, key);
             const msgStr = '' +
                 '<message to="jid" from="fromjid" type="groupchat" id="msg127b" xmlns="jabber:client">' +
                     '<body>'+ ciphertext + '</body>' +
@@ -248,7 +213,7 @@ describe('ChatRoomEncrypted', () => {
                 '</message>';
             const msg = new DOMParser().parseFromString(msgStr, 'text/xml').documentElement;
 
-            await room.onMessage(msg, 'fromjid');
+            room.onMessage(msg, 'fromjid');
             expect(emitterSpy.calls.count()).toEqual(1);
             expect(emitterSpy).toHaveBeenCalledWith(
                 XMPPEvents.MESSAGE_RECEIVED,
@@ -263,13 +228,9 @@ describe('ChatRoomEncrypted', () => {
                 null); // replyToId
         });
 
-        it('parses group message with display-name extension from non-visitor correctly', async () => {
+        it('parses group message with display-name extension from non-visitor correctly', () => {
             const message = 'Hello from regular user';
-            const cipher = await encryptSymmetrically(
-                cryptoKey,
-                new TextEncoder().encode(message),
-                aux);
-            const ciphertext = uint8ArrayToBase64(cipher);
+            const ciphertext = encryptSymmetricallySync(message, key);
             const msgStr = '' +
                 '<message to="jid" from="fromjid" type="groupchat" id="msg127c" xmlns="jabber:client">' +
                     '<body>'+ ciphertext + '</body>' +
@@ -277,7 +238,7 @@ describe('ChatRoomEncrypted', () => {
                 '</message>';
             const msg = new DOMParser().parseFromString(msgStr, 'text/xml').documentElement;
 
-            await room.onMessage(msg, 'fromjid');
+            room.onMessage(msg, 'fromjid');
             expect(emitterSpy.calls.count()).toEqual(1);
             expect(emitterSpy).toHaveBeenCalledWith(
                 XMPPEvents.MESSAGE_RECEIVED,
@@ -292,20 +253,16 @@ describe('ChatRoomEncrypted', () => {
                 null); // replyToId
         });
 
-        it('parses group message without display-name extension correctly', async () => {
+        it('parses group message without display-name extension correctly', () => {
             const message = 'Hello without display name extension';
-            const cipher = await encryptSymmetrically(
-                cryptoKey,
-                new TextEncoder().encode(message),
-                aux);
-            const ciphertext = uint8ArrayToBase64(cipher);
+            const ciphertext = encryptSymmetricallySync(message, key);
             const msgStr = '' +
                 '<message to="jid" from="fromjid" type="groupchat" id="msg128" xmlns="jabber:client">' +
                    '<body>'+ ciphertext + '</body>' +
                 '</message>';
             const msg = new DOMParser().parseFromString(msgStr, 'text/xml').documentElement;
 
-            await room.onMessage(msg, 'fromjid');
+            room.onMessage(msg, 'fromjid');
             expect(emitterSpy.calls.count()).toEqual(1);
             expect(emitterSpy).toHaveBeenCalledWith(
                 XMPPEvents.MESSAGE_RECEIVED,
