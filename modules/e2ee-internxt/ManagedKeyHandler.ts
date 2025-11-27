@@ -11,7 +11,7 @@ import Listenable from '../util/Listenable';
 import JingleSessionPC from '../xmpp/JingleSessionPC';
 import { FEATURE_E2EE, JITSI_MEET_MUC_TYPE } from '../xmpp/xmpp';
 
-import { genSymmetricKey, hashChatKeys, hashData } from './CryptoUtils';
+import { deriveSymmetricCryptoKeyFromTwoKeys, genSymmetricKey, hashChatKeys, hashData } from './CryptoUtils';
 import E2EEContext from './E2EEContext';
 import { OlmAdapter } from './OlmAdapter';
 import { generateEmojiSas } from './SAS';
@@ -609,8 +609,12 @@ export class ManagedKeyHandler extends Listenable {
 
                     this.chatKeyECC = keyECC;
                     this.chatKeyPQ = keyPQ;
-                    this.conference.eventEmitter.emit(JitsiConferenceEvents.E2EE_CHAT_KEY_RECEIVED, { keyECC, keyPQ });
                     this.setMyChatKeyHash(keyECC, keyPQ);
+                    const key = deriveSymmetricCryptoKeyFromTwoKeys(keyECC, keyPQ);
+
+                    this.log('info', 'Emit key to the ChatRoom module.');
+                    this.conference.eventEmitter.emit(JitsiConferenceEvents.E2EE_CHAT_KEY_RECEIVED, key);
+
                 }
                 break;
             }

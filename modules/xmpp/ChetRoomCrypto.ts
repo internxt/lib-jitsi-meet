@@ -11,6 +11,7 @@ export function encryptSymmetricallySync(
         encyptionKey: Uint8Array,
 ): string {
     try {
+        console.info('E2E: ChatRoom encrypting message.');
         const messageBuffer = new TextEncoder().encode(message);
         const nonce = randomBytes(NONCE_LEN_BYTES);
         const chacha = xchacha20poly1305(encyptionKey, nonce, CHAT_AUX);
@@ -28,6 +29,7 @@ export function decryptSymmetricallySync(
         encryptionKey: Uint8Array,
 ): string {
     try {
+        console.info('E2E: ChatRoom decrypting message.');
         const cipherBuffer = base64ToUint8Array(ciphertext);
         const cipher = cipherBuffer.slice(0, cipherBuffer.length - NONCE_LEN_BYTES);
         const nonce = cipherBuffer.slice(cipherBuffer.length - NONCE_LEN_BYTES);

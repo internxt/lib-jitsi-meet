@@ -5,6 +5,7 @@ import { $iq, $msg, $pres, Strophe } from 'strophe.js';
 import { v4 as uuidv4 } from 'uuid';
 
 import { AUTH_ERROR_TYPES } from '../../JitsiConferenceErrors';
+import { JitsiConferenceEvents } from '../../JitsiConferenceEvents';
 import * as JitsiTranscriptionStatus from '../../JitsiTranscriptionStatus';
 import { MediaType } from '../../service/RTC/MediaType';
 import { VideoType } from '../../service/RTC/VideoType';
@@ -326,6 +327,9 @@ export default class ChatRoom extends Listenable {
         this.locked = false;
         this.transcriptionStatus = JitsiTranscriptionStatus.OFF;
         this.initialDiscoRoomInfoReceived = false;
+
+        this.eventEmitter.on(JitsiConferenceEvents.E2EE_CHAT_KEY_RECEIVED, this.setEncryptionKey.bind(this));
+
     }
 
     /* eslint-enable max-params */
@@ -439,6 +443,7 @@ export default class ChatRoom extends Listenable {
 
     public setEncryptionKey(key: Uint8Array): void {
         this.encyptionKey = key;
+        logger.info('E2E: ChatRoom got encryption key.');
     }
 
     /**
