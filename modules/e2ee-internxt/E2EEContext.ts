@@ -162,6 +162,13 @@ export default class E2EEcontext extends Listenable {
         });
     }
 
+    setChatKeyHash(chatKeyHash: Uint8Array) {
+        this._worker.postMessage({
+            chatKeyHash,
+            operation: 'setChatKeyHash',
+        });
+    }
+
     ratchetKeys(participantId: string) {
         this._worker.postMessage({
             operation: 'ratchetKeys',

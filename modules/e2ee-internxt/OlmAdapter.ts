@@ -328,6 +328,38 @@ export class OlmAdapter {
         }
     }
 
+    async encryptChatKey(
+            pId: string,
+            chatKeyECC: Uint8Array,
+            chatKeyPQ: Uint8Array,
+    ): Promise<KeyInfo> {
+        try {
+            const olmData = this._getParticipantOlmData(pId);
+
+            olmData.validateStatus(PROTOCOL_STATUS.DONE);
+
+            return olmData.encryptChatKey(chatKeyECC, chatKeyPQ);
+        } catch (error) {
+            throw getError('encryptChatKey', error);
+        }
+    }
+
+    async decryptChatKey(
+            pId: string,
+            ciphertext: string,
+            pqCiphertext: string,
+    ): Promise<{ keyECC: Uint8Array; keyPQ: Uint8Array; }> {
+        try {
+            const olmData = this._getParticipantOlmData(pId);
+
+            olmData.validateStatus(PROTOCOL_STATUS.DONE);
+
+            return olmData.decryptChatKey(ciphertext, pqCiphertext);
+        } catch (error) {
+            throw getError('decryptChatKey', error);
+        }
+    }
+
     async decryptKey(
             pId: string,
             ciphertext: string,

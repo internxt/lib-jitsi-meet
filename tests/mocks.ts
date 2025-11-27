@@ -48,12 +48,15 @@ export class XmppServerMock {
     private readonly participants = new Map<string, JitsiParticipant>();
     private readonly sasMap = new Map<string, string[]>();
     private e2e: boolean = false;
+    private moderatorId: string | null = null;
 
     createMockParticipant(participantId: string): JitsiParticipant {
         const mockParticipant = mock(JitsiParticipant);
 
         when(mockParticipant.getId()).thenReturn(participantId);
         when(mockParticipant.hasFeature(anything())).thenReturn(true);
+        when(mockParticipant.isModerator()).thenCall(() => this.moderatorId === participantId);
+        when(mockParticipant.getRole()).thenCall(() => this.moderatorId === participantId ? 'moderator' : 'none');
         const participant = instance(mockParticipant);
 
         return participant;
@@ -69,6 +72,10 @@ export class XmppServerMock {
 
     getAllParticipantsIDs(): string[] {
         return [ ...this.participants.keys() ];
+    }
+
+    isParticipantModerator(participantId: string): boolean {
+        return this.moderatorId === participantId;
     }
 
     getParticipantsFor(id: string): JitsiParticipant[] {
@@ -108,6 +115,12 @@ export class XmppServerMock {
             });
             this.listeners.set(pId, keyHandler);
 
+            const isFirst = this.listeners.size === 1;
+
+            if (isFirst) {
+                this.moderatorId = pId;
+            }
+
             const participant = this.createMockParticipant(pId);
 
             this.participants.set(pId, participant);
@@ -121,6 +134,11 @@ export class XmppServerMock {
 
         this.participants.delete(pId);
         this.listeners.delete(pId);
+
+        if (this.moderatorId === pId && this.listeners.size > 0) {
+            this.moderatorId = this.listeners.keys().next().value ?? null;
+        }
+
         this.listeners.forEach((keyHandler, _id) => {
             keyHandler._onParticipantLeft(pId);
         });
@@ -191,6 +209,10 @@ export async function createInitializedManagedKeyHandler(
     );
     when(conferenceMock.getParticipants()).thenCall(() => {
         return xmppServerMock.getParticipantsFor(id);
+    });
+
+    when(conferenceMock.isModerator()).thenCall(() => {
+        return xmppServerMock.isParticipantModerator(id);
     });
 
     when(conferenceMock.sendMessage(anything(), anything())).thenCall(

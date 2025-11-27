@@ -11,7 +11,7 @@ import Listenable from '../util/Listenable';
 import JingleSessionPC from '../xmpp/JingleSessionPC';
 import { FEATURE_E2EE, JITSI_MEET_MUC_TYPE } from '../xmpp/xmpp';
 
-import { hashData } from './CryptoUtils';
+import { genSymmetricKey, hashChatKeys, hashData } from './CryptoUtils';
 import E2EEContext from './E2EEContext';
 import { OlmAdapter } from './OlmAdapter';
 import { generateEmojiSas } from './SAS';
@@ -37,6 +37,9 @@ function timeout<T>(ms: number): Promise<T> {
  * This module integrates {@link E2EEContext} with {@link OlmAdapter} in order to distribute the keys for encryption.
  */
 export class ManagedKeyHandler extends Listenable {
+    private chatKeyECC: Uint8Array;
+    private chatKeyPQ: Uint8Array;
+    private askedForChatKey: boolean;
     private readonly myID: string;
     private readonly _participantEventQueue: ParticipantEvent[];
     private _processingEvents: boolean;
@@ -71,6 +74,9 @@ export class ManagedKeyHandler extends Listenable {
         this.e2eeCtx = new E2EEContext();
         this._reqs = new Map();
         this.update = new Map();
+        this.chatKeyECC = new Uint8Array();
+        this.chatKeyPQ = new Uint8Array();
+        this.askedForChatKey = false;
 
         this.enabled = false;
         this._participantEventQueue = [];
@@ -402,11 +408,17 @@ export class ManagedKeyHandler extends Listenable {
         }
     }
 
+    private getModeratorID(): string {
+        const participants = this.conference.getParticipants();
+        const moderator = participants.find(p => p.isModerator());
+
+        return moderator ? moderator.getId() : '';
+    }
+
     private async _onEndpointMessageReceived(participant: JitsiParticipant, payload) {
         try {
             if (
                 !payload.olm
-                || !participant
                 || payload[JITSI_MEET_MUC_TYPE] !== OLM_MESSAGE
             ) {
                 this.log('error', 'Incorrect payload');
@@ -500,6 +512,18 @@ export class ManagedKeyHandler extends Listenable {
                         'done',
                         pId,
                 );
+
+                if (!this.askedForChatKey) {
+                    const moderatorID = this.getModeratorID();
+
+                    this.log('info', `Requesting chat keys from ${moderatorID}.`);
+                    this._sendMessage(
+                        OLM_MESSAGE_TYPES.CHAT_KEY_REQUEST,
+                        'chat',
+                        moderatorID,
+                    );
+                    this.askedForChatKey = true;
+                }
                 if (keyChanged) {
                     const data
                             = await this._olmAdapter.encryptCurrentKey(pId);
@@ -574,6 +598,33 @@ export class ManagedKeyHandler extends Listenable {
                 this._sendMessage(OLM_MESSAGE_TYPES.KEY_UPDATE, data, pId);
                 break;
             }
+            case OLM_MESSAGE_TYPES.CHAT_KEY: {
+                const isMod = participant.isModerator();
+
+                this.log('info', `Participant got chat key from ${pId}. Is moderator?: ${isMod}`);
+
+                if (isMod) {
+                    const { ciphertext, pqCiphertext } = msg.data;
+                    const { keyECC, keyPQ } = await this._olmAdapter.decryptChatKey(pId, ciphertext, pqCiphertext);
+
+                    this.chatKeyECC = keyECC;
+                    this.chatKeyPQ = keyPQ;
+                    this.conference.eventEmitter.emit(JitsiConferenceEvents.E2EE_CHAT_KEY_RECEIVED, { keyECC, keyPQ });
+                    this.setMyChatKeyHash(keyECC, keyPQ);
+                }
+                break;
+            }
+            case OLM_MESSAGE_TYPES.CHAT_KEY_REQUEST: {
+                const isMod = this.conference.isModerator();
+
+                this.log('info', `Got chat key request from ${pId}. Am I moderator?: ${isMod}`);
+                if (isMod) {
+                    const data = await this._olmAdapter.encryptChatKey(pId, this.chatKeyECC, this.chatKeyPQ);
+
+                    this._sendMessage(OLM_MESSAGE_TYPES.CHAT_KEY, data, pId);
+                }
+                break;
+            }
             }
         } catch (error) {
             this.log('error', `Error while processing message: ${error}`);
@@ -587,6 +638,15 @@ export class ManagedKeyHandler extends Listenable {
             pId,
             keyCommitment,
         );
+    }
+
+    private setMyChatKeyHash(keyECC: Uint8Array, keyPQ: Uint8Array) {
+        const chatKeyHash = hashChatKeys(keyECC, keyPQ);
+
+        this.e2eeCtx.setChatKeyHash(
+            chatKeyHash,
+        );
+        this.log('info', `Set chat key hash for ${this.myID}.`);
     }
 
     /**
@@ -608,7 +668,7 @@ export class ManagedKeyHandler extends Listenable {
      */
     private _sendMessage(
             type: MessageType,
-            data: ReplyMessage | 'update' | 'done',
+            data: ReplyMessage | 'update' | 'done' | 'chat',
             participantId: string,
     ) {
         const msg = {
@@ -722,6 +782,13 @@ export class ManagedKeyHandler extends Listenable {
             `My ID is ${localParticipantId}, should send session-init to smaller IDs: [ ${list.map(p => p.getId())}]`,
         );
 
+        if (this.conference.isModerator() && !this.askedForChatKey) {
+            this.chatKeyECC = genSymmetricKey();
+            this.chatKeyPQ = genSymmetricKey();
+            this.askedForChatKey = true;
+            this.setMyChatKeyHash(this.chatKeyECC, this.chatKeyPQ);
+        }
+
         this.initSessions = (async () => {
             const promises = list.map(async participant => {
                 const pId = participant.getId();
@@ -807,6 +874,11 @@ export class ManagedKeyHandler extends Listenable {
     }
 
     async messageReceived(participant: JitsiParticipant, payload) {
+        if (!participant) {
+            this.log('error', 'Got message from an unknown participant');
+
+            return;
+        }
         this._onEndpointMessageReceived(participant, payload);
     }
 

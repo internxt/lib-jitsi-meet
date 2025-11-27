@@ -4,6 +4,8 @@ export const NORMAL_MESSAGE = 1;
 
 export const OLM_MESSAGE = 'olm';
 export const OLM_MESSAGE_TYPES = {
+    CHAT_KEY: 'chat-key',
+    CHAT_KEY_REQUEST: 'chat-key-request',
     ERROR: 'error',
     KEY_INFO: 'key-info',
     KEY_UPDATE: 'key-update',
