@@ -607,14 +607,7 @@ export class ManagedKeyHandler extends Listenable {
                     const { ciphertext, pqCiphertext } = msg.data;
                     const { keyECC, keyPQ } = await this._olmAdapter.decryptChatKey(pId, ciphertext, pqCiphertext);
 
-                    this.chatKeyECC = keyECC;
-                    this.chatKeyPQ = keyPQ;
-                    this.setMyChatKeyHash(keyECC, keyPQ);
-                    const key = deriveSymmetricCryptoKeyFromTwoKeys(keyECC, keyPQ);
-
-                    this.log('info', 'Emit key to the ChatRoom module.');
-                    this.conference.eventEmitter.emit(JitsiConferenceEvents.E2EE_CHAT_KEY_RECEIVED, key);
-
+                    this.setMyChatKey(keyECC, keyPQ);
                 }
                 break;
             }
@@ -644,13 +637,18 @@ export class ManagedKeyHandler extends Listenable {
         );
     }
 
-    private setMyChatKeyHash(keyECC: Uint8Array, keyPQ: Uint8Array) {
+    private setMyChatKey(keyECC: Uint8Array, keyPQ: Uint8Array) {
         const chatKeyHash = hashChatKeys(keyECC, keyPQ);
 
         this.e2eeCtx.setChatKeyHash(
             chatKeyHash,
         );
-        this.log('info', `Set chat key hash for ${this.myID}.`);
+        this.chatKeyECC = keyECC;
+        this.chatKeyPQ = keyPQ;
+        const key = deriveSymmetricCryptoKeyFromTwoKeys(keyECC, keyPQ);
+
+        this.conference.eventEmitter.emit(JitsiConferenceEvents.E2EE_CHAT_KEY_RECEIVED, key);
+        this.log('info', 'Set chat key hash and emit key to the ChatRoom module.');
     }
 
     /**
@@ -787,10 +785,11 @@ export class ManagedKeyHandler extends Listenable {
         );
 
         if (this.conference.isModerator() && !this.askedForChatKey) {
-            this.chatKeyECC = genSymmetricKey();
-            this.chatKeyPQ = genSymmetricKey();
+            const chatKeyECC = genSymmetricKey();
+            const chatKeyPQ = genSymmetricKey();
+
             this.askedForChatKey = true;
-            this.setMyChatKeyHash(this.chatKeyECC, this.chatKeyPQ);
+            this.setMyChatKey(chatKeyECC, chatKeyPQ);
         }
 
         this.initSessions = (async () => {
