@@ -1,6 +1,6 @@
 {
   "name": "lib-jitsi-meet",
-  "version": "0.0.13",
+  "version": "0.0.15",
   "description": "JS library for accessing Jitsi server side deployments",
   "repository": {
     "type": "git",
@@ -78,7 +78,7 @@
     "lint-fix": "eslint . --max-warnings 0 --fix",
     "prepack": "npm run build && npm run gen-types",
     "test": "npm run test:native && npm run test:polyfill",
-    "test:e2e": "npm run test:native -- --grep  'Test E2E'",
+    "test:e2e": "npm run test:native -- --grep 'Test E2E'",
     "test:native": "karma start karma.conf.js",
     "test:polyfill": "karma start karma-polyfill.conf.js",
     "test-watch": "karma start karma.conf.js --no-single-run",
