@@ -408,13 +408,6 @@ export class ManagedKeyHandler extends Listenable {
         }
     }
 
-    private getModeratorID(): string {
-        const participants = this.conference.getParticipants();
-        const moderator = participants.find(p => p.isModerator());
-
-        return moderator ? moderator.getId() : '';
-    }
-
     private async _onEndpointMessageReceived(participant: JitsiParticipant, payload) {
         try {
             if (
@@ -513,14 +506,12 @@ export class ManagedKeyHandler extends Listenable {
                         pId,
                 );
 
-                if (!this.askedForChatKey) {
-                    const moderatorID = this.getModeratorID();
-
-                    this.log('info', `Requesting chat keys from ${moderatorID}.`);
+                if (!this.askedForChatKey && participant.isModerator()) {
+                    this.log('info', `Requesting chat keys from ${pId}.`);
                     this._sendMessage(
                         OLM_MESSAGE_TYPES.CHAT_KEY_REQUEST,
                         'chat',
-                        moderatorID,
+                        pId,
                     );
                     this.askedForChatKey = true;
                 }
