@@ -514,7 +514,7 @@ export class ManagedKeyHandler extends Listenable {
                 );
 
                 if (!this.askedForChatKey && (participant.isModerator() || this.noModerators())) {
-                    this.log('info', `Requesting chat keys from ${pId}.`);
+                    this.log('info', `Requesting chat keys from ${pId}. Is moderator?: ${this.conference.isModerator()}. Are there no moderators?: ${this.noModerators()} `);
                     this._sendMessage(
                         OLM_MESSAGE_TYPES.CHAT_KEY_REQUEST,
                         'chat',
