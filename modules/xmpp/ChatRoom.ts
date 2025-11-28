@@ -71,6 +71,7 @@ export interface IChatRoomOptions {
     enableLobby?: boolean;
     hiddenDomain?: string;
     hiddenFromRecorderFeatureEnabled?: boolean;
+    isChatEncrypted?: boolean;
     statsId?: string;
 }
 
@@ -98,6 +99,17 @@ interface IPeerMediaInfo {
     codecType?: string;
     muted: boolean;
     videoType?: VideoType | string;
+}
+
+interface IPendingEncryptedMessage {
+    displayName?: string;
+    from: string;
+    isVisitorMessage: boolean;
+    messageId: string;
+    replyToId?: string;
+    source?: string;
+    stamp: string | null;
+    txt: string;
 }
 
 const logger = getLogger('xmpp:ChatRoom');
@@ -253,6 +265,7 @@ export default class ChatRoom extends Listenable {
     private subject?: string;
     private _roomCreationRetries?: number;
     private cachedShortTermCredentials?: Record<string, string>;
+    private pendingEncryptedMessages: IPendingEncryptedMessage[];
     public xmpp: XMPP;
     public connection: XmppConnection;
     public roomjid: string;
@@ -302,6 +315,7 @@ export default class ChatRoom extends Listenable {
         this.focusMucJid = null;
         this.noBridgeAvailable = false;
         this.options = options || {};
+        this.pendingEncryptedMessages = [];
 
         this.eventsForwarder = new EventEmitterForwarder(this.xmpp.moderator, this.eventEmitter);
         this.eventsForwarder.forward(AuthenticationEvents.IDENTITY_UPDATED, AuthenticationEvents.IDENTITY_UPDATED);
@@ -444,6 +458,23 @@ export default class ChatRoom extends Listenable {
     public setEncryptionKey(key: Uint8Array): void {
         this.encyptionKey = key;
         logger.info('E2E: ChatRoom got encryption key.');
+
+        if (this.pendingEncryptedMessages.length > 0) {
+            logger.info(`E2E: Decrypting ${this.pendingEncryptedMessages.length} queued messages`);
+            this.pendingEncryptedMessages.forEach(msg => {
+                try {
+                    const chatMessage = decryptSymmetricallySync(msg.txt, this.encyptionKey);
+
+                    this.eventEmitter.emit(XMPPEvents.MESSAGE_RECEIVED,
+                        msg.from, chatMessage, this.myroomjid, msg.stamp, msg.displayName,
+                        msg.isVisitorMessage, msg.messageId, msg.source, msg.replyToId);
+
+                } catch (e) {
+                    logger.error('Failed to decrypt queued message', e);
+                }
+            });
+            this.pendingEncryptedMessages = [];
+        }
     }
 
     /**
@@ -1515,6 +1546,21 @@ export default class ChatRoom extends Listenable {
                     sourceAttrValue = undefined;
                 }
                 const source = isVisitorMessage ? undefined : sourceAttrValue;
+
+                if (this.options.isChatEncrypted && !this.encyptionKey) {
+                    this.pendingEncryptedMessages.push({
+                        displayName,
+                        from,
+                        isVisitorMessage,
+                        messageId,
+                        replyToId,
+                        source,
+                        stamp,
+                        txt,
+                    });
+
+                    return;
+                }
 
                 const chatMessage = this.encyptionKey ? decryptSymmetricallySync(txt, this.encyptionKey) : txt;
 

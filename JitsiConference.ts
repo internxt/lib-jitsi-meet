@@ -108,6 +108,7 @@ export interface IConferenceOptions {
         enableNoisyMicDetection?: boolean;
         enableTalkWhileMuted?: boolean;
         hiddenDomain?: string;
+        isChatEncrypted?: boolean;
         p2p?: {
             backToP2PDelay?: number;
             codecPreferenceOrder?: string[];
