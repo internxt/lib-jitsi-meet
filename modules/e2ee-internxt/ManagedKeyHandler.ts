@@ -409,6 +409,12 @@ export class ManagedKeyHandler extends Listenable {
         }
     }
 
+    private noModerators(): boolean {
+        const participants = this.conference.getParticipants();
+
+        return !participants.some(p => p.isModerator());
+    }
+
     private async _onEndpointMessageReceived(participant: JitsiParticipant, payload) {
         try {
             if (
@@ -507,7 +513,7 @@ export class ManagedKeyHandler extends Listenable {
                         pId,
                 );
 
-                if (!this.askedForChatKey && participant.isModerator()) {
+                if (!this.askedForChatKey && (participant.isModerator() || this.noModerators())) {
                     this.log('info', `Requesting chat keys from ${pId}.`);
                     this._sendMessage(
                         OLM_MESSAGE_TYPES.CHAT_KEY_REQUEST,
@@ -592,10 +598,11 @@ export class ManagedKeyHandler extends Listenable {
             }
             case OLM_MESSAGE_TYPES.CHAT_KEY: {
                 const isMod = participant.isModerator();
+                const noMods = this.noModerators();
 
-                this.log('info', `Participant got chat key from ${pId}. Is moderator?: ${isMod}`);
+                this.log('info', `Participant got chat key from ${pId}. Is moderator?: ${isMod}. Are there no moderators?: ${noMods} `);
 
-                if (isMod) {
+                if (isMod || noMods) {
                     const { ciphertext, pqCiphertext } = msg.data;
                     const { keyECC, keyPQ } = await this._olmAdapter.decryptChatKey(pId, ciphertext, pqCiphertext);
 
