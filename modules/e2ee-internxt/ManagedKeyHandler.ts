@@ -127,6 +127,7 @@ export class ManagedKeyHandler extends Listenable {
         this.e2eeCtx.on('sasUpdated', (sasStr: string) => {
             const sas = generateEmojiSas(sasStr);
 
+            this.log('info', `Emitting SAS: ${sas.join(', ')}`);
             this.conference.eventEmitter.emit(
                 JitsiConferenceEvents.E2EE_SAS_AVAILABLE,
                 sas,

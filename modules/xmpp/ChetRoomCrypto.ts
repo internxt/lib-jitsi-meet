@@ -39,6 +39,6 @@ export function decryptSymmetricallySync(
         return new TextDecoder().decode(message);
 
     } catch (error) {
-        throw new Error(`Failed to decrypt symmetrically: ${error}`);
+        throw new Error(`Failed to decrypt symmetrically: ${error} for ciphertext: ${ciphertext}`);
     }
 }
