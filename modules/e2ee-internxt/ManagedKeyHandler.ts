@@ -612,9 +612,10 @@ export class ManagedKeyHandler extends Listenable {
             }
             case OLM_MESSAGE_TYPES.CHAT_KEY_REQUEST: {
                 const isMod = this.conference.isModerator();
+                const noMods = this.noModerators();
 
-                this.log('info', `Got chat key request from ${pId}. Am I moderator?: ${isMod}`);
-                if (isMod) {
+                this.log('info', `Got chat key request from ${pId}. Am I moderator?: ${isMod}. Are there no moderators?: ${noMods}`);
+                if (isMod || noMods) {
                     const data = await this._olmAdapter.encryptChatKey(pId, this.chatKeyECC, this.chatKeyPQ);
 
                     this._sendMessage(OLM_MESSAGE_TYPES.CHAT_KEY, data, pId);
