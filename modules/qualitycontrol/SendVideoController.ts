@@ -5,7 +5,7 @@ import JingleSessionPC from '../xmpp/JingleSessionPC';
 import { MediaSessionEvents } from '../xmpp/MediaSessionEvents';
 
 const logger = getLogger('qc:SendVideoController');
-const MAX_LOCAL_RESOLUTION = 420;
+const MAX_LOCAL_RESOLUTION = 720;
 
 export interface IVideoConstraint {
     maxHeight: number;
