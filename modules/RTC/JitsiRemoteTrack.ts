@@ -98,13 +98,13 @@ export default class JitsiRemoteTrack extends JitsiTrack {
     public frame: Nullable<ImageBitmap>;
     public width: number;
     public height: number;
-    public inputBuffer: Nullable<Float32Array>;
     public outInference: Nullable<any>;
     public activedecoder: boolean;
     public attachoff: boolean;
     public attachon: boolean;
     public imageEncode: Nullable<ImageData>;
     public inputData: Nullable<any>;
+    public input32buff: Nullable<any>;
 
     /**
      * Creates new JitsiRemoteTrack instance.
