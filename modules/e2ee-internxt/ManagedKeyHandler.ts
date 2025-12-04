@@ -513,8 +513,8 @@ export class ManagedKeyHandler extends Listenable {
                         pId,
                 );
 
-                if (!this.askedForChatKey && (participant.isModerator() || this.noModerators())) {
-                    this.log('info', `Requesting chat keys from ${pId}. Is moderator?: ${this.conference.isModerator()}. Are there no moderators?: ${this.noModerators()} `);
+                if (!this.askedForChatKey && (participant.isModerator() || this.noModerators() || this.conference.isModerator())) {
+                    this.log('info', `Requesting chat keys from ${pId}. Is moderator?: ${this.conference.isModerator()}. Are there no moderators?: ${this.noModerators()}. Am I moderator?: ${this.conference.isModerator()}`);
                     this._sendMessage(
                         OLM_MESSAGE_TYPES.CHAT_KEY_REQUEST,
                         'chat',
@@ -597,29 +597,18 @@ export class ManagedKeyHandler extends Listenable {
                 break;
             }
             case OLM_MESSAGE_TYPES.CHAT_KEY: {
-                const isMod = participant.isModerator();
-                const noMods = this.noModerators();
+                this.log('info', `Participant got chat key from ${pId}. `);
+                const { ciphertext, pqCiphertext } = msg.data;
+                const { keyECC, keyPQ } = await this._olmAdapter.decryptChatKey(pId, ciphertext, pqCiphertext);
 
-                this.log('info', `Participant got chat key from ${pId}. Is moderator?: ${isMod}. Are there no moderators?: ${noMods} `);
-
-                if (isMod || noMods) {
-                    const { ciphertext, pqCiphertext } = msg.data;
-                    const { keyECC, keyPQ } = await this._olmAdapter.decryptChatKey(pId, ciphertext, pqCiphertext);
-
-                    this.setMyChatKey(keyECC, keyPQ);
-                }
+                this.setMyChatKey(keyECC, keyPQ);
                 break;
             }
             case OLM_MESSAGE_TYPES.CHAT_KEY_REQUEST: {
-                const isMod = this.conference.isModerator();
-                const noMods = this.noModerators();
+                this.log('info', `Got chat key request from ${pId}.`);
+                const data = await this._olmAdapter.encryptChatKey(pId, this.chatKeyECC, this.chatKeyPQ);
 
-                this.log('info', `Got chat key request from ${pId}. Am I moderator?: ${isMod}. Are there no moderators?: ${noMods}`);
-                if (isMod || noMods) {
-                    const data = await this._olmAdapter.encryptChatKey(pId, this.chatKeyECC, this.chatKeyPQ);
-
-                    this._sendMessage(OLM_MESSAGE_TYPES.CHAT_KEY, data, pId);
-                }
+                this._sendMessage(OLM_MESSAGE_TYPES.CHAT_KEY, data, pId);
                 break;
             }
             }
