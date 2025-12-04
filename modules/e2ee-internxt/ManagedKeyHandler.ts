@@ -516,7 +516,7 @@ export class ManagedKeyHandler extends Listenable {
                 );
 
                 if (!this.askedForChatKey && (participant.isModerator() || this.noOtherModerators())) {
-                    this.log('info', `Requesting chat keys from ${pId}. Is moderator?: ${this.conference.isModerator()}. Are there no other moderators?: ${this.noOtherModerators()}.`);
+                    this.log('info', `Requesting chat key from ${pId}. Is moderator?: ${participant.isModerator()}. Are there no other moderators?: ${this.noOtherModerators()}.`);
                     this._sendMessage(
                         OLM_MESSAGE_TYPES.CHAT_KEY_REQUEST,
                         'chat',
@@ -775,7 +775,7 @@ export class ManagedKeyHandler extends Listenable {
             `My ID is ${localParticipantId}, should send session-init to smaller IDs: [ ${list.map(p => p.getId())}]`,
         );
 
-        if (this.conference.isModerator() && !this.askedForChatKey) {
+        if (this.conference.isModerator() && !this.askedForChatKey && list.length == 0) {
             const chatKeyECC = genSymmetricKey();
             const chatKeyPQ = genSymmetricKey();
 
