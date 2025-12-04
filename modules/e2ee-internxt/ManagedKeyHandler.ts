@@ -409,7 +409,9 @@ export class ManagedKeyHandler extends Listenable {
         }
     }
 
-    private noModerators(): boolean {
+    private noOtherModerators(): boolean {
+        if (this.conference.isModerator()) return false;
+
         const participants = this.conference.getParticipants();
 
         return !participants.some(p => p.isModerator());
@@ -513,8 +515,8 @@ export class ManagedKeyHandler extends Listenable {
                         pId,
                 );
 
-                if (!this.askedForChatKey && (participant.isModerator() || this.noModerators() || this.conference.isModerator())) {
-                    this.log('info', `Requesting chat keys from ${pId}. Is moderator?: ${this.conference.isModerator()}. Are there no moderators?: ${this.noModerators()}. Am I moderator?: ${this.conference.isModerator()}`);
+                if (!this.askedForChatKey && (participant.isModerator() || this.noOtherModerators())) {
+                    this.log('info', `Requesting chat keys from ${pId}. Is moderator?: ${this.conference.isModerator()}. Are there no other moderators?: ${this.noOtherModerators()}.`);
                     this._sendMessage(
                         OLM_MESSAGE_TYPES.CHAT_KEY_REQUEST,
                         'chat',
