@@ -11,6 +11,15 @@ const AES_KEY_BIT_LENGTH = 256;
 const KEY_FORMAT = 'raw';
 const IV_LEN_BYTES = 16;
 
+export function hashChatKeys(keyECC: Uint8Array, keyPQ: Uint8Array): Uint8Array {
+    const hasher = blake3.create();
+
+    hasher.update(keyECC).update(keyPQ);
+
+    return hasher.digest();
+}
+
+
 export function hashData(data: string[]): Uint8Array {
     const hasher = blake3.create();
 

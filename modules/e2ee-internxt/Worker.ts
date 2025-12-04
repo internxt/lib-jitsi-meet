@@ -9,6 +9,7 @@ type WorkerLike = {
 
 class E2EEWorker {
     private readonly contexts: Map<string, Context>;
+    private chatKeyHash: string = '';
     private readonly _self: WorkerLike;
 
     constructor(selfInstance: WorkerLike) {
@@ -41,7 +42,7 @@ class E2EEWorker {
     }
 
     private getCurrentSASMaterial(): string {
-        return [ ...this.contexts.entries() ]
+        return this.chatKeyHash + [ ...this.contexts.entries() ]
             .map(([ pId, context ]) => pId + (context.getHash() || ''))
             .sort((a, b) => a.localeCompare(b))
             .join('');
@@ -114,6 +115,14 @@ class E2EEWorker {
 
             if (!context) break;
             context.setKeyCommitment(commitment);
+            break;
+        }
+
+        case 'setChatKeyHash': {
+            this.chatKeyHash = event.data.chatKeyHash;
+            const sas = this.getCurrentSASMaterial();
+
+            this._self.postMessage({ operation: 'updateSAS', sas });
             break;
         }
 

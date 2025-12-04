@@ -5,6 +5,7 @@ import { $iq, $msg, $pres, Strophe } from 'strophe.js';
 import { v4 as uuidv4 } from 'uuid';
 
 import { AUTH_ERROR_TYPES } from '../../JitsiConferenceErrors';
+import { JitsiConferenceEvents } from '../../JitsiConferenceEvents';
 import * as JitsiTranscriptionStatus from '../../JitsiTranscriptionStatus';
 import { MediaType } from '../../service/RTC/MediaType';
 import { VideoType } from '../../service/RTC/VideoType';
@@ -18,6 +19,7 @@ import { exists, findAll, findFirst, getAttribute, getText } from '../util/XMLUt
 
 import AVModeration from './AVModeration';
 import BreakoutRooms from './BreakoutRooms';
+import { decryptSymmetricallySync, encryptSymmetricallySync } from './ChetRoomCrypto';
 import FileSharing from './FileSharing';
 import Lobby from './Lobby';
 import Polls from './Polls';
@@ -69,6 +71,7 @@ export interface IChatRoomOptions {
     enableLobby?: boolean;
     hiddenDomain?: string;
     hiddenFromRecorderFeatureEnabled?: boolean;
+    isChatEncrypted?: boolean;
     statsId?: string;
 }
 
@@ -96,6 +99,17 @@ interface IPeerMediaInfo {
     codecType?: string;
     muted: boolean;
     videoType?: VideoType | string;
+}
+
+interface IPendingEncryptedMessage {
+    displayName?: string;
+    from: string;
+    isVisitorMessage: boolean;
+    messageId: string;
+    replyToId?: string;
+    source?: string;
+    stamp: string | null;
+    txt: string;
 }
 
 const logger = getLogger('xmpp:ChatRoom');
@@ -222,6 +236,7 @@ function extractIdentityInformation(node: IPresenceNode, hiddenFromRecorderFeatu
  */
 export default class ChatRoom extends Listenable {
 
+    private encyptionKey?: Uint8Array;
     private password?: string;
     private replaceParticipant: boolean;
     private members: Record<string, IRoomMember>;
@@ -250,6 +265,7 @@ export default class ChatRoom extends Listenable {
     private subject?: string;
     private _roomCreationRetries?: number;
     private cachedShortTermCredentials?: Record<string, string>;
+    private pendingEncryptedMessages: IPendingEncryptedMessage[];
     public xmpp: XMPP;
     public connection: XmppConnection;
     public roomjid: string;
@@ -299,6 +315,7 @@ export default class ChatRoom extends Listenable {
         this.focusMucJid = null;
         this.noBridgeAvailable = false;
         this.options = options || {};
+        this.pendingEncryptedMessages = [];
 
         this.eventsForwarder = new EventEmitterForwarder(this.xmpp.moderator, this.eventEmitter);
         this.eventsForwarder.forward(AuthenticationEvents.IDENTITY_UPDATED, AuthenticationEvents.IDENTITY_UPDATED);
@@ -324,6 +341,9 @@ export default class ChatRoom extends Listenable {
         this.locked = false;
         this.transcriptionStatus = JitsiTranscriptionStatus.OFF;
         this.initialDiscoRoomInfoReceived = false;
+
+        this.eventEmitter.on(JitsiConferenceEvents.E2EE_CHAT_KEY_RECEIVED, this.setEncryptionKey.bind(this));
+
     }
 
     /* eslint-enable max-params */
@@ -433,6 +453,28 @@ export default class ChatRoom extends Listenable {
      */
     private _parseReplyMessage(msg: Element): string | null {
         return getAttribute(findFirst(msg, ':scope>reply'), 'to');
+    }
+
+    public setEncryptionKey(key: Uint8Array): void {
+        this.encyptionKey = key;
+        logger.info('E2E: ChatRoom got encryption key.');
+
+        if (this.pendingEncryptedMessages.length > 0) {
+            logger.info(`E2E: Decrypting ${this.pendingEncryptedMessages.length} queued messages`);
+            this.pendingEncryptedMessages.forEach(msg => {
+                try {
+                    const chatMessage = decryptSymmetricallySync(msg.txt, this.encyptionKey);
+
+                    this.eventEmitter.emit(XMPPEvents.MESSAGE_RECEIVED,
+                        msg.from, chatMessage, this.myroomjid, msg.stamp, msg.displayName,
+                        msg.isVisitorMessage, msg.messageId, msg.source, msg.replyToId);
+
+                } catch (e) {
+                    logger.error('Failed to decrypt queued message', e);
+                }
+            });
+            this.pendingEncryptedMessages = [];
+        }
     }
 
     /**
@@ -1128,6 +1170,12 @@ export default class ChatRoom extends Listenable {
             type: 'groupchat'
         });
 
+        if (this.encyptionKey) {
+            const payload = typeof message === 'object' ? JSON.stringify(message) : message;
+
+            message = encryptSymmetricallySync(payload, this.encyptionKey);
+        }
+
         // We are adding the message in a packet extension. If this element
         // is different from 'body', we add a custom namespace.
         // e.g. for 'json-message' extension of message stanza.
@@ -1499,10 +1547,27 @@ export default class ChatRoom extends Listenable {
                 }
                 const source = isVisitorMessage ? undefined : sourceAttrValue;
 
+                if (this.options.isChatEncrypted && !this.encyptionKey) {
+                    this.pendingEncryptedMessages.push({
+                        displayName,
+                        from,
+                        isVisitorMessage,
+                        messageId,
+                        replyToId,
+                        source,
+                        stamp,
+                        txt,
+                    });
+
+                    return;
+                }
+
+                const chatMessage = this.encyptionKey ? decryptSymmetricallySync(txt, this.encyptionKey) : txt;
+
                 // we will fire explicitly that this is a visitor(isVisitor:true) to the conference
                 // a message with explicit name set
                 this.eventEmitter.emit(XMPPEvents.MESSAGE_RECEIVED,
-                    from, txt, this.myroomjid, stamp, displayName, isVisitorMessage, messageId, source, replyToId);
+                    from, chatMessage, this.myroomjid, stamp, displayName, isVisitorMessage, messageId, source, replyToId);
             }
         }
     }

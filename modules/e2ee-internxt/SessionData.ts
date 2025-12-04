@@ -12,7 +12,8 @@ import {
 import { base64ToUint8Array, uint8ArrayToBase64 } from './Utils';
 
 
-const AUX = new Uint8Array([ 1, 2, 3 ]);
+const AUX = new TextEncoder().encode('Session Key Exchange');
+const AUX_CHAT = new TextEncoder().encode('Chat Key Exchange');
 
 export class SessionData {
     private status: ProtocolStatus;
@@ -145,6 +146,35 @@ export class SessionData {
         const pqCiphertext = uint8ArrayToBase64(cipher);
 
         return { ciphertext, pqCiphertext };
+    }
+
+    async encryptChatKey(chatKeyECC: Uint8Array, chatKeyPQ: Uint8Array): Promise<{ ciphertext: string; pqCiphertext: string; }> {
+        const encrypted = this.session.encrypt(chatKeyECC);
+        const ciphertext = encrypted.ciphertext;
+
+        const cipher = await encryptSymmetrically(
+            this.pqSessionKey,
+            chatKeyPQ,
+            AUX_CHAT,
+        );
+        const pqCiphertext = uint8ArrayToBase64(cipher);
+
+        return { ciphertext, pqCiphertext };
+    }
+
+    async decryptChatKey(
+            ciphertext: string,
+            pqCiphertext: string,
+    ): Promise<{ keyECC: Uint8Array; keyPQ: Uint8Array; }> {
+        const eccKey = this.session.decrypt(NORMAL_MESSAGE, ciphertext);
+        const pqCipher = base64ToUint8Array(pqCiphertext);
+        const pqKey = await decryptSymmetrically(
+            this.pqSessionKey,
+            pqCipher,
+            AUX_CHAT,
+        );
+
+        return { keyECC: eccKey, keyPQ: pqKey };
     }
 
     async decryptKeys(
