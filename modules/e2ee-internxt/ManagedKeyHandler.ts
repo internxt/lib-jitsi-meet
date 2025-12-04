@@ -410,7 +410,7 @@ export class ManagedKeyHandler extends Listenable {
     }
 
     private noOtherModerators(): boolean {
-        if (this.conference.isModerator()) return false;
+        if (this.conference.isModerator()) return true;
 
         const participants = this.conference.getParticipants();
 
@@ -776,6 +776,7 @@ export class ManagedKeyHandler extends Listenable {
         );
 
         if (this.conference.isModerator() && !this.askedForChatKey && list.length == 0) {
+            this.log('info', 'Generated chat keys');
             const chatKeyECC = genSymmetricKey();
             const chatKeyPQ = genSymmetricKey();
 
