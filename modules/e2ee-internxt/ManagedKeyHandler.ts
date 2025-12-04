@@ -516,7 +516,7 @@ export class ManagedKeyHandler extends Listenable {
                 );
 
                 if (!this.askedForChatKey && (participant.isModerator() || this.noOtherModerators())) {
-                    this.log('info', `Requesting chat key from ${pId}. Is moderator?: ${participant.isModerator()}. Are there no other moderators?: ${this.noOtherModerators()}.`);
+                    this.log('info', `Requesting chat key from ${pId}.`);
                     this._sendMessage(
                         OLM_MESSAGE_TYPES.CHAT_KEY_REQUEST,
                         'chat',
@@ -599,7 +599,7 @@ export class ManagedKeyHandler extends Listenable {
                 break;
             }
             case OLM_MESSAGE_TYPES.CHAT_KEY: {
-                this.log('info', `Participant got chat key from ${pId}. `);
+                this.log('info', `Got chat key from ${pId}. `);
                 const { ciphertext, pqCiphertext } = msg.data;
                 const { keyECC, keyPQ } = await this._olmAdapter.decryptChatKey(pId, ciphertext, pqCiphertext);
 
@@ -760,7 +760,7 @@ export class ManagedKeyHandler extends Listenable {
 
         this.log(
             'info',
-            `There are following IDs in the meeting: [ ${participants.map(p => `${p.getId()} (FEATURE_E2EE: ${p.hasFeature(FEATURE_E2EE)}, 'e2ee.enabled': ${p.getProperty('e2ee.enabled')})`).join(', ')}]`,
+            `There are following IDs in the meeting: [ ${participants.map(p => `${p.getId()}`).join(', ')}]`,
         );
         const list = participants.filter(
             participant =>
@@ -772,7 +772,7 @@ export class ManagedKeyHandler extends Listenable {
 
         this.log(
             'info',
-            `My ID is ${localParticipantId}, should send session-init to smaller IDs: [ ${list.map(p => p.getId())}]`,
+            `Should send session-init to IDs: [ ${list.map(p => p.getId())}]`,
         );
 
         if (this.conference.isModerator() && !this.askedForChatKey && list.length == 0) {
