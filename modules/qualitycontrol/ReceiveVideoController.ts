@@ -8,7 +8,7 @@ import RTC from '../RTC/RTC';
 import JingleSessionPC from '../xmpp/JingleSessionPC';
 
 const logger = getLogger('qc:ReceiveVideoController');
-const MAX_HEIGHT = 420;
+const MAX_HEIGHT = 720;
 
 export interface IReceiverVideoConstraint {
     maxHeight: number;
