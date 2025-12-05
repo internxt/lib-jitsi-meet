@@ -688,6 +688,18 @@ export default class JitsiRemoteTrack extends JitsiTrack {
             cancelAnimationFrame(this._animationFrameId);
             this._animationFrameId = null;
         }
+        if (this.frame) {
+            this.frame.close();
+            this.frame = null;
+        }
+        if (this.inputTensor) {
+            this.inputTensor.dispose();
+            this.inputTensor = null;
+        }
+        if (this.outInference.output) {
+            this.outInference.output.dispose();
+            this.outInference = null;
+        }
         if (this.disposed) {
             return;
         }
