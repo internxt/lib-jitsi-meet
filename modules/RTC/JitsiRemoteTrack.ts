@@ -22,10 +22,6 @@ const ort = require('onnxruntime-web');
 
 ort.env.wasm.wasmPaths = '/libs/dist/';
 ort.env.wasm.numThreads = 1;
-if (browser.isSafari() == true) {
-    ort.env.proxy = true;
-    ort.env.wasm.simd = false;
-}
 
 let ttfmTrackerAudioAttached = false;
 let ttfmTrackerVideoAttached = false;
@@ -467,8 +463,9 @@ export default class JitsiRemoteTrack extends JitsiTrack {
      * element.
      */
     bandwidthreduction(container: any) {
+        if (this._animationFrameId) cancelAnimationFrame(this._animationFrameId);
         const canvasDecoded = document.createElement('canvas');
-
+        
         this._decodedStream = canvasDecoded.captureStream();
         // Extracting track from canvas-sender
         this._decodedTrack = this._decodedStream.getVideoTracks()[0];
@@ -508,16 +505,11 @@ export default class JitsiRemoteTrack extends JitsiTrack {
                 }
                 // check wether the canvas must be changed
                 if (nwidth > 0 && this.activedecoder && nheight > 0) {
-                    if (this.width != nwidth || this.height != nheight || count % 20 == 0) {
+                    if (this.width != nwidth || this.height != nheight || count % 30 == 0) {
                         try {
                             if (this.inputTensor) {
                                 this.inputTensor.dispose();
-                            }
-                            if (this.dataOutput) {
-                                this.dataOutput = null;
-                            }
-                            if (this.inputBuffer) {
-                                this.inputBuffer = null;
+                                this.inputTensor = null;
                             }
                             canvasEncoded.width = nwidth;
                             canvasEncoded.height = nheight;
@@ -537,6 +529,8 @@ export default class JitsiRemoteTrack extends JitsiTrack {
 
                 if (this.width > 0 && this.activedecoder && !(browser.isSafari())) {
                     ctxEncoded.drawImage(this.frame, 0, 0, this.width, this.height);
+                    this.frame.close()
+                    this.inputTensor = null;
                     this.imageEncode = ctxEncoded.getImageData(0, 0, this.width, this.height);
                     this.inputData = this.imageEncode.data;
 
@@ -544,7 +538,7 @@ export default class JitsiRemoteTrack extends JitsiTrack {
                         this.inputBuffer.set(this.inputData);
                     } catch (error) {
                         logger.info('Decoder: float32 buffer could not be set: ', error);
-
+                        this._animationFrameId = requestAnimationFrame(processFrame);
                         return;
                     }
 
@@ -552,7 +546,7 @@ export default class JitsiRemoteTrack extends JitsiTrack {
                         this.outInference = await decodingSession.run(this.input);
                     } catch (error) {
                         logger.info('Decoder: could not run onnx session: ', error);
-
+                        this._animationFrameId = requestAnimationFrame(processFrame);
                         return;
                     }
 
@@ -561,7 +555,7 @@ export default class JitsiRemoteTrack extends JitsiTrack {
                         ctxDecoded.putImageData(this.dataOutput, 0, 0);
                     } catch (error) {
                         logger.info('Decoder: output frame could not be set: ', error);
-
+                        this._animationFrameId = requestAnimationFrame(processFrame);
                         return;
                     }
                     // Cleaning canvas, arrays and tensors
@@ -615,9 +609,9 @@ export default class JitsiRemoteTrack extends JitsiTrack {
                 this.bandwidthreduction(container);
             } else {
                 result = RTCUtils.attachMediaStream(container, this.stream);
+                this.containers.push(container);
             }
         }
-        this.containers.push(container);
         this._attachTTFMTracker(container);
 
         return result;
@@ -681,6 +675,7 @@ export default class JitsiRemoteTrack extends JitsiTrack {
      * @returns {Promise}
      */
     override async dispose(): Promise<void> {
+        logger.info('Decoder: disposing everything!');
         if (this._animationFrameId !== null) {
             cancelAnimationFrame(this._animationFrameId);
             this._animationFrameId = null;
@@ -693,10 +688,21 @@ export default class JitsiRemoteTrack extends JitsiTrack {
             this.inputTensor.dispose();
             this.inputTensor = null;
         }
-        if (this.outInference.output) {
+        if (this.outInference) {
             this.outInference.output.dispose();
             this.outInference = null;
         }
+        if (this._decodedTrack) {
+            this._decodedTrack.stop()
+        }
+        if(this._decodedStream) {
+            this._decodedStream.getTracks().forEach(t => t.stop())
+        }
+        this.activedecoder = false;
+        this.attachon = false;
+        this.attachoff = false;
+        this.width = 0;
+        this.height = 0;
         if (this.disposed) {
             return;
         }
