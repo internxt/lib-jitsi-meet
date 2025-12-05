@@ -198,7 +198,7 @@ export default class JitsiRemoteTrack extends JitsiTrack {
         this.frame = null;
         this.width = 0;
         this.height = 0;
-        this.inputBuffer = new Float32Array(720 * 1280 * 4);
+        this.inputBuffer = null;
         this.outInference = null;
         this.activedecoder = false;
         this.attachoff = false;
@@ -462,152 +462,169 @@ export default class JitsiRemoteTrack extends JitsiTrack {
     }
 
     /**
-     * Attaches the MediaStream of this track to an HTML container.
-     * Adds the container to the list of containers that are displaying the
-     * track.
-     *
+     *  Performs the decoding routine
      * @param container the HTML container which can be 'video' or 'audio'
      * element.
-     * @param decode boolean to determine if the decoding session is used or not.
-     *
-     * @returns {void}
      */
-    override attach(container, decode) {
-        let result = Promise.resolve();
+    decodingSession(container: any) {
+        const canvasDecoded = document.createElement('canvas');
 
-        if (this.type === MediaType.VIDEO && this.videoType === VideoType.CAMERA) {
-            this._onTrackAttach(container);
-            const canvasDecoded = document.createElement('canvas');
-
-            this._decodedStream = canvasDecoded.captureStream();
-            // Extracting track from canvas-sender
-            this._decodedTrack = this._decodedStream.getVideoTracks()[0];
-            const videoTrack = this.stream.getVideoTracks()[0];
-            // Frame-grabber to catch frames from the incoming stream
-            const imageCapture = new ImageCapture(videoTrack);
-            // Setting up the aux canvas to paint the caught frames
-            const canvasEncoded = document.createElement('canvas');
-            const ctxEncoded = canvasEncoded.getContext('2d', { willReadFrequently: true });
-            const ctxDecoded = canvasDecoded.getContext('2d', { willReadFrequently: true });
-
-            const processFrame = async () => {
-                if (videoTrack.readyState == 'live') {
-                    try {
-                        // Capturing a frame and painting it into the aux canvas
-                        this.frame = await imageCapture.grabFrame();
-                    } catch (error) {
-                        logger.info('Decoder: could not caught frame: ', error);
-
-                        return;
+        this._decodedStream = canvasDecoded.captureStream();
+        // Extracting track from canvas-sender
+        this._decodedTrack = this._decodedStream.getVideoTracks()[0];
+        const videoTrack = this.stream.getVideoTracks()[0];
+        // Frame-grabber to catch frames from the incoming stream
+        const imageCapture = new ImageCapture(videoTrack);
+        // Setting up the aux canvas to paint the caught frames
+        const canvasEncoded = document.createElement('canvas');
+        const ctxEncoded = canvasEncoded.getContext('2d', { willReadFrequently: true });
+        const ctxDecoded = canvasDecoded.getContext('2d', { willReadFrequently: true });
+        const processFrame = async () => {
+            if (videoTrack.readyState == 'live') {
+                try {
+                    if (this.frame) {
+                        this.frame.close();
                     }
-                    // Getting the current size of the incoming stream
-                    const nwidth = this.frame.width;
-                    const nheight = this.frame.height;
+                    this.frame = await imageCapture.grabFrame();
+                } catch (error) {
+                    logger.info('Decoder: could not caught frame: ', error);
 
-                    if (nheight < 240 && !(browser.isSafari()) && !(this.attachon) && !(decode)) {
-                        logger.info('Decoder: Activating decoder for track:', this.stream.getVideoTracks()[0]);
-                        logger.info('Decoder: new resolution: ', nwidth, 'x', nheight, ', track: ', this.stream.getVideoTracks()[0]);
-                        this.activedecoder = true;
-                    }
-                    if ((nheight >= 240 && !(this.attachoff))) {
-                        logger.info('Decoder: Deactivating decoder for track:', this.stream.getVideoTracks()[0]);
-                        logger.info('Decoder: new resolution: ', nwidth, 'x', nheight, ', track: ', this.stream.getVideoTracks()[0]);
-                        this.activedecoder = false;
-                    }
-                    // check wether the canvas must be changed
-                    if (nwidth != null && nwidth !== undefined && nwidth > 0 && this.activedecoder
-                        && !(browser.isSafari()) && nheight != null && nheight !== undefined && nheight > 0) {
-                        if (this.width != nwidth || this.height != nheight) {
+                    return;
+                }
+                // Getting the current size of the incoming stream
+                const nwidth = this.frame.width;
+                const nheight = this.frame.height;
+
+                if (nheight < 240 && !(browser.isSafari()) && !(this.attachon)) {
+                    logger.info('Decoder: Activating decoder for track:', this.stream.getVideoTracks()[0]);
+                    logger.info('Decoder: new resolution: ', nwidth, 'x', nheight, ', track: ', this.stream.getVideoTracks()[0]);
+                    this.activedecoder = true;
+                }
+                if ((nheight >= 240 && !(this.attachoff)) || browser.isSafari()) {
+                    logger.info('Decoder: Deactivating decoder for track:', this.stream.getVideoTracks()[0]);
+                    logger.info('Decoder: new resolution: ', nwidth, 'x', nheight, ', track: ', this.stream.getVideoTracks()[0]);
+                    this.activedecoder = false;
+                }
+                // check wether the canvas must be changed
+                if (nwidth > 0 && this.activedecoder && !(browser.isSafari()) && nheight > 0) {
+                    if (this.width != nwidth || this.height != nheight) {
+                        logger.info('Decoder: setting new resolution: ', nwidth, 'x', nheight, ', track: ', this.stream.getVideoTracks()[0]);
+                        try {
                             if (this.inputTensor) {
                                 this.inputTensor.dispose();
                             }
                             if (this.dataOutput) {
                                 this.dataOutput = null;
                             }
+                            if (this.inputBuffer) {
+                                this.inputBuffer = null;
+                            }
                             canvasEncoded.width = nwidth;
                             canvasEncoded.height = nheight;
                             canvasDecoded.width = nwidth * 2;
                             canvasDecoded.height = nheight * 2;
-                            const input32buff = this.inputBuffer.subarray(0, 4 * nwidth * nheight);
-
-                            this.inputTensor = new ort.Tensor('float32', input32buff, [ 1, nheight, nwidth, 4 ]);
+                            this.inputBuffer = new Float32Array(nwidth * nheight * 4);
+                            this.inputTensor = new ort.Tensor('float32', this.inputBuffer, [ 1, nheight, nwidth, 4 ]);
                             this.input.input = this.inputTensor;
                             this.dataOutput = new ImageData(2 * nwidth, 2 * nheight);
                             this.width = nwidth;
                             this.height = nheight;
+                        } catch {
+                            logger.info('Decoder: Could not set new resolution');
                         }
-                    }
-
-                    if (this.width != null && this.width !== undefined && this.width > 0 && this.activedecoder && !(browser.isSafari())) {
-                        ctxEncoded.drawImage(this.frame, 0, 0, this.width, this.height);
-                        this.imageEncode = ctxEncoded.getImageData(0, 0, this.width, this.height);
-                        this.inputData = this.imageEncode.data;
-
-                        try {
-                            this.inputBuffer.set(this.inputData);
-                        } catch (error) {
-                            logger.info('Decoder: float32 buffer could not be set: ', error);
-
-                            return;
-                        }
-
-                        try {
-                            this.outInference = await decodingSession.run(this.input);
-                        } catch (error) {
-                            logger.info('Decoder: could not run onnx session: ', error);
-
-                            return;
-                        }
-
-                        try {
-                            this.dataOutput.data.set(this.outInference.output.data);
-                            ctxDecoded.putImageData(this.dataOutput, 0, 0);
-                        } catch (error) {
-                            logger.info('Decoder: output frame could not be set: ', error);
-
-                            return;
-                        }
-                        // Setting decoded image in the canvas-sender
-
-                        this.imageEncode = null;
-                        this.inputData = null;
-                        this.outInference.output.dispose();
-                        this.outInference = null;
-                    }
-                    if (!(this.attachoff) && !(this.activedecoder)) {
-                        if (container.srcObject) {
-                            container.srcObject = null;
-                        }
-                        this.attachoff = true;
-                        this.attachon = false;
-                        logger.info('Decoder: OFF');
-                        result = RTCUtils.attachMediaStream(container, this.stream);
-                    }
-                    if (!(this.attachon) && this.activedecoder && !(browser.isSafari())) {
-                        if (container.srcObject) {
-                            container.srcObject = null;
-                        }
-                        this.attachon = true;
-                        this.attachoff = false;
-                        logger.info('Decoder: ON');
-                        result = RTCUtils.attachMediaStream(container, this._decodedStream);
                     }
                 }
-                this._animationFrameId = requestAnimationFrame(processFrame);
-            };
 
-            processFrame();
-        } else {
-            if (this.stream) {
+                if (this.width > 0 && this.activedecoder && !(browser.isSafari())) {
+                    ctxEncoded.drawImage(this.frame, 0, 0, this.width, this.height);
+                    this.imageEncode = ctxEncoded.getImageData(0, 0, this.width, this.height);
+                    this.inputData = this.imageEncode.data;
+
+                    try {
+                        this.inputBuffer.set(this.inputData);
+                    } catch (error) {
+                        logger.info('Decoder: float32 buffer could not be set: ', error);
+
+                        return;
+                    }
+
+                    try {
+                        this.outInference = await decodingSession.run(this.input);
+                    } catch (error) {
+                        logger.info('Decoder: could not run onnx session: ', error);
+
+                        return;
+                    }
+
+                    try {
+                        this.dataOutput.data.set(this.outInference.output.data);
+                        ctxDecoded.putImageData(this.dataOutput, 0, 0);
+                    } catch (error) {
+                        logger.info('Decoder: output frame could not be set: ', error);
+
+                        return;
+                    }
+                    // Cleaning canvas, arrays and tensors
+                    this.imageEncode = null;
+                    this.inputData = null;
+                    this.outInference.output.dispose();
+                    this.outInference = null;
+                }
+                if (!(this.attachoff) && !(this.activedecoder)) {
+                    if (container.srcObject) {
+                        container.srcObject = null;
+                    }
+                    this.attachoff = true;
+                    this.attachon = false;
+                    logger.info('Decoder: OFF');
+                    RTCUtils.attachMediaStream(container, this.stream);
+                }
+                if (!(this.attachon) && this.activedecoder && !(browser.isSafari())) {
+                    if (container.srcObject) {
+                        container.srcObject = null;
+                    }
+                    this.attachon = true;
+                    this.attachoff = false;
+                    logger.info('Decoder: ON');
+                    RTCUtils.attachMediaStream(container, this._decodedStream);
+                }
+            }
+            this._animationFrameId = requestAnimationFrame(processFrame);
+        };
+
+        processFrame();
+    }
+
+    /**
+     * Attaches the MediaStream of this track to an HTML container.
+     * Adds the container to the list of containers that are displaying the
+     * track.
+     *
+     * @param container the HTML container which can be 'video' or 'audio'
+     * element.
+     *
+     * @returns {void}
+     */
+    override attach(container: HTMLElement, decode: boolean): Promise<void> {
+        let result = Promise.resolve();
+
+        decode = false;
+        if (this.stream) {
+            this._onTrackAttach(container);
+            if (this.type === MediaType.VIDEO && this.videoType === VideoType.CAMERA && decode) {
+                logger.log('Decoder: it will be used on this track: ', this.track);
+                decodingSession(container);
+            } else {
+                logger.log('Decoder: it will not be used on this track: ', this.track);
                 result = RTCUtils.attachMediaStream(container, this.stream);
             }
         }
-        this._onTrackAttach(container);
         this.containers.push(container);
         this._attachTTFMTracker(container);
 
         return result;
     }
+
 
     /**
      * Changes the video type of the track.
