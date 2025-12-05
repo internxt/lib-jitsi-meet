@@ -596,37 +596,6 @@ export default class JitsiRemoteTrack extends JitsiTrack {
     }
 
     /**
-     * Attaches the MediaStream of this track to an HTML container.
-     * Adds the container to the list of containers that are displaying the
-     * track.
-     *
-     * @param container the HTML container which can be 'video' or 'audio'
-     * element.
-     *
-     * @returns {void}
-     */
-    override attach(container: HTMLElement, decode: boolean): Promise<void> {
-        let result = Promise.resolve();
-
-        decode = false;
-        if (this.stream) {
-            this._onTrackAttach(container);
-            if (this.type === MediaType.VIDEO && this.videoType === VideoType.CAMERA && decode) {
-                logger.log('Decoder: it will be used on this track: ', this.track);
-                decodingSession(container);
-            } else {
-                logger.log('Decoder: it will not be used on this track: ', this.track);
-                result = RTCUtils.attachMediaStream(container, this.stream);
-            }
-        }
-        this.containers.push(container);
-        this._attachTTFMTracker(container);
-
-        return result;
-    }
-
-
-    /**
      * Changes the video type of the track.
      *
      * @param {string} type - The new video type("camera", "desktop").
