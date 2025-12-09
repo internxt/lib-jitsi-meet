@@ -477,6 +477,7 @@ export default class JitsiRemoteTrack extends JitsiTrack {
         const ctxEncoded = canvasEncoded.getContext('2d', { willReadFrequently: true });
         const ctxDecoded = canvasDecoded.getContext('2d', { willReadFrequently: true });
         let count = 1;
+        let nswitches = 1;
         const processFrame = async () => {
             if (videoTrack.readyState == 'live') {
                 try {
@@ -505,7 +506,7 @@ export default class JitsiRemoteTrack extends JitsiTrack {
                 }
                 // check wether the canvas must be changed
                 if (nwidth > 0 && this.activedecoder && nheight > 0) {
-                    if (this.width != nwidth || this.height != nheight || count % 20 == 0) {
+                    if (this.width != nwidth || this.height != nheight || count % 30 == 0) {
                         try {
                             if (this.inputTensor) {
                                 this.inputTensor.dispose();
@@ -530,7 +531,6 @@ export default class JitsiRemoteTrack extends JitsiTrack {
                 if ((this.width > 0 && this.activedecoder)) {
                     ctxEncoded.drawImage(this.frame, 0, 0, this.width, this.height);
                     this.frame.close();
-                    this.inputTensor = null;
                     this.imageEncode = ctxEncoded.getImageData(0, 0, this.width, this.height);
                     this.inputData = this.imageEncode.data;
 
@@ -569,27 +569,33 @@ export default class JitsiRemoteTrack extends JitsiTrack {
                 }
                 if ((!(this.attachoff) && !(this.activedecoder))) {
                     if (container.srcObject) {
-                        container.pause();
                         container.srcObject = null;
-                        container.removeAttribute('srcObject');
-                        container.load();
                     }
                     this.attachoff = true;
                     this.attachon = false;
                     logger.info('Decoder: OFF');
                     RTCUtils.attachMediaStream(container, this.stream);
+                    nswitches += 1;
                 }
-                if ((!(this.attachon) && this.activedecoder && !(browser.isSafari()))) {
+                if ((!(this.attachon) && this.activedecoder)) {
                     if (container.srcObject) {
-                        container.pause();
                         container.srcObject = null;
-                        container.removeAttribute('srcObject');
-                        container.load();
+                    }
+                    if (nswitches % 20 == 0) {
+                        if (this._decodedTrack) {
+                            this._decodedTrack.stop();
+                        }
+                        if (this._decodedStream) {
+                            this._decodedStream.getTracks().forEach(t => t.stop());
+                        }
+                        this._decodedStream = canvasDecoded.captureStream();
+                        this._decodedTrack = this._decodedStream.getVideoTracks()[0];
                     }
                     this.attachon = true;
                     this.attachoff = false;
                     logger.info('Decoder: ON');
                     RTCUtils.attachMediaStream(container, this._decodedStream);
+                    nswitches += 1;
                 }
                 count = count + 1;
             }
