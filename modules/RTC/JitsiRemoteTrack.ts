@@ -527,7 +527,7 @@ export default class JitsiRemoteTrack extends JitsiTrack {
                     }
                 }
 
-                if (this.width > 0 && this.activedecoder && !(browser.isSafari())) {
+                if ((this.width > 0 && this.activedecoder)) {
                     ctxEncoded.drawImage(this.frame, 0, 0, this.width, this.height);
                     this.frame.close();
                     this.inputTensor = null;
@@ -569,7 +569,10 @@ export default class JitsiRemoteTrack extends JitsiTrack {
                 }
                 if ((!(this.attachoff) && !(this.activedecoder))) {
                     if (container.srcObject) {
+                        container.pause();
                         container.srcObject = null;
+                        container.removeAttribute('srcObject');
+                        container.load();
                     }
                     this.attachoff = true;
                     this.attachon = false;
@@ -578,7 +581,10 @@ export default class JitsiRemoteTrack extends JitsiTrack {
                 }
                 if ((!(this.attachon) && this.activedecoder && !(browser.isSafari()))) {
                     if (container.srcObject) {
+                        container.pause();
                         container.srcObject = null;
+                        container.removeAttribute('srcObject');
+                        container.load();
                     }
                     this.attachon = true;
                     this.attachoff = false;
@@ -608,7 +614,7 @@ export default class JitsiRemoteTrack extends JitsiTrack {
 
         if (this.stream) {
             this._onTrackAttach(container);
-            if (this.type === MediaType.VIDEO && this.videoType === VideoType.CAMERA && decode) {
+            if (this.type === MediaType.VIDEO && this.videoType === VideoType.CAMERA && decode && !(browser.isSafari())) {
                 this.increaseResolution(container);
             } else {
                 result = RTCUtils.attachMediaStream(container, this.stream);
