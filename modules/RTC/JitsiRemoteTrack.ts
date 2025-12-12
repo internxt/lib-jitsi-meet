@@ -22,10 +22,6 @@ const ort = require('onnxruntime-web');
 
 ort.env.wasm.wasmPaths = '/libs/dist/';
 ort.env.wasm.numThreads = 1;
-if (browser.isSafari() == true) {
-    ort.env.proxy = true;
-    ort.env.wasm.simd = false;
-}
 
 let ttfmTrackerAudioAttached = false;
 let ttfmTrackerVideoAttached = false;
@@ -98,13 +94,13 @@ export default class JitsiRemoteTrack extends JitsiTrack {
     public frame: Nullable<ImageBitmap>;
     public width: number;
     public height: number;
-    public inputBuffer: Nullable<Float32Array>;
     public outInference: Nullable<any>;
     public activedecoder: boolean;
     public attachoff: boolean;
     public attachon: boolean;
     public imageEncode: Nullable<ImageData>;
     public inputData: Nullable<any>;
+    public inputBuffer: Nullable<any>;
 
     /**
      * Creates new JitsiRemoteTrack instance.
@@ -462,11 +458,12 @@ export default class JitsiRemoteTrack extends JitsiTrack {
     }
 
     /**
-     *  Performs the decoding routine
+     *  Performs the decoding routine to increase resolution
      * @param container the HTML container which can be 'video' or 'audio'
      * element.
      */
-    decodingSession(container: any) {
+    increaseResolution(container: any) {
+        if (this._animationFrameId) cancelAnimationFrame(this._animationFrameId);
         const canvasDecoded = document.createElement('canvas');
 
         this._decodedStream = canvasDecoded.captureStream();
@@ -479,6 +476,8 @@ export default class JitsiRemoteTrack extends JitsiTrack {
         const canvasEncoded = document.createElement('canvas');
         const ctxEncoded = canvasEncoded.getContext('2d', { willReadFrequently: true });
         const ctxDecoded = canvasDecoded.getContext('2d', { willReadFrequently: true });
+        let count = 1;
+        let nswitches = 1;
         const processFrame = async () => {
             if (videoTrack.readyState == 'live') {
                 try {
@@ -506,18 +505,12 @@ export default class JitsiRemoteTrack extends JitsiTrack {
                     this.activedecoder = false;
                 }
                 // check wether the canvas must be changed
-                if (nwidth > 0 && this.activedecoder && !(browser.isSafari()) && nheight > 0) {
-                    if (this.width != nwidth || this.height != nheight) {
-                        logger.info('Decoder: setting new resolution: ', nwidth, 'x', nheight, ', track: ', this.stream.getVideoTracks()[0]);
+                if (nwidth > 0 && this.activedecoder && nheight > 0) {
+                    if (this.width != nwidth || this.height != nheight || count % 30 == 0) {
                         try {
                             if (this.inputTensor) {
                                 this.inputTensor.dispose();
-                            }
-                            if (this.dataOutput) {
-                                this.dataOutput = null;
-                            }
-                            if (this.inputBuffer) {
-                                this.inputBuffer = null;
+                                this.inputTensor = null;
                             }
                             canvasEncoded.width = nwidth;
                             canvasEncoded.height = nheight;
@@ -535,8 +528,9 @@ export default class JitsiRemoteTrack extends JitsiTrack {
                     }
                 }
 
-                if (this.width > 0 && this.activedecoder && !(browser.isSafari())) {
+                if ((this.width > 0 && this.activedecoder)) {
                     ctxEncoded.drawImage(this.frame, 0, 0, this.width, this.height);
+                    this.frame.close();
                     this.imageEncode = ctxEncoded.getImageData(0, 0, this.width, this.height);
                     this.inputData = this.imageEncode.data;
 
@@ -544,6 +538,7 @@ export default class JitsiRemoteTrack extends JitsiTrack {
                         this.inputBuffer.set(this.inputData);
                     } catch (error) {
                         logger.info('Decoder: float32 buffer could not be set: ', error);
+                        this._animationFrameId = requestAnimationFrame(processFrame);
 
                         return;
                     }
@@ -552,6 +547,7 @@ export default class JitsiRemoteTrack extends JitsiTrack {
                         this.outInference = await decodingSession.run(this.input);
                     } catch (error) {
                         logger.info('Decoder: could not run onnx session: ', error);
+                        this._animationFrameId = requestAnimationFrame(processFrame);
 
                         return;
                     }
@@ -561,6 +557,7 @@ export default class JitsiRemoteTrack extends JitsiTrack {
                         ctxDecoded.putImageData(this.dataOutput, 0, 0);
                     } catch (error) {
                         logger.info('Decoder: output frame could not be set: ', error);
+                        this._animationFrameId = requestAnimationFrame(processFrame);
 
                         return;
                     }
@@ -570,7 +567,7 @@ export default class JitsiRemoteTrack extends JitsiTrack {
                     this.outInference.output.dispose();
                     this.outInference = null;
                 }
-                if (!(this.attachoff) && !(this.activedecoder)) {
+                if ((!(this.attachoff) && !(this.activedecoder))) {
                     if (container.srcObject) {
                         container.srcObject = null;
                     }
@@ -578,21 +575,61 @@ export default class JitsiRemoteTrack extends JitsiTrack {
                     this.attachon = false;
                     logger.info('Decoder: OFF');
                     RTCUtils.attachMediaStream(container, this.stream);
+                    nswitches += 1;
                 }
-                if (!(this.attachon) && this.activedecoder && !(browser.isSafari())) {
+                if ((!(this.attachon) && this.activedecoder)) {
                     if (container.srcObject) {
                         container.srcObject = null;
+                    }
+                    if (nswitches % 20 == 0) {
+                        if (this._decodedTrack) {
+                            this._decodedTrack.stop();
+                        }
+                        if (this._decodedStream) {
+                            this._decodedStream.getTracks().forEach(t => t.stop());
+                        }
+                        this._decodedStream = canvasDecoded.captureStream();
+                        this._decodedTrack = this._decodedStream.getVideoTracks()[0];
                     }
                     this.attachon = true;
                     this.attachoff = false;
                     logger.info('Decoder: ON');
                     RTCUtils.attachMediaStream(container, this._decodedStream);
+                    nswitches += 1;
                 }
+                count = count + 1;
             }
             this._animationFrameId = requestAnimationFrame(processFrame);
         };
 
         processFrame();
+    }
+
+    /**
+     * Attaches the MediaStream of this track to an HTML container.
+     * Adds the container to the list of containers that are displaying the
+     * track.
+     *
+     * @param container the HTML container which can be 'video' or 'audio'
+     * element.
+     *
+     * @returns {void}
+     */
+    override attach(container: HTMLElement, decode: boolean): Promise<void> {
+        let result = Promise.resolve();
+
+        if (this.stream) {
+            this._onTrackAttach(container);
+            if (this.type === MediaType.VIDEO && this.videoType === VideoType.CAMERA && decode && !(browser.isSafari())) {
+                this.increaseResolution(container);
+            } else {
+                result = RTCUtils.attachMediaStream(container, this.stream);
+                this.containers.push(container);
+            }
+        }
+        this._attachTTFMTracker(container);
+
+        return result;
     }
 
     /**
@@ -653,10 +690,36 @@ export default class JitsiRemoteTrack extends JitsiTrack {
      * @returns {Promise}
      */
     override async dispose(): Promise<void> {
+        logger.info('Decoder: cleaning');
         if (this._animationFrameId !== null) {
             cancelAnimationFrame(this._animationFrameId);
             this._animationFrameId = null;
         }
+        if (this.frame) {
+            this.frame.close();
+            this.frame = null;
+        }
+        if (this.inputTensor) {
+            this.inputTensor.dispose();
+            this.inputTensor = null;
+        }
+        if (this.outInference) {
+            this.outInference.output.dispose();
+            this.outInference = null;
+        }
+        if (this._decodedTrack) {
+            this._decodedTrack.stop();
+            this._decodedTrack = null;
+        }
+        if (this._decodedStream) {
+            this._decodedStream.getTracks().forEach(t => t.stop());
+            this._decodedStream = null;
+        }
+        this.activedecoder = false;
+        this.attachon = false;
+        this.attachoff = false;
+        this.width = 0;
+        this.height = 0;
         if (this.disposed) {
             return;
         }
