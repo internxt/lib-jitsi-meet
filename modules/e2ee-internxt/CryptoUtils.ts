@@ -1,7 +1,7 @@
 import { blake3 } from '@noble/hashes/blake3.js';
 import { bytesToHex, concatBytes, randomBytes, utf8ToBytes } from '@noble/hashes/utils.js';
 
-import { MediaKeys } from './Types';
+import { CryptoError, MediaKeys } from './Types';
 
 const CONTEXT_DERIVE_KEY = 'Internxt Meet Web App 2025-11-12 15:46:31 derive one key from two keys';
 const CONTEXT_RATCHET = 'Internxt Meet Web App 2025-11-12 17:09:10 ratchet media key';
@@ -12,62 +12,87 @@ const KEY_FORMAT = 'raw';
 const IV_LEN_BYTES = 16;
 
 export function hashChatKeys(keyECC: Uint8Array, keyPQ: Uint8Array): Uint8Array {
-    const hasher = blake3.create();
+    try {
+        const hasher = blake3.create();
 
-    hasher.update(keyECC).update(keyPQ);
+        hasher.update(keyECC).update(keyPQ);
 
-    return hasher.digest();
+        return hasher.digest();
+    } catch (e) {
+        throw new CryptoError(`${e.name}: ${e.message}`);
+    }
 }
 
 
 export function hashData(data: string[]): Uint8Array {
-    const hasher = blake3.create();
+    try {
+        const hasher = blake3.create();
 
-    for (const chunk of data) {
-        hasher.update(utf8ToBytes(chunk));
+        for (const chunk of data) {
+            hasher.update(utf8ToBytes(chunk));
+        }
+
+        return hasher.digest();
+    } catch (e) {
+        throw new CryptoError(`${e.name}: ${e.message}`);
     }
-
-    return hasher.digest();
 }
 
 export function commitToMediaKey(keys: MediaKeys, commitment: Uint8Array): string {
-    const hasher = blake3.create();
+    try {
+        const hasher = blake3.create();
 
-    hasher.update(commitment);
-    hasher.update(keys.olmKey);
-    hasher.update(keys.pqKey);
-    hasher.update(new Uint8Array(keys.index));
-    hasher.update(utf8ToBytes(keys.userID));
-    const result = hasher.digest();
+        hasher.update(commitment);
+        hasher.update(keys.olmKey);
+        hasher.update(keys.pqKey);
+        hasher.update(new Uint8Array(keys.index));
+        hasher.update(utf8ToBytes(keys.userID));
+        const result = hasher.digest();
 
-    return bytesToHex(result);
+        return bytesToHex(result);
+    } catch (e) {
+        throw new CryptoError(`${e.name}: ${e.message}`);
+    }
 }
 
 // This funcion must remain async for tests to work
 export async function hashKey(keys: MediaKeys): Promise<string> {
-    const hasher = blake3.create();
+    try {
+        const hasher = blake3.create();
 
-    hasher.update(keys.olmKey);
-    hasher.update(keys.pqKey);
-    hasher.update(new Uint8Array(keys.index));
-    hasher.update(utf8ToBytes(keys.userID));
-    const result = hasher.digest();
+        hasher.update(keys.olmKey);
+        hasher.update(keys.pqKey);
+        hasher.update(new Uint8Array(keys.index));
+        hasher.update(utf8ToBytes(keys.userID));
+        const result = hasher.digest();
 
-    return bytesToHex(result);
+        return bytesToHex(result);
+    } catch (e) {
+        throw new CryptoError(`${e.name}: ${e.message}`);
+    }
 }
 
 export function getBitsFromString(byteLen: number, data: string): Uint8Array {
-    return blake3(utf8ToBytes(data), { dkLen: byteLen });
+    try {
+        return blake3(utf8ToBytes(data), { dkLen: byteLen });
+    } catch (e) {
+        throw new CryptoError(`${e.name}: ${e.message}`);
+    }
 }
 
 export function deriveSymmetricCryptoKeyFromTwoKeys(key1: Uint8Array, key2: Uint8Array): Uint8Array {
-    const combined_key = blake3(key1, { key: key2 });
+    try {
+        const combined_key = blake3(key1, { key: key2 });
 
-    return blake3(combined_key, { context: utf8ToBytes(CONTEXT_DERIVE_KEY) });
+        return blake3(combined_key, { context: utf8ToBytes(CONTEXT_DERIVE_KEY) });
+    } catch (e) {
+        throw new CryptoError(`${e.name}: ${e.message}`);
+    }
 }
 
 export async function importSymmetricCryptoKey(keyData: Uint8Array | ArrayBuffer): Promise<CryptoKey> {
-    return crypto.subtle.importKey(
+    try {
+        return await crypto.subtle.importKey(
         KEY_FORMAT,
         new Uint8Array(keyData),
         {
@@ -76,17 +101,24 @@ export async function importSymmetricCryptoKey(keyData: Uint8Array | ArrayBuffer
         },
         true,
         [ 'encrypt', 'decrypt' ],
-    );
+        );
+    } catch (e) {
+        throw new CryptoError(`${e.name}: ${e.message}`);
+    }
 }
 
 
 export function ratchetMediaKey(key: MediaKeys): MediaKeys {
-    const olmKey = blake3(key.olmKey, { context: utf8ToBytes(CONTEXT_RATCHET) });
-    const pqKey = blake3(key.pqKey, { context: utf8ToBytes(CONTEXT_RATCHET) });
-    const index = key.index + 1;
-    const userID = key.userID;
+    try {
+        const olmKey = blake3(key.olmKey, { context: utf8ToBytes(CONTEXT_RATCHET) });
+        const pqKey = blake3(key.pqKey, { context: utf8ToBytes(CONTEXT_RATCHET) });
+        const index = key.index + 1;
+        const userID = key.userID;
 
-    return { index, olmKey, pqKey, userID };
+        return { index, olmKey, pqKey, userID };
+    } catch (e) {
+        throw new CryptoError(`${e.name}: ${e.message}`);
+    }
 }
 
 function createNISTbasedIV(freeField?: string): Uint8Array {
@@ -105,8 +137,8 @@ function createNISTbasedIV(freeField?: string): Uint8Array {
         iv.set(freeFiledFixedLength, 12);
 
         return iv;
-    } catch (error) {
-        throw new Error(`Failed to create IV: ${error}`);
+    } catch (e) {
+        throw new CryptoError(`${e.name}: ${e.message}`);
     }
 }
 
@@ -122,8 +154,8 @@ export async function encryptSymmetrically(
         const ciphertext = new Uint8Array(encrypted);
 
         return concatBytes(ciphertext, iv);
-    } catch (error) {
-        throw new Error(`Failed to encrypt symmetrically: ${error}`);
+    } catch (e) {
+        throw new CryptoError(`${e.name}: ${e.message}`);
     }
 }
 
@@ -144,11 +176,15 @@ export async function decryptSymmetrically(
 
         return new Uint8Array(decrypted);
 
-    } catch (error) {
-        throw new Error(`Failed to decrypt symmetrically: ${error}`);
+    } catch (e) {
+        throw new CryptoError(`${e.name}: ${e.message}`);
     }
 }
 
 export function genSymmetricKey(): Uint8Array {
-    return randomBytes(AES_KEY_BIT_LENGTH / 8);
+    try {
+        return randomBytes(AES_KEY_BIT_LENGTH / 8);
+    } catch (e) {
+        throw new CryptoError(`${e.name}: ${e.message}`);
+    }
 }

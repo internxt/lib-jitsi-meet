@@ -16,6 +16,7 @@ import E2EEContext from './E2EEContext';
 import { OlmAdapter } from './OlmAdapter';
 import { generateEmojiSas } from './SAS';
 import {
+    CryptoError,
     MediaKeys,
     MessageType,
     OLM_MESSAGE,
@@ -816,12 +817,22 @@ export class ManagedKeyHandler extends Listenable {
                 } catch (error) {
                     const user = { name: participant.getDisplayName(), pId };
 
-                    this.conference.eventEmitter.emit(
+                    if (error instanceof CryptoError) {
+                        this.conference.eventEmitter.emit(
+                JitsiConferenceEvents.E2EE_CRYPTO_FAILED, user);
+                        this.log(
+                        'error',
+                        `Session initialization request with user with ID ${pId} (${user.name}) failed due to a crypto error: ${error}`,
+                        );
+                    } else {
+
+                        this.conference.eventEmitter.emit(
                 JitsiConferenceEvents.E2EE_KEY_SYNC_FAILED, user);
-                    this.log(
+                        this.log(
                         'error',
                         `Session initialization request timed out for user with ID ${pId} (${user.name}): ${error}`,
-                    );
+                        );
+                    }
                 }
             });
 

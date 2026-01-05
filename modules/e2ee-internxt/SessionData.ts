@@ -2,6 +2,7 @@ import { Account, Session } from 'vodozemac-wasm';
 
 import { decryptSymmetrically, deriveSymmetricCryptoKeyFromTwoKeys, encryptSymmetrically, hashKey, importSymmetricCryptoKey } from './CryptoUtils';
 import {
+    CryptoError,
     KeyInfo,
     MediaKeys,
     NORMAL_MESSAGE,
@@ -37,14 +38,18 @@ export class SessionData {
             publicKey: string,
             ciphertext: string,
     ) {
-        const { plaintext, session } = account.create_inbound_session(
+        try {
+            const { plaintext, session } = account.create_inbound_session(
             publicKey,
             PREKEY_MESSAGE,
             ciphertext,
-        );
+            );
 
-        this.session = session;
-        this.commitment = new TextDecoder().decode(plaintext);
+            this.session = session;
+            this.commitment = new TextDecoder().decode(plaintext);
+        } catch (e) {
+            throw new CryptoError(`${e.name}: ${e.message}`);
+        }
     }
 
     createOutboundOLMchannel(
@@ -53,8 +58,12 @@ export class SessionData {
             otKey: string,
             commitment: string,
     ) {
-        this.commitment = commitment;
-        this.session = account.create_outbound_session(publicKey, otKey);
+        try {
+            this.commitment = commitment;
+            this.session = account.create_outbound_session(publicKey, otKey);
+        } catch (e) {
+            throw new CryptoError(`${e.name}: ${e.message}`);
+        }
     }
 
     setSecret(sharedSecret: Uint8Array) {
@@ -126,11 +135,15 @@ export class SessionData {
     }
 
     encryptKeyCommitment(commitmentToKeys: string): string {
-        const ciphertext = this.session.encrypt(
+        try {
+            const ciphertext = this.session.encrypt(
             new TextEncoder().encode(commitmentToKeys),
-        );
+            );
 
-        return ciphertext.ciphertext;
+            return ciphertext.ciphertext;
+        } catch (e) {
+            throw new CryptoError(`${e.name}: ${e.message}`);
+        }
     }
 
     async encryptKeys(): Promise<{ ciphertext: string; pqCiphertext: string; }> {
@@ -149,32 +162,40 @@ export class SessionData {
     }
 
     async encryptChatKey(chatKeyECC: Uint8Array, chatKeyPQ: Uint8Array): Promise<{ ciphertext: string; pqCiphertext: string; }> {
-        const encrypted = this.session.encrypt(chatKeyECC);
-        const ciphertext = encrypted.ciphertext;
+        try {
+            const encrypted = this.session.encrypt(chatKeyECC);
+            const ciphertext = encrypted.ciphertext;
 
-        const cipher = await encryptSymmetrically(
+            const cipher = await encryptSymmetrically(
             this.pqSessionKey,
             chatKeyPQ,
             AUX_CHAT,
-        );
-        const pqCiphertext = uint8ArrayToBase64(cipher);
+            );
+            const pqCiphertext = uint8ArrayToBase64(cipher);
 
-        return { ciphertext, pqCiphertext };
+            return { ciphertext, pqCiphertext };
+        } catch (e) {
+            throw new CryptoError(`${e.name}: ${e.message}`);
+        }
     }
 
     async decryptChatKey(
             ciphertext: string,
             pqCiphertext: string,
     ): Promise<{ keyECC: Uint8Array; keyPQ: Uint8Array; }> {
-        const eccKey = this.session.decrypt(NORMAL_MESSAGE, ciphertext);
-        const pqCipher = base64ToUint8Array(pqCiphertext);
-        const pqKey = await decryptSymmetrically(
+        try {
+            const eccKey = this.session.decrypt(NORMAL_MESSAGE, ciphertext);
+            const pqCipher = base64ToUint8Array(pqCiphertext);
+            const pqKey = await decryptSymmetrically(
             this.pqSessionKey,
             pqCipher,
             AUX_CHAT,
-        );
+            );
 
-        return { keyECC: eccKey, keyPQ: pqKey };
+            return { keyECC: eccKey, keyPQ: pqKey };
+        } catch (e) {
+            throw new CryptoError(`${e.name}: ${e.message}`);
+        }
     }
 
     async decryptKeys(
@@ -182,33 +203,41 @@ export class SessionData {
             ciphertext: string,
             pqCiphertext: string,
     ): Promise<MediaKeys> {
-        const result = this.session.decrypt(NORMAL_MESSAGE, ciphertext);
-        const index = result[result.length - 1];
-        const key = result.slice(0, -1);
-        const pqCipher = base64ToUint8Array(pqCiphertext);
-        const pqKey = await decryptSymmetrically(
+        try {
+            const result = this.session.decrypt(NORMAL_MESSAGE, ciphertext);
+            const index = result[result.length - 1];
+            const key = result.slice(0, -1);
+            const pqCipher = base64ToUint8Array(pqCiphertext);
+            const pqKey = await decryptSymmetrically(
             this.pqSessionKey,
             pqCipher,
             AUX,
-        );
-        const mediaKey = {
-            index,
-            olmKey: key,
-            pqKey,
-            userID: pId,
-        };
+            );
+            const mediaKey = {
+                index,
+                olmKey: key,
+                pqKey,
+                userID: pId,
+            };
 
-        return mediaKey;
+            return mediaKey;
+        } catch (e) {
+            throw new CryptoError(`${e.name}: ${e.message}`);
+        }
     }
 
     encryptGivenKeyInfo(key: Uint8Array, index: number): string {
-        const message = new Uint8Array(key.length + 1);
+        try {
+            const message = new Uint8Array(key.length + 1);
 
-        message.set(key, 0);
-        message.set([ index ], key.length);
-        const encrypted = this.session.encrypt(message);
+            message.set(key, 0);
+            message.set([ index ], key.length);
+            const encrypted = this.session.encrypt(message);
 
-        return encrypted.ciphertext;
+            return encrypted.ciphertext;
+        } catch (e) {
+            throw new CryptoError(`${e.name}: ${e.message}`);
+        }
     }
 
     async deriveSharedPQkey(key1: Uint8Array, key2?: Uint8Array) {
