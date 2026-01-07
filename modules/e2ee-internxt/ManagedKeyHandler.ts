@@ -818,6 +818,7 @@ export class ManagedKeyHandler extends Listenable {
                     const user = { name: participant.getDisplayName(), pId };
 
                     if (error instanceof CryptoError) {
+                        this.log('error', `Crypto error occured: ${error}`);
                         this.conference.eventEmitter.emit(
                 JitsiConferenceEvents.E2EE_CRYPTO_FAILED, user);
                         this.log(

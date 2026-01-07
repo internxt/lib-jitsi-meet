@@ -3,6 +3,7 @@ import initVodozemac, { Account } from 'vodozemac-wasm';
 import { genSymmetricKey, ratchetMediaKey } from './CryptoUtils';
 import { SessionData } from './SessionData';
 import {
+    CryptoError,
     KeyInfo,
     MediaKeys,
     PQsessionAck,
@@ -12,12 +13,6 @@ import {
 } from './Types';
 import { base64ToUint8Array, decapsulateKyber, encapsulateKyber, generateKyberKeys, uint8ArrayToBase64 } from './Utils';
 
-
-function getError(method: string, error: Error): Error {
-    console.error(`E2E: ${error}`);
-
-    return new Error(`E2E: Function ${method} failed: ${error}`);
-}
 
 export class OlmAdapter {
     private _mediaKey: MediaKeys;
@@ -63,7 +58,7 @@ export class OlmAdapter {
 
             return { pk: this._publicCurve25519Key, pkKyber: publicKeyBase64 };
         } catch (error) {
-            throw getError('genMyPublicKeys', error);
+            throw new CryptoError(`${error.name}: ${error.message}`);
         }
     }
 
@@ -76,47 +71,35 @@ export class OlmAdapter {
 
             return keys;
         } catch (error) {
-            throw getError('generateOneTimeKeys', error);
+            throw new CryptoError(`${error.name}: ${error.message}`);
         }
     }
 
     ratchetMyKeys(): MediaKeys {
-        try {
-            const key = ratchetMediaKey(this._mediaKey);
+        const key = ratchetMediaKey(this._mediaKey);
 
-            this._mediaKey = key;
+        this._mediaKey = key;
 
-            return key;
-        } catch (error) {
-            throw getError('ratchetMyKeys', error);
-        }
+        return key;
     }
 
     isSessionDone(pId: string): boolean {
-        try {
-            const olmData = this._getParticipantOlmData(pId);
+        const olmData = this._getParticipantOlmData(pId);
 
-            return olmData.isDone();
-        } catch (error) {
-            throw getError('isSessionDone', error);
-        }
+        return olmData.isDone();
     }
 
     updateMyKeys(): MediaKeys {
-        try {
-            const newMediaKey = {
-                index: this._mediaKey.index + 1,
-                olmKey: genSymmetricKey(),
-                pqKey: genSymmetricKey(),
-                userID: this._mediaKey.userID,
-            };
+        const newMediaKey = {
+            index: this._mediaKey.index + 1,
+            olmKey: genSymmetricKey(),
+            pqKey: genSymmetricKey(),
+            userID: this._mediaKey.userID,
+        };
 
-            this._mediaKey = newMediaKey;
+        this._mediaKey = newMediaKey;
 
-            return newMediaKey;
-        } catch (error) {
-            throw getError('updateMyKeys', error);
-        }
+        return newMediaKey;
     }
 
     async encryptCurrentKey(pId: string): Promise<KeyInfo> {
@@ -128,7 +111,7 @@ export class OlmAdapter {
 
             return data;
         } catch (error) {
-            throw getError('encryptCurrentKey', error);
+            throw new CryptoError(`${error.name}: ${error.message}`);
         }
     }
 
@@ -137,13 +120,9 @@ export class OlmAdapter {
     }
 
     clearParticipantSession(pId: string) {
-        try {
-            const olmData = this._getParticipantOlmData(pId);
+        const olmData = this._getParticipantOlmData(pId);
 
-            olmData.clearSession();
-        } catch (error) {
-            throw getError('clearParticipantSession', error);
-        }
+        olmData.clearSession();
     }
 
     async clearMySession() {
@@ -185,7 +164,7 @@ export class OlmAdapter {
                 publicKyberKey: this._publicKyberKey,
             };
         } catch (error) {
-            throw getError('createPQsessionInitMessage', error);
+            throw new CryptoError(`${error.name}: ${error.message}`);
         }
     }
 
@@ -231,7 +210,7 @@ export class OlmAdapter {
                 pqCiphertext: pqEncKeyInfo,
             };
         } catch (error) {
-            throw getError('createPQsessionAckMessage', error);
+            throw new CryptoError(`${error.name}: ${error.message}`);
         }
     }
 
@@ -278,7 +257,7 @@ export class OlmAdapter {
 
             return { data, key };
         } catch (error) {
-            throw getError('createSessionAckMessage', error);
+            throw new CryptoError(`${error.name}: ${error.message}`);
         }
     }
 
@@ -309,23 +288,19 @@ export class OlmAdapter {
 
             return { key, keyChanged };
         } catch (error) {
-            throw getError('createSessionDoneMessage', error);
+            throw new CryptoError(`${error.name}: ${error.message}`);
         }
     }
 
     processSessionDoneMessage(pId: string): boolean {
-        try {
-            const olmData = this._getParticipantOlmData(pId);
+        const olmData = this._getParticipantOlmData(pId);
 
-            olmData.validateStatus(PROTOCOL_STATUS.WAITING_DONE);
-            const keyChanged = olmData.indexChanged(this._mediaKey);
+        olmData.validateStatus(PROTOCOL_STATUS.WAITING_DONE);
+        const keyChanged = olmData.indexChanged(this._mediaKey);
 
-            olmData.setDone();
+        olmData.setDone();
 
-            return keyChanged;
-        } catch (error) {
-            throw getError('processSessionDoneMessage', error);
-        }
+        return keyChanged;
     }
 
     async encryptChatKey(
@@ -340,7 +315,7 @@ export class OlmAdapter {
 
             return olmData.encryptChatKey(chatKeyECC, chatKeyPQ);
         } catch (error) {
-            throw getError('encryptChatKey', error);
+            throw new CryptoError(`${error.name}: ${error.message}`);
         }
     }
 
@@ -356,7 +331,7 @@ export class OlmAdapter {
 
             return olmData.decryptChatKey(ciphertext, pqCiphertext);
         } catch (error) {
-            throw getError('decryptChatKey', error);
+            throw new CryptoError(`${error.name}: ${error.message}`);
         }
     }
 
@@ -374,7 +349,7 @@ export class OlmAdapter {
 
             return olmData.decryptKeys(pId, ciphertext, pqCiphertext);
         } catch (error) {
-            throw getError('decryptKey', error);
+            throw new CryptoError(`${error.name}: ${error.message}`);
         }
     }
 
@@ -382,22 +357,18 @@ export class OlmAdapter {
             pId: string,
             otKey: string,
     ): Promise<SessionInit> {
-        try {
-            const olmData = this._getParticipantOlmData(pId);
+        const olmData = this._getParticipantOlmData(pId);
 
-            olmData.validateStatus(PROTOCOL_STATUS.READY_TO_START);
-            const commitment = await olmData.keyCommitment();
+        olmData.validateStatus(PROTOCOL_STATUS.READY_TO_START);
+        const commitment = await olmData.keyCommitment();
 
-            olmData.setStatus(PROTOCOL_STATUS.WAITING_PQ_SESSION_INIT);
+        olmData.setStatus(PROTOCOL_STATUS.WAITING_PQ_SESSION_INIT);
 
-            return {
-                commitment,
-                otKey,
-                publicKey: this._publicCurve25519Key,
-                publicKyberKey: this._publicKyberKey,
-            };
-        } catch (error) {
-            throw getError('createSessionInitMessage', error);
-        }
+        return {
+            commitment,
+            otKey,
+            publicKey: this._publicCurve25519Key,
+            publicKyberKey: this._publicKyberKey,
+        };
     }
 }
