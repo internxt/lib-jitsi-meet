@@ -617,6 +617,17 @@ export class ManagedKeyHandler extends Listenable {
             }
         } catch (error) {
             this.log('error', `Error while processing message: ${error}`);
+            const user = { name: participant.getDisplayName(), pId: participant.getId() };
+
+            if (error instanceof CryptoError) {
+                this.log('error', `Crypto error occured: ${error}`);
+                this.conference.eventEmitter.emit(
+                JitsiConferenceEvents.E2EE_CRYPTO_FAILED, user);
+                this.log(
+                    'error',
+                    `Processing message from user ID ${user.pId} (${user.name}) failed due to a crypto error: ${error}`,
+                );
+            }
         }
     }
 
