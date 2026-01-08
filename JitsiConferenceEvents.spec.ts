@@ -91,6 +91,7 @@ describe( "/JitsiConferenceEvents members", () => {
         expect( JitsiConferenceEvents.REACTION_RECEIVED ).toBe( 'conference.reactionReceived' );
         expect( JitsiConferenceEvents.E2EE_SAS_AVAILABLE ).toBe( 'conference.e2ee.sas.available' );
         expect( JitsiConferenceEvents.E2EE_KEY_SYNC_FAILED ).toBe( 'conference.e2ee.key_sync_failed' );
+        expect( JitsiConferenceEvents.E2EE_CRYPTO_FAILED ).toBe( 'conference.e2ee.crypto_failed' );
         expect( JitsiConferenceEvents.E2EE_KEY_SYNC_AFTER_TIMEOUT ).toBe( 'conference.e2ee.key_sync_after_timeout' );
         expect( JitsiConferenceEvents.E2EE_CHAT_KEY_RECEIVED ).toBe( 'conference.e2ee.chat_key_received' );
     } );
