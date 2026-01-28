@@ -160,7 +160,7 @@ export default class JitsiLocalTrack extends JitsiTrack {
         videoType,
         effects = []
     }: ITrackInfo) {
-        logger.debug(`Creating a new JitsiLocalTrack (id: ${rtcId}, `);
+        logger.debug(`DEBUG: Creating a new JitsiLocalTrack (id: ${rtcId}, `);
         super(
             /* conference */ null,
             stream,
@@ -365,7 +365,6 @@ export default class JitsiLocalTrack extends JitsiTrack {
      * @returns {void}
      */
     private _fireNoDataFromSourceEvent(): void {
-        logger.debug(`Firing NO_DATA_FROM_SOURCE event for track: ${this.rtcId}`);
         const value = !this.isReceivingData();
 
         this.emit(JitsiTrackEvents.NO_DATA_FROM_SOURCE, value);
@@ -383,7 +382,6 @@ export default class JitsiLocalTrack extends JitsiTrack {
      * @returns {void}
      */
     private _initNoDataFromSourceHandlers(): void {
-        logger.debug(`Initializing no data from source handlers for track: ${this.rtcId}`);
         if (!this._isNoDataFromSourceEventsEnabled()) {
             return;
         }
@@ -420,8 +418,6 @@ export default class JitsiLocalTrack extends JitsiTrack {
      * @returns {boolean} - True if no data from source events are enabled for this JitsiLocalTrack and false otherwise.
      */
     private _isNoDataFromSourceEventsEnabled(): boolean {
-        logger.debug(`Checking if no data from source events are enabled for track: ${this.rtcId}`);
-
         // Disable the events for screen sharing.
         return !this.isVideoTrack() || this.videoType !== VideoType.DESKTOP;
     }
@@ -436,7 +432,6 @@ export default class JitsiLocalTrack extends JitsiTrack {
      * @returns {Promise}
      */
     private _queueSetMuted(muted: boolean): Promise<void> {
-        logger.debug(`Queueing setMuted(${muted}) call for track: ${this.rtcId}`);
         const setMuted = this._setMuted.bind(this, muted);
 
         this._prevSetMuted = this._prevSetMuted.then(setMuted, setMuted);
@@ -453,7 +448,7 @@ export default class JitsiLocalTrack extends JitsiTrack {
      * @returns {Promise}
      */
     private _removeStreamFromConferenceAsMute(successCallback: () => void, errorCallback: (error: Error) => void): void {
-        logger.debug(`Removing stream from conference as mute for track: ${this.rtcId}`);
+        logger.debug(`DEBUG: Removing stream from conference as mute for track: ${this}`);
         if (!this.conference) {
             successCallback();
 
@@ -472,7 +467,6 @@ export default class JitsiLocalTrack extends JitsiTrack {
      * @returns {Promise}
      */
     private _setMuted(muted: boolean): Promise<void> {
-        logger.debug(`Setting muted=${muted} for local track: ${this.rtcId}`);
         if (this.isMuted() === muted && this.videoType !== VideoType.DESKTOP) {
             return Promise.resolve();
         }
@@ -603,7 +597,6 @@ export default class JitsiLocalTrack extends JitsiTrack {
      * @returns {void}
      */
     private _setRealDeviceIdFromDeviceList(devices: MediaDeviceInfo[]): void {
-        logger.debug(`Setting real device ID from device list for track: ${this.rtcId}`);
         const track = this.getTrack();
         const kind = `${track.kind}input`;
 
@@ -634,7 +627,6 @@ export default class JitsiLocalTrack extends JitsiTrack {
      * @returns {void}
      */
     private _startStreamEffect(effect: IStreamEffect): void {
-        logger.debug(`Starting stream effect for track: ${this.rtcId}`);
         this._streamEffect = effect;
         this._originalStream = this.stream;
         this._setStream(this._streamEffect.startEffect(this._originalStream));
@@ -648,7 +640,6 @@ export default class JitsiLocalTrack extends JitsiTrack {
      * @returns {void}
      */
     private _stopStreamEffect(): void {
-        logger.debug(`Stopping stream effect for track: ${this.rtcId}`);
         if (this._streamEffect) {
             this._streamEffect.stopEffect();
             this._setStream(this._originalStream);
@@ -669,7 +660,6 @@ export default class JitsiLocalTrack extends JitsiTrack {
      * @returns {void}
      */
     private _switchCamera(): void {
-        logger.debug(`Switching camera for track: ${this.rtcId}`);
         if (this.isVideoTrack()
             && this.videoType === VideoType.CAMERA
             && typeof this.track._switchCamera === 'function') {
@@ -690,7 +680,6 @@ export default class JitsiLocalTrack extends JitsiTrack {
      * @returns {void}
      */
     private _switchStreamEffect(effect?: IStreamEffect): void {
-        logger.debug(`Switching stream effect for track: ${this.rtcId}`);
         if (this._streamEffect) {
             this._stopStreamEffect();
             this._streamEffect = undefined;
@@ -708,7 +697,7 @@ export default class JitsiLocalTrack extends JitsiTrack {
      * @returns {Promise}
      */
     override async dispose(): Promise<void> {
-        logger.debug(`Disposing JitsiLocalTrack ${this.rtcId}`);
+        logger.debug(`DEBUG: Disposing JitsiLocalTrack ${this}, is already disposed?: ${this.disposed}`);
         if (this.disposed) {
             return;
         }
@@ -741,7 +730,7 @@ export default class JitsiLocalTrack extends JitsiTrack {
      * Starts to encode the incoming images from the camera
      */
     encodingRoutine() {
-        logger.debug(`Starting encoding routine for track: ${this.rtcId}`);
+        logger.debug(`DEBUG: Starting encoding routine for track: ${this}`);
         // Creating canvas stream that will be sent to other participants
         const canvasEncoded = document.createElement('canvas');
 
@@ -760,7 +749,7 @@ export default class JitsiLocalTrack extends JitsiTrack {
      * @param {*} canvasEncoded  canvas-sender that will be transformed in a stream carrying the encoded/resized image
      */
     _applyONNXEncoder(videoTrack, canvasEncoded) {
-        logger.debug(`Applying ONNX encoder for track: ${this.rtcId}`);
+        logger.debug(`DEBUG: Applying ONNX encoder for track: ${videoTrack}`);
         // Frame grabber from original track
         const imageCapture = new ImageCapture(videoTrack);
         // Extracting size from original track
@@ -1147,7 +1136,6 @@ export default class JitsiLocalTrack extends JitsiTrack {
      * @returns {void}
      */
     stopStream(): void {
-        logger.debug(`Stopping stream for track: ${this.rtcId}`);
         /**
          * Indicates that we are executing {@link #stopStream} i.e.
          * {@link RTCUtils#stopMediaStream} for the <tt>MediaStream</tt>
@@ -1190,7 +1178,6 @@ export default class JitsiLocalTrack extends JitsiTrack {
      * @returns {Promise<void>}
      */
     async applyConstraints(constraints: IAudioConstraints): Promise<void> {
-        logger.debug(`Applying constraints for track ${this.rtcId} with constraints: ${JSON.stringify(constraints)}`);
         const mediaType = this.getType();
 
         if (!this.isAudioTrack()) {

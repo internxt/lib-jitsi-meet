@@ -132,7 +132,7 @@ export default class JitsiRemoteTrack extends JitsiTrack {
             _muted: boolean,
             isP2P: boolean,
             sourceName: string) {
-        logger.debug(`Creating remote track: ${track.id}, ${track.kind}`);
+        logger.debug(`DEBUG: Creating remote track: ${track.id}, ${track.kind}`);
         super(
             conference,
             stream,
@@ -226,7 +226,6 @@ export default class JitsiRemoteTrack extends JitsiTrack {
      * @param {function} handler - event handler
      */
     private _addEventListener(event: string, handler: (...args: any[]) => void): void {
-        logger.debug(`Adding event listener for event: ${event} on ${this.rtcId}`);
         super.addListener(event, handler);
 
         if (event === JitsiTrackEvents.TRACK_STREAMING_STATUS_CHANGED
@@ -245,7 +244,6 @@ export default class JitsiRemoteTrack extends JitsiTrack {
      * @param {function} handler - event handler
      */
     private _removeEventListener(event: string, handler: (...args: any[]) => void): void {
-        logger.debug(`Removing event listener for event: ${event} on ${this.rtcId}`);
         super.removeListener(event, handler);
 
         if (event === JitsiTrackEvents.TRACK_STREAMING_STATUS_CHANGED
@@ -391,7 +389,7 @@ export default class JitsiRemoteTrack extends JitsiTrack {
      * Disposes trackStreamingStatusImpl and clears trackStreamingStatus.
      */
     private _disposeTrackStreamingStatus(): void {
-        logger.debug(`Disposing track streaming status for: ${this.rtcId}`);
+        logger.debug(`DEBUG: Disposing track streaming status for: ${this}`);
         if (this._trackStreamingStatusImpl) {
             this._trackStreamingStatusImpl.dispose();
             this._trackStreamingStatusImpl = null;
@@ -406,7 +404,6 @@ export default class JitsiRemoteTrack extends JitsiTrack {
      * @internal
      */
     protected override _onTrackAttach(container: HTMLElement): void {
-        logger.debug(`Attaching container to ${this.rtcId}`);
         containerEvents.forEach(event => {
             container.addEventListener(event, this._containerHandlers[event]);
         });
@@ -419,7 +416,6 @@ export default class JitsiRemoteTrack extends JitsiTrack {
      * @internal
      */
     protected override _onTrackDetach(container: HTMLElement): void {
-        logger.debug(`Detaching container from ${this.rtcId}`);
         containerEvents.forEach(event => {
             container.removeEventListener(event, this._containerHandlers[event]);
         });
@@ -432,7 +428,6 @@ export default class JitsiRemoteTrack extends JitsiTrack {
      * element.
      */
     protected override _attachTTFMTracker(container: HTMLElement): void {
-        logger.debug(`Attaching TTFM tracker to ${this.rtcId}`);
         if ((ttfmTrackerAudioAttached && this.isAudioTrack())
                 || (ttfmTrackerVideoAttached && this.isVideoTrack())) {
             return;
@@ -470,6 +465,7 @@ export default class JitsiRemoteTrack extends JitsiTrack {
      * element.
      */
     increaseResolution(container: any) {
+        logger.debug('DEBUG: Starting resolution increase routine');
         logger.info('Decoder: starting resolution increase routine');
         if (this._animationFrameId) cancelAnimationFrame(this._animationFrameId);
         const canvasDecoded = document.createElement('canvas');
@@ -624,7 +620,6 @@ export default class JitsiRemoteTrack extends JitsiTrack {
      * @returns {void}
      */
     override attach(container: HTMLElement, decode: boolean): Promise<void> {
-        logger.debug(`Attaching container to ${this.rtcId}`);
         let result = Promise.resolve();
 
         if (this.stream) {
@@ -699,6 +694,7 @@ export default class JitsiRemoteTrack extends JitsiTrack {
      * @returns {Promise}
      */
     override async dispose(): Promise<void> {
+        logger.debug(`DEBUG: Disposing remote track: ${this}`);
         logger.info('Decoder: cleaning');
         if (this._animationFrameId !== null) {
             cancelAnimationFrame(this._animationFrameId);

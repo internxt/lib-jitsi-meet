@@ -285,7 +285,7 @@ export default class JitsiTrack extends Listenable {
      * which this JitsiTrack is currently attached.
      */
     public detach(container?: HTMLElement): void {
-        logger.debug(`Detaching container ${container} from ${this.toString()}`);
+        logger.debug(`DEBUG: Detaching container ${container} from ${this.toString()}`);
         for (let cs = this.containers, i = cs.length - 1; i >= 0; --i) {
             const c = cs[i];
 
@@ -314,7 +314,7 @@ export default class JitsiTrack extends Listenable {
      * @returns {Promise}
      */
     public dispose(): Promise<void> {
-        logger.debug(`Disposing ${this.toString()}`);
+        logger.debug(`DEBUG: Disposing jiti track ${this.toString()}`);
         const p = Promise.resolve();
 
         if (this.disposed) {

@@ -1130,6 +1130,7 @@ export default class JitsiConference extends Listenable {
      * @private
      */
     private _removeRemoteTracks(sessionNickname: string, remoteTracks: JitsiRemoteTrack[]): void {
+        logger.debug(`DEBUG: Removing remote ${sessionNickname} tracks: count=${remoteTracks.length}`);
         for (const track of remoteTracks) {
             logger.info(`Removing remote ${sessionNickname} track: ${track}`);
             this.onRemoteTrackRemoved(track);
@@ -1905,6 +1906,7 @@ export default class JitsiConference extends Listenable {
      * @private
      */
     private _addRemoteTracks(logName: string, remoteTracks: JitsiRemoteTrack[]): void {
+        logger.debug(`DEBUG: Adding remote ${logName} tracks...`);
         for (const track of remoteTracks) {
             if (this.participants.has(track.ownerEndpointId)) {
                 logger.info(`Adding remote ${logName} track: ${track}`);
@@ -2152,6 +2154,7 @@ export default class JitsiConference extends Listenable {
      * @internal
      */
     _removeLocalTrackFromPc(track: JitsiLocalTrack): Promise<PromiseSettledResult<void>[]> {
+        logger.debug(`DEBUG: Removing local track from PC: ${track}`);
         const removePromises = [];
 
         if (track.conference === this) {
@@ -3532,6 +3535,7 @@ export default class JitsiConference extends Listenable {
      * @internal
      */
     onRemoteTrackAdded(track: JitsiRemoteTrack): void {
+        logger.debug('DEBUG: Remote track added', track);
         if (track.isP2P && !this.isP2PActive()) {
             logger.info('Trying to add remote P2P track, when not in P2P - IGNORED');
 
@@ -3619,6 +3623,7 @@ export default class JitsiConference extends Listenable {
      * @internal
      */
     onRemoteTrackRemoved(removedTrack: JitsiRemoteTrack): void {
+        logger.debug('DEBUG: Remote track removed', removedTrack);
         this.getParticipants().forEach(participant => {
             const tracks = participant.getTracks();
 
