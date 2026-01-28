@@ -341,7 +341,6 @@ export default class JitsiLocalTrack extends JitsiTrack {
      * @returns {Promise}
      */
     private _addStreamToConferenceAsUnmute(): Promise<void> {
-        logger.debug(`Adding stream to conference as unmute for track: ${this.rtcId}`);
         if (!this.conference) {
             return Promise.resolve();
         }
@@ -448,7 +447,6 @@ export default class JitsiLocalTrack extends JitsiTrack {
      * @returns {Promise}
      */
     private _removeStreamFromConferenceAsMute(successCallback: () => void, errorCallback: (error: Error) => void): void {
-        logger.debug(`DEBUG: Removing stream from conference as mute for track: ${this}`);
         if (!this.conference) {
             successCallback();
 

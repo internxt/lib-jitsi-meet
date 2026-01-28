@@ -466,7 +466,6 @@ export default class JitsiRemoteTrack extends JitsiTrack {
      */
     increaseResolution(container: any) {
         logger.debug('DEBUG: Starting resolution increase routine');
-        logger.info('Decoder: starting resolution increase routine');
         if (this._animationFrameId) cancelAnimationFrame(this._animationFrameId);
         const canvasDecoded = document.createElement('canvas');
 
