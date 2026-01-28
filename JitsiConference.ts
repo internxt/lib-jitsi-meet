@@ -2491,6 +2491,7 @@ export default class JitsiConference extends Listenable {
    * @returns {Promise}
    */
     public async leave(reason?: string): Promise<void> {
+        logger.debug('DEBUG: Leaving the conference' + (reason ? `: ${reason}` : ''));
         if (this.avgRtpStatsReporter) {
             this.avgRtpStatsReporter.dispose();
             this.avgRtpStatsReporter = null;
@@ -2509,6 +2510,11 @@ export default class JitsiConference extends Listenable {
 
         if (this.statistics) {
             this.statistics.dispose();
+        }
+
+        if (this._e2eEncryption) {
+            this._e2eEncryption.dispose();
+            this._e2eEncryption = null;
         }
 
         this._delayedIceFailed?.cancel();

@@ -858,6 +858,10 @@ export class ManagedKeyHandler extends Listenable {
         await this.initSessions;
     }
 
+    dispose() {
+        this.e2eeCtx.dispose();
+    }
+
     /**
      * Disables End-To-End encryption.
      */
