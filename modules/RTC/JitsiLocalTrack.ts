@@ -160,6 +160,7 @@ export default class JitsiLocalTrack extends JitsiTrack {
         videoType,
         effects = []
     }: ITrackInfo) {
+        logger.debug(`DEBUG: Creating a new JitsiLocalTrack with id: ${rtcId}`);
         super(
             /* conference */ null,
             stream,
@@ -694,6 +695,7 @@ export default class JitsiLocalTrack extends JitsiTrack {
      * @returns {Promise}
      */
     override async dispose(): Promise<void> {
+        logger.debug(`DEBUG: Disposing JitsiLocalTrack ${this}, is already disposed?: ${this.disposed}`);
         if (this.disposed) {
             return;
         }
@@ -726,6 +728,7 @@ export default class JitsiLocalTrack extends JitsiTrack {
      * Starts to encode the incoming images from the camera
      */
     encodingRoutine() {
+        logger.debug(`DEBUG: Starting encoding routine for track: ${this}`);
         // Creating canvas stream that will be sent to other participants
         const canvasEncoded = document.createElement('canvas');
 
@@ -744,6 +747,7 @@ export default class JitsiLocalTrack extends JitsiTrack {
      * @param {*} canvasEncoded  canvas-sender that will be transformed in a stream carrying the encoded/resized image
      */
     _applyONNXEncoder(videoTrack, canvasEncoded) {
+        logger.debug(`DEBUG: Applying ONNX encoder for track: ${videoTrack}`);
         // Frame grabber from original track
         const imageCapture = new ImageCapture(videoTrack);
         // Extracting size from original track

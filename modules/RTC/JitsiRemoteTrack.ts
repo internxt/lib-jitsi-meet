@@ -132,6 +132,7 @@ export default class JitsiRemoteTrack extends JitsiTrack {
             _muted: boolean,
             isP2P: boolean,
             sourceName: string) {
+        logger.debug(`DEBUG: Creating remote track: ${track.id}, ${track.kind}`);
         super(
             conference,
             stream,
@@ -388,6 +389,7 @@ export default class JitsiRemoteTrack extends JitsiTrack {
      * Disposes trackStreamingStatusImpl and clears trackStreamingStatus.
      */
     private _disposeTrackStreamingStatus(): void {
+        logger.debug(`DEBUG: Disposing track streaming status for: ${this}`);
         if (this._trackStreamingStatusImpl) {
             this._trackStreamingStatusImpl.dispose();
             this._trackStreamingStatusImpl = null;
@@ -463,6 +465,7 @@ export default class JitsiRemoteTrack extends JitsiTrack {
      * element.
      */
     increaseResolution(container: any) {
+        logger.debug('DEBUG: Starting resolution increase routine');
         if (this._animationFrameId) cancelAnimationFrame(this._animationFrameId);
         const canvasDecoded = document.createElement('canvas');
 
@@ -622,11 +625,10 @@ export default class JitsiRemoteTrack extends JitsiTrack {
             this._onTrackAttach(container);
             if (this.type === MediaType.VIDEO && this.videoType === VideoType.CAMERA && decode && !(browser.isSafari())) {
                 this.increaseResolution(container);
-            } else {
-                result = RTCUtils.attachMediaStream(container, this.stream);
-                this.containers.push(container);
             }
+            result = RTCUtils.attachMediaStream(container, this.stream);
         }
+        this.containers.push(container);
         this._attachTTFMTracker(container);
 
         return result;
@@ -690,6 +692,7 @@ export default class JitsiRemoteTrack extends JitsiTrack {
      * @returns {Promise}
      */
     override async dispose(): Promise<void> {
+        logger.debug(`DEBUG: Disposing remote track: ${this}`);
         logger.info('Decoder: cleaning');
         if (this._animationFrameId !== null) {
             cancelAnimationFrame(this._animationFrameId);

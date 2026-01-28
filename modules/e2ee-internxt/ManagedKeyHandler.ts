@@ -137,6 +137,7 @@ export class ManagedKeyHandler extends Listenable {
     }
 
     private async init() {
+        this.log('info', 'DEBUG: Calling init on OlmAdapter');
         await this._olmAdapter.init();
         this.initialized = true;
     }
@@ -147,6 +148,7 @@ export class ManagedKeyHandler extends Listenable {
      * @private
      */
     private _onLocalTrackAdded(track: JitsiLocalTrack) {
+        this.log('info', `DEBUG: Setting up E2EE for newly added local track: ${track}.`);
         for (const session of this.conference.getMediaSessions()) {
             this._setupSenderE2EEForTrack(session, track);
         }
@@ -158,6 +160,7 @@ export class ManagedKeyHandler extends Listenable {
      * @private
      */
     private _onMediaSessionStarted(session: JingleSessionPC) {
+        this.log('info', `DEBUG: Setting up E2EE for new media session: ${session}.`);
         const localTracks = this.conference.getLocalTracks();
 
         for (const track of localTracks) {
@@ -225,6 +228,7 @@ export class ManagedKeyHandler extends Listenable {
             tpc: TraceablePeerConnection,
             track: JitsiLocalTrack,
     ) {
+        this.log('info', `DEBUG: Setting up E2EE for received track: ${track}, enabled = ${this.enabled}.`);
         if (!this.enabled) {
             return;
         }
@@ -252,6 +256,7 @@ export class ManagedKeyHandler extends Listenable {
      * @private
      */
     private _setupSenderE2EEForTrack(session: JingleSessionPC, track: JitsiLocalTrack) {
+        this.log('info', `DEBUG: Setting up E2EE for sent track: ${track}, enabled = ${this.enabled}.`);
         if (!this.enabled) {
             return;
         }
@@ -851,6 +856,10 @@ export class ManagedKeyHandler extends Listenable {
             return Promise.all(promises);
         })();
         await this.initSessions;
+    }
+
+    dispose() {
+        this.e2eeCtx.dispose();
     }
 
     /**

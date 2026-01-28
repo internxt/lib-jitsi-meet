@@ -1530,6 +1530,7 @@ export default class TraceablePeerConnection {
      * for the remote participant in unified plan.
      */
     _remoteTrackAdded(stream: MediaStream, track: MediaStreamTrack, transceiver: Nullable<RTCRtpTransceiver> = null): void {
+        logger.debug(`DEBUG: _remoteTrackAdded: stream id=${stream.id} track id=${track.id} kind=${track.kind}`);
         const streamId = stream.id;
         const mediaType = track.kind as MediaType;
 
@@ -1634,6 +1635,7 @@ export default class TraceablePeerConnection {
      * @param {VideoType} trackDetails.videoType - The track's type of the video (if applicable).
      */
     _createRemoteTrack(ownerEndpointId, sourceName, trackDetails) {
+        logger.debug(`DEBUG: _createRemoteTrack for sourceName=${sourceName}`);
         const { mediaType, muted, ssrc, stream, track, videoType } = trackDetails;
 
         logger.info(`${this} creating remote track[endpoint=${ownerEndpointId},ssrc=${ssrc},`
@@ -1741,6 +1743,7 @@ export default class TraceablePeerConnection {
      * @returns {void}
      */
     _removeRemoteTrack(toBeRemoved: JitsiRemoteTrack): void {
+        logger.debug(`DEBUG: _removeRemoteTrack for track id=${toBeRemoved.getTrackId()}`);
         logger.info(`${this} Removing remote track stream[id=${toBeRemoved.getStreamId()},`
             + `trackId=${toBeRemoved.getTrackId()}]`);
 
@@ -1961,6 +1964,7 @@ export default class TraceablePeerConnection {
      * @returns {Promise<void>} - resolved when done.
      */
     addTrack = async (track: JitsiLocalTrack, isInitiator = false): Promise<void> => {
+        logger.debug(`DEBUG: addTrack for track id=${track} isInitiator=${isInitiator}`);
         const rtcId = track.rtcId;
 
         if (this.localTracks.has(rtcId)) {
@@ -2041,6 +2045,7 @@ export default class TraceablePeerConnection {
      * renegotiation is required, false if no renegotiation is needed or Promise is rejected when something goes wrong.
      */
     addTrackToPc(track: JitsiLocalTrack): Promise<boolean> {
+        logger.debug(`DEBUG: addTrackToPc for track id=${track}`);
         logger.info(`${this} Adding track=${track} to PC`);
 
         if (!this._assertTrackBelongs('addTrackToPc', track)) {
@@ -2164,6 +2169,7 @@ export default class TraceablePeerConnection {
      *       The same applies to addTrack.
      */
     removeTrack(localTrack: JitsiLocalTrack): void {
+        logger.debug(`DEBUG: removeTrack for track id=${localTrack}`);
         const webRtcStream = localTrack.getOriginalStream();
 
         this.trace(
@@ -2244,6 +2250,7 @@ export default class TraceablePeerConnection {
      * Otherwise no renegotiation is needed.
      */
     replaceTrack(oldTrack: Nullable<JitsiLocalTrack>, newTrack: Nullable<JitsiLocalTrack>, isMuteOperation = false): Promise<boolean> {
+        logger.debug(`DEBUG: replaceTrack oldTrack=${oldTrack} newTrack=${newTrack} isMuteOperation=${isMuteOperation}`);
         if (!(oldTrack || newTrack)) {
             logger.info(`${this} replaceTrack called with no new track and no old track`);
 
@@ -2387,6 +2394,7 @@ export default class TraceablePeerConnection {
      * renegotiation is required, false if no renegotiation is needed or Promise is rejected when something goes wrong.
      */
     removeTrackFromPc(localTrack: JitsiLocalTrack): Promise<boolean> {
+        logger.debug(`DEBUG: removeTrackFromPc for track id=${localTrack}`);
         const webRtcStream = localTrack.getOriginalStream();
 
         this.trace('removeTrack', `${localTrack.rtcId} ${webRtcStream ? webRtcStream.id : 'null'}`);
@@ -2750,6 +2758,7 @@ export default class TraceablePeerConnection {
      * them.
      */
     close(): void {
+        logger.debug('DEBUG: Closing TraceablePeerConnection and removing remote tracks.');
         this.trace('stop');
 
         // Off SignalingEvents
