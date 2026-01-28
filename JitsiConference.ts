@@ -2371,6 +2371,10 @@ export default class JitsiConference extends Listenable {
                 JitsiConnectionEvents.CONNECTION_DISCONNECTED,
                 () => {
                     xmpp = undefined;
+                    if (this._e2eEncryption) {
+                        this._e2eEncryption.dispose();
+                        this._e2eEncryption = null;
+                    }
                 });
             xmpp.addListener(
                 JitsiConnectionEvents.CONNECTION_ESTABLISHED,
