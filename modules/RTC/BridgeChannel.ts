@@ -418,6 +418,7 @@ export default class BridgeChannel {
         };
 
         channel.onclose = (event: CloseEvent): void => {
+            logger.info('DEBUG: Channel closed event: ', event, channel, this._channel, this._mode);
             logger.debug(`Channel closed by ${this._closedFromClient ? 'client' : 'server'}`);
 
             if (channel !== this._channel) {
@@ -443,6 +444,7 @@ export default class BridgeChannel {
 
                     // We only want to send this event the first time the failure happens.
                     if (this._connected !== false) {
+                        logger.debug('DEBUG: Emitting DATA_CHANNEL_CLOSED event for websocket channel');
                         emitter.emit(RTCEvents.DATA_CHANNEL_CLOSED, {
                             code,
                             reason

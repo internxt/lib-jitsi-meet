@@ -160,7 +160,7 @@ export default class JitsiLocalTrack extends JitsiTrack {
         videoType,
         effects = []
     }: ITrackInfo) {
-        logger.debug(`DEBUG: Creating a new JitsiLocalTrack (id: ${rtcId}, `);
+        logger.debug(`DEBUG: Creating a new JitsiLocalTrack with id: ${rtcId}`);
         super(
             /* conference */ null,
             stream,
