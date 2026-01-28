@@ -2371,10 +2371,6 @@ export default class JitsiConference extends Listenable {
                 JitsiConnectionEvents.CONNECTION_DISCONNECTED,
                 () => {
                     xmpp = undefined;
-                    if (this._e2eEncryption) {
-                        this._e2eEncryption.dispose();
-                        this._e2eEncryption = null;
-                    }
                 });
             xmpp.addListener(
                 JitsiConnectionEvents.CONNECTION_ESTABLISHED,
@@ -2436,6 +2432,11 @@ export default class JitsiConference extends Listenable {
                         message
                     });
                     xmpp = undefined;
+                    logger.debug('Connection failed in authenticateAndUpgradeRole');
+                    if (this._e2eEncryption) {
+                        this._e2eEncryption.dispose();
+                        this._e2eEncryption = null;
+                    }
                 });
 
             canceled || xmpp.connect(id, password);
