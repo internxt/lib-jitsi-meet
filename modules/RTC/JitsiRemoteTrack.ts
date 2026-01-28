@@ -694,6 +694,12 @@ export default class JitsiRemoteTrack extends JitsiTrack {
     override async dispose(): Promise<void> {
         logger.debug(`DEBUG: Disposing remote track: ${this}`);
         logger.info('Decoder: cleaning');
+        if (this.disposed) {
+            return;
+        }
+
+        this._disposeTrackStreamingStatus();
+
         if (this._animationFrameId !== null) {
             cancelAnimationFrame(this._animationFrameId);
             this._animationFrameId = null;
@@ -723,11 +729,6 @@ export default class JitsiRemoteTrack extends JitsiTrack {
         this.attachoff = false;
         this.width = 0;
         this.height = 0;
-        if (this.disposed) {
-            return;
-        }
-
-        this._disposeTrackStreamingStatus();
 
         return super.dispose();
     }
