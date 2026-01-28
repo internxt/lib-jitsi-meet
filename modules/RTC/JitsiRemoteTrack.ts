@@ -625,11 +625,10 @@ export default class JitsiRemoteTrack extends JitsiTrack {
             this._onTrackAttach(container);
             if (this.type === MediaType.VIDEO && this.videoType === VideoType.CAMERA && decode && !(browser.isSafari())) {
                 this.increaseResolution(container);
-            } else {
-                result = RTCUtils.attachMediaStream(container, this.stream);
             }
-            this.containers.push(container);
+            result = RTCUtils.attachMediaStream(container, this.stream);
         }
+        this.containers.push(container);
         this._attachTTFMTracker(container);
 
         return result;
