@@ -453,6 +453,7 @@ export default class JitsiRemoteTrack extends JitsiTrack {
         logger.debug('DEBUG: Starting resolution increase routine');
 
         this.wasDecoderStopped = false;
+        this.cleanupDecoderValues();
 
         if (this._animationFrameId) cancelAnimationFrame(this._animationFrameId);
         this.canvasDecoded = document.createElement('canvas');
@@ -635,23 +636,23 @@ export default class JitsiRemoteTrack extends JitsiTrack {
         if (this.disposed) {
             return;
         }
-        this.cleanupDecoder();
+        
+        this.wasDecoderStopped = true;
+        this.isDecoderAttached = false;
+
+        this.cleanupDecoderValues();
+
         this._disposeTrackStreamingStatus();
 
         return super.dispose();
     }
 
-    cleanupDecoder() {
+    cleanupDecoderValues() {
         logger.info('Decoder: cleaning');
-
         if (this._animationFrameId !== null) {
             cancelAnimationFrame(this._animationFrameId);
             this._animationFrameId = null;
         }
-
-        this.wasDecoderStopped = true;
-        this.isDecoderAttached = false;
-
         if (this.canvasEncoded) {
             this.canvasEncoded.width = 0;
             this.canvasEncoded.height = 0;
