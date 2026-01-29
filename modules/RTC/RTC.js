@@ -415,7 +415,6 @@ export default class RTC extends Listenable {
      * this RTC instance.
      */
     _removePeerConnection(traceablePeerConnection) {
-        logger.debug(`DEBUG: Removing peer connection with id: ${traceablePeerConnection.id}`);
         const id = traceablePeerConnection.id;
 
         if (this.peerConnections.has(id)) {

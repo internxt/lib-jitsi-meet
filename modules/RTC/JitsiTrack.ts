@@ -264,6 +264,7 @@ export default class JitsiTrack extends Listenable {
      * @returns {void}
      */
     public attach(container: HTMLElement, _decode: boolean): Promise<void> {
+        logger.debug(`DEBUG: Attaching container ${container} to ${this.toString()}`);
         let result = Promise.resolve();
 
         if (this.stream) {

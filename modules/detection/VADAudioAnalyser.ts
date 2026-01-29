@@ -183,7 +183,6 @@ export default class VADAudioAnalyser extends EventEmitter {
      * @listens TRACK_ADDED
      */
     _trackAdded(track: JitsiLocalTrack): void {
-        logger.debug('DEBUG: Track added to VAD detection - ', track.getTrackLabel());
         if (track.isLocalAudioTrack()) {
             // Keep a track promise so we take into account successive TRACK_ADD events being generated so that we
             // destroy/create the processing context in the proper order.
@@ -232,7 +231,6 @@ export default class VADAudioAnalyser extends EventEmitter {
      * @listens TRACK_REMOVED
      */
     _trackRemoved(track: JitsiLocalTrack): void {
-        logger.debug('DEBUG: Track removed from VAD detection - ', track.getTrackLabel());
         if (track.isLocalAudioTrack()) {
             // Use the promise to make sure operations are in sequence.
             this._vadInitTracker = this._vadInitTracker.then(() => {
