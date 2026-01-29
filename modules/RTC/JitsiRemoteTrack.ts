@@ -565,8 +565,9 @@ export default class JitsiRemoteTrack extends JitsiTrack {
             if (shouldDecode && !this.isDecoderAttached) {
                 this.isDecoderAttached = true;
                 this.increaseResolution(container);
+            } else {
+                result = RTCUtils.attachMediaStream(container, this.stream);
             }
-            result = RTCUtils.attachMediaStream(container, this.stream);
         }
         this.containers.push(container);
         this._attachTTFMTracker(container);
