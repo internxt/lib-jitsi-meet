@@ -636,7 +636,7 @@ export default class JitsiRemoteTrack extends JitsiTrack {
         if (this.disposed) {
             return;
         }
-        
+
         this.wasDecoderStopped = true;
         this.isDecoderAttached = false;
 
