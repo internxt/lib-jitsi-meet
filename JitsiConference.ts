@@ -2508,6 +2508,11 @@ export default class JitsiConference extends Listenable {
             this.statistics.dispose();
         }
 
+        if (this._e2eEncryption) {
+            this._e2eEncryption.dispose();
+            this._e2eEncryption = null;
+        }
+
         this._delayedIceFailed?.cancel();
 
         this._maybeClearSITimeout();

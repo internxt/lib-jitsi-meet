@@ -14,6 +14,7 @@ const logger = getLogger('modules/e2ee-internxt/E2EEContext');
  */
 export default class E2EEcontext extends Listenable {
     private readonly _worker: Worker;
+    private _workerUrl: string | null = null;
 
     constructor() {
         super();
@@ -50,6 +51,7 @@ export default class E2EEcontext extends Listenable {
             });
 
             workerUrl = URL.createObjectURL(workerBlob);
+            this._workerUrl = workerUrl;
         }
 
         return new Worker(workerUrl, { name: 'E2EE Worker' });
@@ -57,6 +59,23 @@ export default class E2EEcontext extends Listenable {
 
     private async updateSAS(sas: string[]) {
         this.emit('sasUpdated', sas);
+    }
+
+    /**
+     * Disposes of the worker and cleans up resources.
+     * Call this when the E2EE context is no longer needed.
+     */
+    dispose() {
+        logger.info('Disposing E2EE context and terminating worker');
+
+        this.cleanupAll();
+        this._worker.terminate();
+        if (this._workerUrl) {
+            URL.revokeObjectURL(this._workerUrl);
+            this._workerUrl = null;
+        }
+
+        this.removeAllListeners();
     }
 
     cleanup(participantId: string) {
