@@ -66,7 +66,7 @@ export default class E2EEcontext extends Listenable {
      * Call this when the E2EE context is no longer needed.
      */
     dispose() {
-        logger.info('Disposing E2EE context and terminating worker');
+        logger.info('E2EE: Disposing E2EE context and terminating worker');
 
         this.cleanupAll();
         this._worker.terminate();
