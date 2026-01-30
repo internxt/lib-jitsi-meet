@@ -2429,6 +2429,7 @@ export default class JitsiConference extends Listenable {
                         message
                     });
                     xmpp = undefined;
+                    this.cleanUpWebWorkers();
                 });
 
             canceled || xmpp.connect(id, password);
@@ -2482,6 +2483,13 @@ export default class JitsiConference extends Listenable {
         );
     }
 
+    public cleanUpWebWorkers(): void {
+        if (this._e2eEncryption) {
+            this._e2eEncryption.dispose();
+            this._e2eEncryption = null;
+        }
+    }
+
     /**
    * Leaves the conference.
    * @param {string|undefined} reason - The reason for leaving the conference.
@@ -2508,10 +2516,7 @@ export default class JitsiConference extends Listenable {
             this.statistics.dispose();
         }
 
-        if (this._e2eEncryption) {
-            this._e2eEncryption.dispose();
-            this._e2eEncryption = null;
-        }
+        this.cleanUpWebWorkers();
 
         this._delayedIceFailed?.cancel();
 
