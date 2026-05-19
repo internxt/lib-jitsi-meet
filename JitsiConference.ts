@@ -3470,6 +3470,14 @@ export default class JitsiConference extends Listenable {
         }
 
         if (isSelfPresence) {
+            if (!actorParticipant) {
+                // When meet-server kicks us we need to send the PARTICIPANT_KICKED event, but there is no
+                // JitsiParticipant object for ourselves so create a minimum fake one.
+                actorParticipant = {
+                    getDisplayName: () => 'Display Name',
+                    getId: () => kickedParticipantId,
+                };
+            }
             this.leave().finally(() => this._xmpp.disconnect());
             this.eventEmitter.emit(
                 JitsiConferenceEvents.KICKED, actorParticipant, reason, isReplaceParticipant);

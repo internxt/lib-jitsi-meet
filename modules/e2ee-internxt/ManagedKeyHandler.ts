@@ -60,20 +60,20 @@ export class ManagedKeyHandler extends Listenable {
     e2eeCtx: E2EEContext;
     enabled: boolean;
     initialized: boolean;
-    initSessions: Promise<unknown[]>;
+    initSessions: Promise<unknown[]> | null;
     _olmAdapter: OlmAdapter;
     _conferenceJoined: boolean;
 
-    onUserJoined: EventListener;
-    onUserLeft: EventListener;
-    onEndpointMessageReceived: EventListener;
-    onConferenceJoined: EventListener;
-    onConferenceLeft: EventListener;
-    onMediaSessionStarted: EventListener;
-    onTrackAdded: EventListener;
-    onRemoteTrackAdded: EventListener;
-    onTrackMuteChanged: EventListener;
-    onSasUpdated: EventListener;
+    onUserJoined: ((id: string) => void) | undefined;
+    onUserLeft: ((id: string) => void) | undefined;
+    onEndpointMessageReceived: ((participant: JitsiParticipant, payload: any) => void) | undefined;
+    onConferenceJoined: (() => void) | undefined;
+    onConferenceLeft: (() => void) | undefined;
+    onMediaSessionStarted: ((session: JingleSessionPC) => void) | undefined;
+    onTrackAdded: ((track: JitsiTrack) => void) | undefined;
+    onRemoteTrackAdded: ((track: JitsiLocalTrack, tpc: TraceablePeerConnection) => void) | undefined;
+    onTrackMuteChanged: ((track: JitsiLocalTrack) => void) | undefined;
+    onSasUpdated: ((sasStr: string) => void) | undefined;
 
     /**
      * Build a new AutomaticKeyHandler instance, which will be used in a given conference.
@@ -83,7 +83,7 @@ export class ManagedKeyHandler extends Listenable {
         this.initialized = false;
         this.max_wait = REQ_TIMEOUT;
         this.conference = conference;
-        this.myID = conference.myUserId();
+        this.myID = conference.myUserId() || '';
         this.e2eeCtx = new E2EEContext();
         this._reqs = new Map();
         this.update = new Map();
@@ -94,6 +94,7 @@ export class ManagedKeyHandler extends Listenable {
         this.enabled = false;
         this._participantEventQueue = [];
         this._processingEvents = false;
+        this.initSessions = null;
 
         this.onUserJoined = this._onParticipantJoined.bind(this);
         this.onUserLeft = this._onParticipantLeft.bind(this);
@@ -134,7 +135,7 @@ export class ManagedKeyHandler extends Listenable {
             JitsiConferenceEvents.TRACK_ADDED,
             this.onTrackAdded,
         );
-        this.conference.rtc.on(
+        this.conference.rtc?.on(
             RTCEvents.REMOTE_TRACK_ADDED,
             this.onRemoteTrackAdded,
         );
@@ -922,7 +923,7 @@ export class ManagedKeyHandler extends Listenable {
             JitsiConferenceEvents.TRACK_ADDED,
             this.onTrackAdded,
         );
-        this.conference.rtc.off(
+        this.conference.rtc?.off(
             RTCEvents.REMOTE_TRACK_ADDED,
             this.onRemoteTrackAdded,
         );
@@ -932,16 +933,16 @@ export class ManagedKeyHandler extends Listenable {
         );
         this.e2eeCtx.off('sasUpdated', this.onSasUpdated);
 
-        this.onUserJoined = null;
-        this.onUserLeft = null;
-        this.onEndpointMessageReceived = null;
-        this.onConferenceJoined = null;
-        this.onConferenceLeft = null;
-        this.onMediaSessionStarted = null;
-        this.onTrackAdded = null;
-        this.onRemoteTrackAdded = null;
-        this.onTrackMuteChanged = null;
-        this.onSasUpdated = null;
+        this.onUserJoined = undefined;
+        this.onUserLeft = undefined;
+        this.onEndpointMessageReceived = undefined;
+        this.onConferenceJoined = undefined;
+        this.onConferenceLeft = undefined;
+        this.onMediaSessionStarted = undefined;
+        this.onTrackAdded = undefined;
+        this.onRemoteTrackAdded = undefined;
+        this.onTrackMuteChanged = undefined;
+        this.onSasUpdated = undefined;
 
         this.e2eeCtx.dispose();
         this._reqs.clear();
