@@ -94,8 +94,7 @@ export default class JitsiRemoteTrack extends JitsiTrack {
     public height: number;
     public outInference: Nullable<any>;
     public activedecoder: boolean;
-    public attachoff: boolean;
-    public attachon: boolean;
+    public decoderIsOn: boolean;
     public imageEncode: Nullable<ImageData>;
     public inputData: Nullable<any>;
     public inputBuffer: Nullable<any>;
@@ -193,8 +192,7 @@ export default class JitsiRemoteTrack extends JitsiTrack {
         this.inputBuffer = null;
         this.outInference = null;
         this.activedecoder = false;
-        this.attachoff = false;
-        this.attachon = false;
+        this.decoderIsOn = false;
         this.imageEncode = null;
         this.inputData = null;
     }
@@ -463,7 +461,7 @@ export default class JitsiRemoteTrack extends JitsiTrack {
                     }
                     this.frame = await imageCapture.grabFrame();
                 } catch (err) {
-                    logger.info('Decoder: could not catch the frame: ', err);
+                    logger.error('Decoder: could not catch the frame: ', err);
                     this._animationFrameId = requestAnimationFrame(processFrame);
 
                     return;
@@ -479,16 +477,16 @@ export default class JitsiRemoteTrack extends JitsiTrack {
                     return;
                 }
 
-                if (nheight < 240 && !this.attachon) {
+                if (nheight < 240 && !this.decoderIsOn) {
                     logger.info('Decoder: Activating decoder for track:', videoTrack, 'new resolution: ', nwidth, 'x', nheight);
                     this.activedecoder = true;
                 }
-                if (nheight >= 240 && !this.attachoff) {
+                if (nheight >= 240 && this.decoderIsOn) {
                     logger.info('Decoder: Deactivating decoder for track:', videoTrack, 'new resolution: ', nwidth, 'x', nheight);
                     this.activedecoder = false;
                 }
-                // check wether the canvas must be changed
                 if (this.activedecoder) {
+                    // check wether the canvas must be changed
                     if (this.width != nwidth || this.height != nheight) {
                         try {
                             if (this.inputTensor) {
@@ -506,8 +504,9 @@ export default class JitsiRemoteTrack extends JitsiTrack {
                             this.width = nwidth;
                             this.height = nheight;
                         } catch (err) {
-                            logger.info('Decoder: Could not set new resolution', err);
+                            logger.error('Decoder: Could not set new resolution', err);
                             this._animationFrameId = requestAnimationFrame(processFrame);
+                            this.activedecoder = false;
 
                             return;
                         }
@@ -521,8 +520,9 @@ export default class JitsiRemoteTrack extends JitsiTrack {
                     try {
                         this.inputBuffer.set(this.inputData);
                     } catch (err) {
-                        logger.info('Decoder: float32 buffer could not be set: ', err);
+                        logger.error('Decoder: float32 buffer could not be set: ', err);
                         this._animationFrameId = requestAnimationFrame(processFrame);
+                        this.activedecoder = false;
 
                         return;
                     }
@@ -530,18 +530,20 @@ export default class JitsiRemoteTrack extends JitsiTrack {
                     try {
                         this.outInference = await decodingSession.run(this.input);
                     } catch (err) {
-                        logger.info('Decoder: could not run onnx session: ', err);
+                        logger.error('Decoder: could not run onnx session: ', err);
                         this._animationFrameId = requestAnimationFrame(processFrame);
+                        this.activedecoder = false;
 
                         return;
                     }
 
                     try {
-                        this.dataOutput.data.set(this.outInference.output.data);
-                        ctxDecoded.putImageData(this.dataOutput, 0, 0);
+                        this.dataOutput?.data.set(this.outInference.output.data);
+                        ctxDecoded?.putImageData(this.dataOutput, 0, 0);
                     } catch (err) {
-                        logger.info('Decoder: output frame could not be set: ', err);
+                        logger.error('Decoder: output frame could not be set: ', err);
                         this._animationFrameId = requestAnimationFrame(processFrame);
+                        this.activedecoder = false;
 
                         return;
                     }
@@ -550,24 +552,17 @@ export default class JitsiRemoteTrack extends JitsiTrack {
                     this.inputData = null;
                     this.outInference.output.dispose();
                     this.outInference = null;
-                }
-                if (!this.attachoff && !this.activedecoder) {
-                    if (container.srcObject) {
-                        container.srcObject = null;
+
+                    if (!this.decoderIsOn) {
+                        this.decoderIsOn = true;
+                        logger.info('Decoder: ON');
+                        RTCUtils.attachMediaStream(container, this._decodedStream);
                     }
-                    this.attachoff = true;
-                    this.attachon = false;
+                }
+                if (this.decoderIsOn && !this.activedecoder) {
+                    this.decoderIsOn = false;
                     logger.info('Decoder: OFF');
                     RTCUtils.attachMediaStream(container, this.stream);
-                }
-                if (!this.attachon && this.activedecoder) {
-                    if (container.srcObject) {
-                        container.srcObject = null;
-                    }
-                    this.attachon = true;
-                    this.attachoff = false;
-                    logger.info('Decoder: ON');
-                    RTCUtils.attachMediaStream(container, this._decodedStream);
                 }
             }
             this._animationFrameId = requestAnimationFrame(processFrame);
@@ -683,8 +678,7 @@ export default class JitsiRemoteTrack extends JitsiTrack {
             this._decodedStream = null;
         }
         this.activedecoder = false;
-        this.attachon = false;
-        this.attachoff = false;
+        this.decoderIsOn = false;
         this.width = 0;
         this.height = 0;
         this.dataOutput = null;
