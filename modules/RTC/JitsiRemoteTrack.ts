@@ -82,17 +82,17 @@ export default class JitsiRemoteTrack extends JitsiTrack {
     private _hasBeenMuted: boolean;
     private _ssrc: number;
     private _animationFrameId: Nullable<number> = null;
+    private inputTensor: Nullable<any> = null;
+    private dataOutput: Nullable<ImageData> = null;
+    private inputBuffer: Nullable<Float32Array> = null;
 
     public ownerEndpointId: string;
     public isP2P: boolean;
     public rtcId: Nullable<string>;
-    public inputTensor: Nullable<any> = null;
-    public dataOutput: Nullable<ImageData> = null;
-    public inputBuffer: Nullable<Float32Array> = null;
     public frame: Nullable<ImageBitmap> = null;
     public width: number = 0;
     public height: number = 0;
-    public activedecoder: boolean = false;
+    public shouldDecode: boolean = false;
     public decoderIsOn: boolean = false;
     public isProcessingFrame: boolean = false;
 
@@ -449,7 +449,7 @@ export default class JitsiRemoteTrack extends JitsiTrack {
             const imageCapture = new ImageCapture(videoTrack);
             // Setting up the aux canvas to paint the caught frames
 
-            if (videoTrack.readyState == 'live') {
+            if (videoTrack.readyState === 'live') {
                 let outInference: Nullable<any>;
 
                 try {
@@ -471,13 +471,13 @@ export default class JitsiRemoteTrack extends JitsiTrack {
 
                     if (nheight < 240 && !this.decoderIsOn) {
                         logger.info('Decoder: Activating decoder for track:', videoTrack, 'new resolution: ', nwidth, 'x', nheight);
-                        this.activedecoder = true;
+                        this.shouldDecode = true;
                     }
                     if (nheight >= 240 && this.decoderIsOn) {
                         logger.info('Decoder: Deactivating decoder for track:', videoTrack, 'new resolution: ', nwidth, 'x', nheight);
-                        this.activedecoder = false;
+                        this.shouldDecode = false;
                     }
-                    if (this.activedecoder) {
+                    if (this.shouldDecode) {
                         // check wether the canvas must be changed
                         if (this.width != nwidth || this.height != nheight || !this.dataOutput || !this.inputBuffer) {
                             try {
@@ -530,7 +530,7 @@ export default class JitsiRemoteTrack extends JitsiTrack {
                         }
                     }
                 } catch (error) {
-                    this.activedecoder = false;
+                    this.shouldDecode = false;
                 } finally {
                     this.frame?.close();
                     this.frame = null;
@@ -539,7 +539,7 @@ export default class JitsiRemoteTrack extends JitsiTrack {
                     this.isProcessingFrame = false;
                 }
 
-                if (this.decoderIsOn && !this.activedecoder) {
+                if (this.decoderIsOn && !this.shouldDecode) {
                     this.decoderIsOn = false;
                     logger.info('Decoder: OFF');
                     RTCUtils.attachMediaStream(container, this.stream);
@@ -654,7 +654,7 @@ export default class JitsiRemoteTrack extends JitsiTrack {
             this._decodedStream.getTracks().forEach(t => t.stop());
             this._decodedStream = null;
         }
-        this.activedecoder = false;
+        this.shouldDecode = false;
         this.isProcessingFrame = false;
         this.decoderIsOn = false;
         this.width = 0;

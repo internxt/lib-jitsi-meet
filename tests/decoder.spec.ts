@@ -112,7 +112,7 @@ describe('JitsiRemoteTrack decoder', () => {
             expect((track as any)._animationFrameId).toBeGreaterThan(0);
             expect(track.isDecoderOn()).toBeTrue();
             expect((track as any).inputTensor !== null).toBeTrue();
-            expect((track as any).activedecoder).toBeTrue();
+            expect((track as any).shouldDecode).toBeTrue();
             expect((track as any).frame).toBeNull();
             expect((track as any).dataOutput !== null).toBeTrue();
             expect((track as any).inputBuffer !== null).toBeTrue();
@@ -131,7 +131,7 @@ describe('JitsiRemoteTrack decoder', () => {
             expect(track.isDecoderOn()).toBeFalse();
             expect((track as any).inputTensor).toBeNull();
             expect((track as any).frame).toBeNull();
-            expect((track as any).activedecoder).not.toBeTrue();
+            expect((track as any).shouldDecode).not.toBeTrue();
             expect((track as any).height === 0).toBeTrue();
             expect((track as any).width === 0).toBeTrue();
 
@@ -228,7 +228,7 @@ describe('JitsiRemoteTrack decoder', () => {
 
             await waitUntil(() => track.isDecoderOn()=== false);
 
-            expect((track as any).activedecoder).toBe(false);
+            expect((track as any).shouldDecode).toBe(false);
             expect(track.isProcessingFrame).toBe(false);
             expect(track.isDecoderOn()).toBe(false);
             expect((track as any)._animationFrameId).not.toBeNull();
@@ -249,7 +249,7 @@ describe('JitsiRemoteTrack decoder', () => {
             await waitUntil(() => runSpy.calls.count() >= 1);
         
 
-            expect((track as any).activedecoder).toBe(false);
+            expect((track as any).shouldDecode).toBe(false);
             expect(track.isProcessingFrame).toBe(false);
             expect(track.isDecoderOn()).toBe(false);
             expect((track as any)._animationFrameId).not.toBeNull();
@@ -273,7 +273,7 @@ describe('JitsiRemoteTrack decoder', () => {
 
             await waitUntil(() => track.isDecoderOn() === false);
 
-            expect((track as any).activedecoder).toBe(false);
+            expect((track as any).shouldDecode).toBe(false);
             expect(track.isDecoderOn()).toBe(false);
 
             const lastCall = attachSpy.calls.mostRecent();
