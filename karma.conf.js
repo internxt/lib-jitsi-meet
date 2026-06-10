@@ -42,6 +42,30 @@ module.exports = function(config) {
                 served: true,
                 watched: false
             },
+            {
+                included: false,
+                pattern: 'models/RTC/Decoder.onnx',
+                served: true,
+                watched: false
+            },
+            {
+                included: false,
+                pattern: 'node_modules/onnxruntime-web/dist/*.wasm',
+                served: true,
+                watched: false
+            },
+            {
+                included: false,
+                pattern: 'node_modules/onnxruntime-web/dist/*.mjs',
+                served: true,
+                watched: false
+            },
+            {
+                included: false,
+                pattern: 'node_modules/onnxruntime-web/dist/*.js',
+                served: true,
+                watched: false
+            },
             'node_modules/core-js/index.js',
             './modules/**/*.spec.ts',
             './service/**/*.spec.ts',
@@ -87,6 +111,11 @@ module.exports = function(config) {
             './**/*.spec.js': [ 'webpack', 'sourcemap' ],
             './**/*.spec.ts': [ 'webpack', 'sourcemap' ],
             'node_modules/core-js/**': [ 'webpack' ]
+        },
+
+        proxies: {
+            '/libs/dist/': '/base/node_modules/onnxruntime-web/dist/',
+            '/libs/models/': '/base/node_modules/lib-meet/models/'
         },
 
         // test results reporter to use
