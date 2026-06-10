@@ -83,7 +83,7 @@ describe('JitsiRemoteTrack decoder', () => {
     beforeAll(async () => {
         await loadDecoder(KARMA_MODEL_PATH);
         expect((JitsiRemoteTrack as any).decodingSession).not.toBeNull();
-    }, 30_000);
+    }, 1_000);
 
 
     beforeEach(() => {
