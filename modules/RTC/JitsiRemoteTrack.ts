@@ -531,7 +531,6 @@ export default class JitsiRemoteTrack extends JitsiTrack {
                     }
                 } catch (error) {
                     this.activedecoder = false;
-                    this._animationFrameId = requestAnimationFrame(processFrame);
                 } finally {
                     this.frame?.close();
                     this.frame = null;
