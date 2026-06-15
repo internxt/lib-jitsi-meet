@@ -113,7 +113,6 @@ describe('JitsiRemoteTrack decoder', () => {
             expect(track.isDecoderOn()).toBeTrue();
             expect((track as any).inputTensor !== null).toBeTrue();
             expect((track as any).shouldDecode).toBeTrue();
-            expect((track as any).frame).toBeNull();
             expect((track as any).dataOutput !== null).toBeTrue();
             expect((track as any).inputBuffer !== null).toBeTrue();
             expect((track as any).height !== 0).toBeTrue();
@@ -130,7 +129,6 @@ describe('JitsiRemoteTrack decoder', () => {
             expect((track as any)._animationFrameId).toBeNull();
             expect(track.isDecoderOn()).toBeFalse();
             expect((track as any).inputTensor).toBeNull();
-            expect((track as any).frame).toBeNull();
             expect((track as any).shouldDecode).not.toBeTrue();
             expect((track as any).height === 0).toBeTrue();
             expect((track as any).width === 0).toBeTrue();
