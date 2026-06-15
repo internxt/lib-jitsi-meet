@@ -170,13 +170,11 @@ export default class TraceablePeerConnection {
      */
     _capScreenshareBitrate: boolean;
     /**
+     * Mids of transceivers that have ever carried a local sender track. Never cleared on mute/remove
+     * so LocalSdpMunger can preserve the SSRCs of previously-active sender slots.
      * @internal
      */
-    _hasHadAudioTrack: boolean;
-    /**
-     * @internal
-     */
-    _hasHadVideoTrack: boolean;
+    _midsWithSentTrack: Set<string>;
 
     // public property declarations
     audioTransferActive: boolean;
@@ -488,15 +486,7 @@ export default class TraceablePeerConnection {
          */
         this._usesCodecSelectionAPI = this.options.usesCodecSelectionAPI;
 
-        /**
-         * Indicates whether an audio track has ever been added to the peer connection.
-         */
-        this._hasHadAudioTrack = false;
-
-        /**
-         * Indicates whether a video track has ever been added to the peer connection.
-         */
-        this._hasHadVideoTrack = false;
+        this._midsWithSentTrack = new Set<string>();
 
         /**
          * @type {number} The max number of stats to keep in this.stats. Limit to
@@ -718,7 +708,36 @@ export default class TraceablePeerConnection {
             return;
         }
 
-        parameters.encodings = this.tpcUtils.getStreamEncodings(localTrack) as RTCRtpEncodingParameters[];
+        const desiredEncodings = this.tpcUtils.getStreamEncodings(localTrack);
+
+        if (browser.supportsEncodingsConfig()) {
+            // FF 110+ rejects encodings length/rid changes; skip on mismatch to keep the call alive.
+            if (parameters.encodings.length !== desiredEncodings.length) {
+                return;
+            }
+            parameters.encodings.forEach((encoding: IRTCRtpEncodingParameters, idx: number) => {
+                const desired = desiredEncodings[idx];
+
+                if (!desired) {
+                    return;
+                }
+                if (desired.active !== undefined) {
+                    encoding.active = desired.active;
+                }
+                if (desired.maxBitrate !== undefined) {
+                    encoding.maxBitrate = desired.maxBitrate;
+                }
+                if (desired.scaleResolutionDownBy !== undefined) {
+                    encoding.scaleResolutionDownBy = desired.scaleResolutionDownBy;
+                }
+                if (desired.scalabilityMode !== undefined) {
+                    encoding.scalabilityMode = desired.scalabilityMode;
+                }
+            });
+        } else {
+            parameters.encodings = desiredEncodings as RTCRtpEncodingParameters[];
+        }
+
         await transceiver.sender.setParameters(parameters);
     };
 
@@ -2043,7 +2062,7 @@ export default class TraceablePeerConnection {
                 streams
             };
 
-            if (!browser.isFirefox()) {
+            if (!browser.isFirefox() || browser.supportsEncodingsConfig()) {
                 transceiverInit.sendEncodings = this.tpcUtils.getStreamEncodings(track);
             }
 
@@ -2059,20 +2078,19 @@ export default class TraceablePeerConnection {
         }
 
         if (transceiver?.mid) {
-            this.localTrackTransceiverMids.set(track.rtcId, transceiver.mid.toString());
+            const mid = transceiver.mid.toString();
+
+            this.localTrackTransceiverMids.set(track.rtcId, mid);
+            this._midsWithSentTrack.add(mid);
         }
 
         if (track) {
             this.localTracks.set(rtcId, track);
-            if (track.isAudioTrack()) {
-                this._hasHadAudioTrack = true;
-            } else {
-                this._hasHadVideoTrack = true;
-            }
         }
 
-        // On Firefox, the encodings have to be configured on the sender only after the transceiver is created.
-        if (browser.isFirefox() && webrtcStream && this.doesTrueSimulcast(track)) {
+        // FF < 110 doesn't honor sendEncodings on addTransceiver; configure the encodings via setParameters.
+        if (browser.isFirefox() && !browser.supportsEncodingsConfig()
+                && webrtcStream && this.doesTrueSimulcast(track)) {
             await this._setEncodings(track);
         }
     };
@@ -2105,7 +2123,6 @@ export default class TraceablePeerConnection {
 
             if (track) {
                 if (track.isAudioTrack()) {
-                    this._hasHadAudioTrack = true;
                     // Sync audioQualityLocal from microphone track settings (stereo/mono)
                     const isMicrophoneTrack = !track.sourceType && !track.sourceId && track.deviceId;
 
@@ -2133,8 +2150,6 @@ export default class TraceablePeerConnection {
                             }
                         }
                     }
-                } else {
-                    this._hasHadVideoTrack = true;
                 }
             }
 
@@ -2393,13 +2408,13 @@ export default class TraceablePeerConnection {
                 }
 
                 if (newTrack) {
-                    if (newTrack.isAudioTrack()) {
-                        this._hasHadAudioTrack = true;
-                    } else {
-                        this._hasHadVideoTrack = true;
-                    }
-                    this.localTrackTransceiverMids.set(newTrack.rtcId, transceiver?.mid?.toString());
+                    const newMid = transceiver?.mid?.toString();
+
+                    this.localTrackTransceiverMids.set(newTrack.rtcId, newMid);
                     this.localTracks.set(newTrack.rtcId, newTrack);
+                    if (newMid) {
+                        this._midsWithSentTrack.add(newMid);
+                    }
 
                     // Send RTCStats event when the track is added for the first time.
                     this._sendRtcStatsEvent(newTrack, false);
