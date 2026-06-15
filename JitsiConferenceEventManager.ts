@@ -203,7 +203,12 @@ export default class JitsiConferenceEventManager {
                 track.setOwner(owner);
                 track.setSourceName(sourceName);
                 track._setVideoType(videoType);
-                owner && conference.eventEmitter.emit(JitsiConferenceEvents.TRACK_ADDED, track);
+                if (owner) {
+                    conference.eventEmitter.emit(JitsiConferenceEvents.TRACK_ADDED, track);
+                } else {
+                    console.warn('Decoder: disposing of an orphand track (chat room)');
+                    track.cleanDecoder();
+                }
             }
         });
 
