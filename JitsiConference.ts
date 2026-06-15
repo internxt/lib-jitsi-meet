@@ -3425,6 +3425,8 @@ export default class JitsiConference extends Listenable {
             if (FeatureFlags.isSsrcRewritingSupported()) {
                 track.setSourceName(null);
                 track.setOwner(null);
+                console.warn('Decoder: disposing of an orphand track (tracksToBeRemoved)');
+                track.cleanDecoder();
             }
         });
 
