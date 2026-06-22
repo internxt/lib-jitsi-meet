@@ -20,7 +20,7 @@ const logger = getLogger('rtc:JitsiRemoteTrack');
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const ort = require('onnxruntime-web');
 
-ort.env.wasm.wasmPaths = '/libs/dist/';
+ort.env.wasm.wasmPaths = '/libs/ort/';
 ort.env.wasm.numThreads = 1;
 
 let ttfmTrackerAudioAttached = false;
@@ -575,7 +575,7 @@ export default class JitsiRemoteTrack extends JitsiTrack {
 
         if (this.stream) {
             this._onTrackAttach(container);
-            if (this.type === MediaType.VIDEO && this.videoType === VideoType.CAMERA && decode && !browser.isSafari()) {
+            if (this.type === MediaType.VIDEO && this.videoType === VideoType.CAMERA && decode && !browser.isSafari() && decodingSession) {
                 this.increaseResolution(container);
             } else {
                 result = RTCUtils.attachMediaStream(container, this.stream);
