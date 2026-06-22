@@ -1,4 +1,4 @@
-import BrowserDetection from '@jitsi/js-utils/browser-detection/BrowserDetection';
+import { BrowserDetection } from '@jitsi/js-utils/browser-detection';
 
 /* Minimum required Chrome / Chromium version. This applies also to derivatives. */
 const MIN_REQUIRED_CHROME_VERSION = 72;
@@ -250,6 +250,15 @@ export default class BrowserCapabilities extends BrowserDetection {
     }
 
     /**
+     * Returns true on Firefox 110+, where RTCRtpTransceiverInit.sendEncodings is honored.
+     *
+     * @returns {boolean}
+     */
+    supportsEncodingsConfig(): boolean {
+        return this.isFirefox() && this.isVersionGreaterThan(109);
+    }
+
+    /**
      * Returns true if the browser supports the new Scalability Mode API for VP9/AV1 simulcast and full SVC. H.264
      * simulcast will also be supported by the jvb for this version because the bridge is able to read the Dependency
      * Descriptor RTP header extension to extract layers information for H.264 as well.
@@ -271,17 +280,14 @@ export default class BrowserCapabilities extends BrowserDetection {
     }
 
     /**
-     * Returns true if VP9 is supported by the client on the browser. VP9 is currently disabled on Safari
-     * and older versions of Firefox because of issues. Please check https://bugs.webkit.org/show_bug.cgi?id=231074 for
-     * details.
+     * Returns true if VP9 is supported by the client on the browser.
      *
+     * Disabled on WebKit-based browsers (Safari/iOS). Firefox is supported on version 151+ (see:
+     * https://bugzilla.mozilla.org/show_bug.cgi?id=1633876).
      * @returns {boolean}
      */
     supportsVP9(): boolean {
-        // Keep this disabled for FF because simulcast is disabled by default.
-        // For versions 136+ if the media.webrtc.simulcast.vp9.enabled config is set to true it will work.
-        // TODO: enable for FF with version 136+ once media.webrtc.simulcast.vp9.enabled is set to true by default.
-        return !(this.isWebKitBased() || this.isFirefox());
+        return !this.isWebKitBased() && !(this.isFirefox() && this.isVersionLessThan(151));
     }
 
     /**
