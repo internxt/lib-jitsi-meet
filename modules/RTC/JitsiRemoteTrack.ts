@@ -478,7 +478,7 @@ export default class JitsiRemoteTrack extends JitsiTrack {
                 return;
             }
 
-            if (!this._rawVideo.videoWidth || !this._rawVideo.videoHeight || this._rawVideo.readyState < 2) {
+            if (!this._rawVideo.videoWidth || !this._rawVideo.videoHeight || this._rawVideo.readyState < HTMLMediaElement.HAVE_CURRENT_DATA) {
                 this._animationFrameId = requestAnimationFrame(processFrame);
 
                 return;
@@ -490,7 +490,14 @@ export default class JitsiRemoteTrack extends JitsiTrack {
             const nwidth = this._rawVideo.videoWidth;
             const nheight = this._rawVideo.videoHeight;
 
-            this.shouldDecode = nheight < 240 ? true : false;
+            if (nheight < 240 && !this.decoderIsOn) {
+                logger.info('Decoder: Activating decoder for track:', this.trackID, 'frame resolution: ', nwidth, 'x', nheight);
+                this.shouldDecode = true;
+            }
+            if (nheight >= 240 && this.decoderIsOn) {
+                logger.info('Decoder: Deactivating decoder for track:', this.trackID, 'frame resolution: ', nwidth, 'x', nheight);
+                this.shouldDecode = false;
+            }
 
             if (this.shouldDecode) {
                 try {
@@ -521,7 +528,7 @@ export default class JitsiRemoteTrack extends JitsiTrack {
 
                     if (!this.decoderIsOn) {
                         this.decoderIsOn = true;
-                        logger.info('Decoder: ON for track:', this.trackID, 'current frame resolution: ', nwidth, 'x', nheight);
+                        logger.info('Decoder: ON for track:', this.trackID);
                     }
                 } catch (error) {
                     this.shouldDecode = false;
@@ -537,7 +544,7 @@ export default class JitsiRemoteTrack extends JitsiTrack {
                 ctxDecoded.drawImage(this._rawVideo, 0, 0, this._rawVideo.videoWidth, this._rawVideo.videoHeight);
                 if (this.decoderIsOn) {
                     this.decoderIsOn = false;
-                    logger.info('Decoder: OFF decoder for track:', this.trackID, 'current frame resolution: ', nwidth, 'x', nheight);
+                    logger.info('Decoder: OFF for track', this.trackID);
                 }
                 this.isProcessingFrame = false;
             }
