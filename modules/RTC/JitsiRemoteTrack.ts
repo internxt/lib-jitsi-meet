@@ -459,6 +459,11 @@ export default class JitsiRemoteTrack extends JitsiTrack {
         this.isProcessingFrame = false;
         this.wasDisposed = false;
         const processFrame = async () => {
+            if (!decodingSession) {
+                logger.error('Decoder: Decoder has not being loaded');
+
+                return;
+            }
             if (!this.getParticipantId()) {
                 logger.error('Decoder: Was called for an orphaned track! Cleaning up..');
                 this.cleanDecoder();
