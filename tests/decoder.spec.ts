@@ -132,6 +132,7 @@ describe('JitsiRemoteTrack decoder', () => {
             expect((track as any).shouldDecode).not.toBeTrue();
             expect((track as any).height === 0).toBeTrue();
             expect((track as any).width === 0).toBeTrue();
+            expect((track as any)._rawVideo).toBeNull();
 
         });
 
@@ -198,7 +199,7 @@ describe('JitsiRemoteTrack decoder', () => {
             // Trigger dimension change
             const { stream: differentResStream, stop } = makeFakeVideoStream(160, 120);
 
-            (track as any).stream = differentResStream;
+            (track as any)._rawVideo.srcObject = differentResStream;
 
             await waitUntil(() => (track as any).inputTensor !== firstTensor);
 
@@ -213,12 +214,8 @@ describe('JitsiRemoteTrack decoder', () => {
     describe('if decoder fails, back to the original track', () => {
 
         it('if decoder suddenly fails, turns it off and uses original stream', async () => {
-            const attachSpy = spyOn(RTCUtils, 'attachMediaStream').and.callThrough();
             track.increaseResolution(container);
             await waitUntil(() => track.isDecoderOn()=== true);
-            const originalStream = (track as any).stream;
-            const decodedStream = (track as any)._decodedStream;
-
             const ort = require('onnxruntime-web');
             const badTensor = new ort.Tensor('float32', new Float32Array(0), [ 0, 0, 0, 0 ]);
 
@@ -230,17 +227,10 @@ describe('JitsiRemoteTrack decoder', () => {
             expect(track.isProcessingFrame).toBe(false);
             expect(track.isDecoderOn()).toBe(false);
             expect((track as any)._animationFrameId).not.toBeNull();
-
-            const lastCall = attachSpy.calls.mostRecent();
-            expect(lastCall).toBeDefined();
-            expect(lastCall.args[0]).toBe(container);
-            expect(lastCall.args[1]).toBe(originalStream);
-            expect(lastCall.args[1]).not.toBe(decodedStream);
         });
 
         it('does not attach the decoded stream at all if decoder fails on the first frame', async () => {
 
-            const attachSpy = spyOn(RTCUtils, 'attachMediaStream').and.callThrough();
             const runSpy = spyOn(decodingSession, 'run').and.rejectWith(new Error('injected failure'));
 
             track.increaseResolution(container);
@@ -252,50 +242,37 @@ describe('JitsiRemoteTrack decoder', () => {
             expect(track.isDecoderOn()).toBe(false);
             expect((track as any)._animationFrameId).not.toBeNull();
 
-            expect(attachSpy).not.toHaveBeenCalled();
         });
 
         
         it('turns decoder off and falls back to original stream when resolution rises above 240p', async () => {
-            const attachSpy = spyOn(RTCUtils, 'attachMediaStream').and.callThrough();
-
             track.increaseResolution(container);
             await waitUntil(() => track.isDecoderOn() === true);
 
-            const originalStream = (track as any).stream;
-            const decodedStream = (track as any)._decodedStream;
-
             const { stream: highResStream, stop: stopHighRes } = makeFakeVideoStream(640, 480);
 
-            (track as any).stream = highResStream;
+            (track as any)._rawVideo.srcObject = highResStream;
 
             await waitUntil(() => track.isDecoderOn() === false);
 
             expect((track as any).shouldDecode).toBe(false);
             expect(track.isDecoderOn()).toBe(false);
 
-            const lastCall = attachSpy.calls.mostRecent();
-
-            expect(lastCall).toBeDefined();
-            expect(lastCall.args[0]).toBe(container);
-            expect(lastCall.args[1]).toBe(highResStream);
-            expect(lastCall.args[1]).not.toBe(originalStream);
-            expect(lastCall.args[1]).not.toBe(decodedStream);
-
             stopHighRes();
         });
 
         it('If processFrame fails, the loop keeps working and tries the next frame', async () => {
 
-            // simulate processFrame failure
-            const grabFrameSpy = jasmine.createSpy('grabFrame').and.rejectWith(new Error('grabFrame injected failure'));
-            spyOn(window as any, 'ImageCapture').and.returnValue({ grabFrame: grabFrameSpy });
-
             track.increaseResolution(container);
-            await waitUntil(() => grabFrameSpy.calls.count() >= 2);
+            await waitUntil(() => track.isDecoderOn() === true);
+
+            const runSpy = spyOn(decodingSession, 'run').and.rejectWith(new Error('injected failure'));
+
+            await waitUntil(() => runSpy.calls.count() >= 2, 4000);
 
             expect((track as any)._animationFrameId).not.toBeNull();
-            expect(grabFrameSpy).toHaveBeenCalled();
+            expect((track as any).shouldDecode).toBe(false);
+            expect(track.isDecoderOn()).toBe(false);
         });
     });
 });

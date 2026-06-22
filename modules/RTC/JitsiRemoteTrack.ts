@@ -87,6 +87,7 @@ export default class JitsiRemoteTrack extends JitsiTrack {
     private inputBuffer: Nullable<Float32Array> = null;
     private wasDisposed: boolean = false;
     private trackID: string = 'no track ID yet';
+    private _rawVideo: Nullable<HTMLVideoElement> = null;
 
     public ownerEndpointId: string;
     public isP2P: boolean;
@@ -435,11 +436,11 @@ export default class JitsiRemoteTrack extends JitsiTrack {
         this._decodedStream = canvasDecoded.captureStream();
         RTCUtils.attachMediaStream(container, this._decodedStream);
 
-        const rawVideo = document.createElement('video');
+        this._rawVideo = document.createElement('video');
 
-        rawVideo.srcObject = this.stream;
-        rawVideo.muted = true;
-        rawVideo.play().catch(() => { /* ignore */ });
+        this._rawVideo.srcObject = this.stream;
+        this._rawVideo.muted = true;
+        this._rawVideo.play().catch(() => { /* ignore */ });
 
         this.trackID = this.stream.getVideoTracks()[0].id;
 
@@ -448,6 +449,12 @@ export default class JitsiRemoteTrack extends JitsiTrack {
         const canvasEncoded = document.createElement('canvas');
         const ctxEncoded = canvasEncoded.getContext('2d', { willReadFrequently: true });
         const ctxDecoded = canvasDecoded.getContext('2d', { willReadFrequently: true });
+
+        if (!this._rawVideo || !ctxEncoded || !ctxDecoded) {
+            logger.warn('Decoder: stopping because rack was not initialized correctly:', this.trackID);
+
+            return;
+        }
 
         this.isProcessingFrame = false;
         this.wasDisposed = false;
@@ -459,7 +466,7 @@ export default class JitsiRemoteTrack extends JitsiTrack {
                 return;
 
             }
-            if (this.wasDisposed) {
+            if (this.wasDisposed || !this._rawVideo) {
                 logger.warn('Decoder: stopping because disposed was called for this track:', this.trackID);
 
                 return;
@@ -471,7 +478,7 @@ export default class JitsiRemoteTrack extends JitsiTrack {
                 return;
             }
 
-            if (!rawVideo.videoWidth || !rawVideo.videoHeight || rawVideo.readyState < 2) {
+            if (!this._rawVideo.videoWidth || !this._rawVideo.videoHeight || this._rawVideo.readyState < 2) {
                 this._animationFrameId = requestAnimationFrame(processFrame);
 
                 return;
@@ -480,69 +487,41 @@ export default class JitsiRemoteTrack extends JitsiTrack {
             let outInference: Nullable<any> = null;
 
             this.isProcessingFrame = true;
+            const nwidth = this._rawVideo.videoWidth;
+            const nheight = this._rawVideo.videoHeight;
 
-            // Getting the current size of the incoming stream
-            const nwidth = rawVideo.videoWidth;
-            const nheight = rawVideo.videoHeight;
+            this.shouldDecode = nheight < 240 ? true : false;
 
-            if (nheight < 240 && !this.decoderIsOn) {
-                logger.info('Decoder: Activating decoder for track:', this.trackID, 'frame resolution: ', nwidth, 'x', nheight);
-                this.shouldDecode = true;
-            }
-            if (nheight >= 240 && this.decoderIsOn) {
-                logger.info('Decoder: Deactivating decoder for track:', this.trackID, 'frame resolution: ', nwidth, 'x', nheight);
-                this.shouldDecode = false;
-            }
             if (this.shouldDecode) {
                 try {
                     // check wether the canvas must be changed
                     if (this.width != nwidth || this.height != nheight || !this.dataOutput || !this.inputBuffer) {
-                        try {
-                            if (this.inputTensor) {
-                                this.inputTensor.dispose();
-                                this.inputTensor = null;
-                            }
-                            canvasEncoded.width = nwidth;
-                            canvasEncoded.height = nheight;
-                            canvasDecoded.width = nwidth * 2;
-                            canvasDecoded.height = nheight * 2;
-                            this.inputBuffer = new Float32Array(nwidth * nheight * 4);
-                            this.inputTensor = new ort.Tensor('float32', this.inputBuffer, [ 1, nheight, nwidth, 4 ]);
-                            this.dataOutput = new ImageData(2 * nwidth, 2 * nheight);
-                            this.width = nwidth;
-                            this.height = nheight;
-                        } catch (err) {
-                            logger.error('Decoder: Could not set new resolution for track:', this.trackID, 'error:', err);
-                            throw new Error('Decoder: Could not set new resolution for track' + this.trackID);
+                        if (this.inputTensor) {
+                            this.inputTensor.dispose();
+                            this.inputTensor = null;
                         }
+                        canvasEncoded.width = nwidth;
+                        canvasEncoded.height = nheight;
+                        canvasDecoded.width = nwidth * 2;
+                        canvasDecoded.height = nheight * 2;
+                        this.inputBuffer = new Float32Array(nwidth * nheight * 4);
+                        this.inputTensor = new ort.Tensor('float32', this.inputBuffer, [ 1, nheight, nwidth, 4 ]);
+                        this.dataOutput = new ImageData(2 * nwidth, 2 * nheight);
+                        this.width = nwidth;
+                        this.height = nheight;
                     }
-                    ctxEncoded.drawImage(rawVideo, 0, 0, this.width, this.height);
+
+                    ctxEncoded.drawImage(this._rawVideo, 0, 0, this.width, this.height);
                     const imageEncode = ctxEncoded.getImageData(0, 0, this.width, this.height);
 
-                    try {
-                        this.inputBuffer.set(imageEncode.data);
-                    } catch (err) {
-                        logger.error('Decoder: float32 buffer could not be set for track:', this.trackID, 'error:', err);
-                        throw new Error('Decoder: float32 buffer could not be set');
-                    }
-
-                    try {
-                        outInference = await decodingSession.run({ input: this.inputTensor });
-                    } catch (err) {
-                        logger.error('Decoder: could not run onnx session for track:', this.trackID, 'error:', err);
-                        throw new Error('Decoder: could not run onnx session');
-                    }
-                    try {
-                        this.dataOutput.data.set(outInference.output.data);
-                        ctxDecoded.putImageData(this.dataOutput, 0, 0);
-                    } catch (err) {
-                        logger.error('Decoder: could not set output frame for track:', this.trackID, 'error:', err);
-                        throw new Error('Decoder: could not set output frame');
-                    }
+                    this.inputBuffer.set(imageEncode.data);
+                    outInference = await decodingSession.run({ input: this.inputTensor });
+                    this.dataOutput.data.set(outInference.output.data);
+                    ctxDecoded.putImageData(this.dataOutput, 0, 0);
 
                     if (!this.decoderIsOn) {
                         this.decoderIsOn = true;
-                        logger.info('Decoder: ON for track:', this.trackID);
+                        logger.info('Decoder: ON for track:', this.trackID, 'current frame resolution: ', nwidth, 'x', nheight);
                     }
                 } catch (error) {
                     this.shouldDecode = false;
@@ -553,12 +532,12 @@ export default class JitsiRemoteTrack extends JitsiTrack {
                 }
             }
             if (!this.shouldDecode) {
-                canvasDecoded.width = rawVideo.videoWidth;
-                canvasDecoded.height = rawVideo.videoHeight;
-                ctxDecoded.drawImage(rawVideo, 0, 0, rawVideo.videoWidth, rawVideo.videoHeight);
+                canvasDecoded.width = this._rawVideo.videoWidth;
+                canvasDecoded.height = this._rawVideo.videoHeight;
+                ctxDecoded.drawImage(this._rawVideo, 0, 0, this._rawVideo.videoWidth, this._rawVideo.videoHeight);
                 if (this.decoderIsOn) {
                     this.decoderIsOn = false;
-                    logger.info('Decoder: OFF for track:', this.trackID);
+                    logger.info('Decoder: OFF decoder for track:', this.trackID, 'current frame resolution: ', nwidth, 'x', nheight);
                 }
                 this.isProcessingFrame = false;
             }
@@ -658,6 +637,11 @@ export default class JitsiRemoteTrack extends JitsiTrack {
         if (this._animationFrameId !== null) {
             cancelAnimationFrame(this._animationFrameId);
             this._animationFrameId = null;
+        }
+        if (this._rawVideo) {
+            this._rawVideo.pause();
+            this._rawVideo.srcObject = null;
+            this._rawVideo = null;
         }
         if (this.inputTensor) {
             this.inputTensor.dispose();
