@@ -20,7 +20,7 @@ const logger = getLogger('rtc:JitsiRemoteTrack');
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const ort = require('onnxruntime-web');
 
-ort.env.wasm.wasmPaths = '/libs/ort/';
+ort.env.wasm.wasmPaths = '/libs/dist/';
 ort.env.wasm.numThreads = 1;
 
 let ttfmTrackerAudioAttached = false;
