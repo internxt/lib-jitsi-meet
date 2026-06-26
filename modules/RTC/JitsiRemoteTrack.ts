@@ -30,9 +30,9 @@ export let decodingSession = null;
 /**
  * Loads the decoder model
  */
-async function loadDecoder() {
+export async function loadDecoder(modelPath = '/libs/models/Decoder.onnx') {
     try {
-        decodingSession = await ort.InferenceSession.create('/libs/models/Decoder.onnx',
+        decodingSession = await ort.InferenceSession.create(modelPath,
             {
                 enableCpuMemArena: false,
                 executionProviders: [ 'wasm' ],
@@ -75,31 +75,28 @@ export default class JitsiRemoteTrack extends JitsiTrack {
      * will become interrupted.
      */
     private _containerHandlers: { [key: string]: (event: Event) => void; };
-    private _decodedStream;
-    private _decodedTrack;
+    private _decodedStream: Nullable<MediaStream> = null;
     private _enteredForwardedSourcesTimestamp: Nullable<number>;
     private _rtc: RTC;
     private _muted: boolean;
     private _hasBeenMuted: boolean;
     private _ssrc: number;
-    private _animationFrameId: number;
+    private _animationFrameId: Nullable<number> = null;
+    private inputTensor: Nullable<any> = null;
+    private dataOutput: Nullable<ImageData> = null;
+    private inputBuffer: Nullable<Float32Array> = null;
+    private wasDisposed: boolean = false;
+    private trackID: string = 'no track ID yet';
+    private _rawVideo: Nullable<HTMLVideoElement> = null;
 
     public ownerEndpointId: string;
     public isP2P: boolean;
     public rtcId: Nullable<string>;
-    public inputTensor: Nullable<any>;
-    public dataOutput: Nullable<ImageData>;
-    public input: Nullable<any>;
-    public frame: Nullable<ImageBitmap>;
-    public width: number;
-    public height: number;
-    public outInference: Nullable<any>;
-    public activedecoder: boolean;
-    public attachoff: boolean;
-    public attachon: boolean;
-    public imageEncode: Nullable<ImageData>;
-    public inputData: Nullable<any>;
-    public inputBuffer: Nullable<any>;
+    public width: number = 0;
+    public height: number = 0;
+    public shouldDecode: boolean = false;
+    public decoderIsOn: boolean = false;
+    public isProcessingFrame: boolean = false;
 
     /**
      * Creates new JitsiRemoteTrack instance.
@@ -180,25 +177,6 @@ export default class JitsiRemoteTrack extends JitsiTrack {
             this._containerHandlers[event] = this._containerEventHandler.bind(this, event);
         });
 
-        // Decoding streams the incoming videtrack
-        this._decodedStream = null;
-        this._decodedTrack = null;
-        // Steam objects
-        this.inputTensor = null;
-        this.dataOutput = null;
-        this.input = {
-            input: null
-        };
-        this.frame = null;
-        this.width = 0;
-        this.height = 0;
-        this.inputBuffer = null;
-        this.outInference = null;
-        this.activedecoder = false;
-        this.attachoff = false;
-        this.attachon = false;
-        this.imageEncode = null;
-        this.inputData = null;
     }
 
     /* eslint-enable max-params */
@@ -439,20 +417,8 @@ export default class JitsiRemoteTrack extends JitsiTrack {
         container.addEventListener('canplay', this._playCallback.bind(this));
     }
 
-    /**
-     * Returns decoded stream from camera stream
-     * @returns MediaStream object
-     */
-    getDecodedStream() {
-        return this._decodedStream;
-    }
-
-    /**
-     * Returns decoded stream from camera stream
-     * @returns Track object
-     */
-    getDecodedTrack() {
-        return this._decodedTrack;
+    isDecoderOn(): boolean {
+        return this.decoderIsOn;
     }
 
     /**
@@ -460,144 +426,140 @@ export default class JitsiRemoteTrack extends JitsiTrack {
      * @param container the HTML container which can be 'video' or 'audio'
      * element.
      */
-    increaseResolution(container: any) {
-        if (this._animationFrameId) cancelAnimationFrame(this._animationFrameId);
+    increaseResolution(container: HTMLElement) {
+        if (this._animationFrameId) {
+            logger.warn('Decoder: canceling animation frame for track:', this.trackID);
+            cancelAnimationFrame(this._animationFrameId);
+        }
         const canvasDecoded = document.createElement('canvas');
 
         this._decodedStream = canvasDecoded.captureStream();
-        // Extracting track from canvas-sender
-        this._decodedTrack = this._decodedStream.getVideoTracks()[0];
-        const videoTrack = this.stream.getVideoTracks()[0];
-        // Frame-grabber to catch frames from the incoming stream
-        const imageCapture = new ImageCapture(videoTrack);
-        // Setting up the aux canvas to paint the caught frames
+        RTCUtils.attachMediaStream(container, this._decodedStream);
+
+        this._rawVideo = document.createElement('video');
+
+        this._rawVideo.srcObject = this.stream;
+        this._rawVideo.muted = true;
+        this._rawVideo.play().catch(() => { /* ignore */ });
+
+        this.trackID = this.stream.getVideoTracks()[0].id;
+
+        logger.info('Decoder: start increase resolution for track:', this.trackID, 'corresponding to', this.getParticipantId());
+
         const canvasEncoded = document.createElement('canvas');
         const ctxEncoded = canvasEncoded.getContext('2d', { willReadFrequently: true });
         const ctxDecoded = canvasDecoded.getContext('2d', { willReadFrequently: true });
-        let count = 1;
-        let nswitches = 1;
+
+        if (!this._rawVideo || !ctxEncoded || !ctxDecoded) {
+            logger.warn('Decoder: stopping because rack was not initialized correctly:', this.trackID);
+
+            return;
+        }
+
+        this.isProcessingFrame = false;
+        this.wasDisposed = false;
         const processFrame = async () => {
-            if (videoTrack.readyState == 'live') {
-                try {
-                    if (this.frame) {
-                        this.frame.close();
-                    }
-                    this.frame = await imageCapture.grabFrame();
-                } catch (error) {
-                    logger.info('Decoder: could not caught frame: ', error);
+            if (!decodingSession) {
+                logger.error('Decoder: Decoder has not being loaded');
 
-                    return;
-                }
-                // Getting the current size of the incoming stream
-                const nwidth = this.frame.width;
-                const nheight = this.frame.height;
-
-                if (nheight < 240 && !(browser.isSafari()) && !(this.attachon)) {
-                    logger.info('Decoder: Activating decoder for track:', this.stream.getVideoTracks()[0]);
-                    logger.info('Decoder: new resolution: ', nwidth, 'x', nheight, ', track: ', this.stream.getVideoTracks()[0]);
-                    this.activedecoder = true;
-                }
-                if ((nheight >= 240 && !(this.attachoff)) || browser.isSafari()) {
-                    logger.info('Decoder: Deactivating decoder for track:', this.stream.getVideoTracks()[0]);
-                    logger.info('Decoder: new resolution: ', nwidth, 'x', nheight, ', track: ', this.stream.getVideoTracks()[0]);
-                    this.activedecoder = false;
-                }
-                // check wether the canvas must be changed
-                if (nwidth > 0 && this.activedecoder && nheight > 0) {
-                    if (this.width != nwidth || this.height != nheight || count % 30 == 0) {
-                        try {
-                            if (this.inputTensor) {
-                                this.inputTensor.dispose();
-                                this.inputTensor = null;
-                            }
-                            canvasEncoded.width = nwidth;
-                            canvasEncoded.height = nheight;
-                            canvasDecoded.width = nwidth * 2;
-                            canvasDecoded.height = nheight * 2;
-                            this.inputBuffer = new Float32Array(nwidth * nheight * 4);
-                            this.inputTensor = new ort.Tensor('float32', this.inputBuffer, [ 1, nheight, nwidth, 4 ]);
-                            this.input.input = this.inputTensor;
-                            this.dataOutput = new ImageData(2 * nwidth, 2 * nheight);
-                            this.width = nwidth;
-                            this.height = nheight;
-                        } catch {
-                            logger.info('Decoder: Could not set new resolution');
-                        }
-                    }
-                }
-
-                if ((this.width > 0 && this.activedecoder)) {
-                    ctxEncoded.drawImage(this.frame, 0, 0, this.width, this.height);
-                    this.frame.close();
-                    this.imageEncode = ctxEncoded.getImageData(0, 0, this.width, this.height);
-                    this.inputData = this.imageEncode.data;
-
-                    try {
-                        this.inputBuffer.set(this.inputData);
-                    } catch (error) {
-                        logger.info('Decoder: float32 buffer could not be set: ', error);
-                        this._animationFrameId = requestAnimationFrame(processFrame);
-
-                        return;
-                    }
-
-                    try {
-                        this.outInference = await decodingSession.run(this.input);
-                    } catch (error) {
-                        logger.info('Decoder: could not run onnx session: ', error);
-                        this._animationFrameId = requestAnimationFrame(processFrame);
-
-                        return;
-                    }
-
-                    try {
-                        this.dataOutput.data.set(this.outInference.output.data);
-                        ctxDecoded.putImageData(this.dataOutput, 0, 0);
-                    } catch (error) {
-                        logger.info('Decoder: output frame could not be set: ', error);
-                        this._animationFrameId = requestAnimationFrame(processFrame);
-
-                        return;
-                    }
-                    // Cleaning canvas, arrays and tensors
-                    this.imageEncode = null;
-                    this.inputData = null;
-                    this.outInference.output.dispose();
-                    this.outInference = null;
-                }
-                if ((!(this.attachoff) && !(this.activedecoder))) {
-                    if (container.srcObject) {
-                        container.srcObject = null;
-                    }
-                    this.attachoff = true;
-                    this.attachon = false;
-                    logger.info('Decoder: OFF');
-                    RTCUtils.attachMediaStream(container, this.stream);
-                    nswitches += 1;
-                }
-                if ((!(this.attachon) && this.activedecoder)) {
-                    if (container.srcObject) {
-                        container.srcObject = null;
-                    }
-                    if (nswitches % 20 == 0) {
-                        if (this._decodedTrack) {
-                            this._decodedTrack.stop();
-                        }
-                        if (this._decodedStream) {
-                            this._decodedStream.getTracks().forEach(t => t.stop());
-                        }
-                        this._decodedStream = canvasDecoded.captureStream();
-                        this._decodedTrack = this._decodedStream.getVideoTracks()[0];
-                    }
-                    this.attachon = true;
-                    this.attachoff = false;
-                    logger.info('Decoder: ON');
-                    RTCUtils.attachMediaStream(container, this._decodedStream);
-                    nswitches += 1;
-                }
-                count = count + 1;
+                return;
             }
-            this._animationFrameId = requestAnimationFrame(processFrame);
+            if (!this.getParticipantId()) {
+                logger.error('Decoder: Was called for an orphaned track! Cleaning up..');
+                this.cleanDecoder();
+
+                return;
+
+            }
+            if (this.wasDisposed || !this._rawVideo) {
+                logger.warn('Decoder: stopping because disposed was called for this track:', this.trackID);
+
+                return;
+            }
+            if (this.isProcessingFrame) {
+                logger.warn('Decoder: skipping a frame because the previous one is still being processed for track', this.trackID);
+                this._animationFrameId = requestAnimationFrame(processFrame);
+
+                return;
+            }
+
+            if (!this._rawVideo.videoWidth || !this._rawVideo.videoHeight || this._rawVideo.readyState < HTMLMediaElement.HAVE_CURRENT_DATA) {
+                this._animationFrameId = requestAnimationFrame(processFrame);
+
+                return;
+            }
+
+            let outInference: Nullable<any> = null;
+
+            this.isProcessingFrame = true;
+            const nwidth = this._rawVideo.videoWidth;
+            const nheight = this._rawVideo.videoHeight;
+
+            if (nheight < 240 && !this.decoderIsOn) {
+                logger.info('Decoder: Activating decoder for track:', this.trackID, 'frame resolution: ', nwidth, 'x', nheight);
+                this.shouldDecode = true;
+            }
+            if (nheight >= 240 && this.decoderIsOn) {
+                logger.info('Decoder: Deactivating decoder for track:', this.trackID, 'frame resolution: ', nwidth, 'x', nheight);
+                this.shouldDecode = false;
+            }
+
+            if (this.shouldDecode) {
+                try {
+                    // check wether the canvas must be changed
+                    if (this.width != nwidth || this.height != nheight || !this.dataOutput || !this.inputBuffer) {
+                        if (this.inputTensor) {
+                            this.inputTensor.dispose();
+                            this.inputTensor = null;
+                        }
+                        canvasEncoded.width = nwidth;
+                        canvasEncoded.height = nheight;
+                        canvasDecoded.width = nwidth * 2;
+                        canvasDecoded.height = nheight * 2;
+                        this.inputBuffer = new Float32Array(nwidth * nheight * 4);
+                        this.inputTensor = new ort.Tensor('float32', this.inputBuffer, [ 1, nheight, nwidth, 4 ]);
+                        this.dataOutput = new ImageData(2 * nwidth, 2 * nheight);
+                        this.width = nwidth;
+                        this.height = nheight;
+                    }
+
+                    ctxEncoded.drawImage(this._rawVideo, 0, 0, this.width, this.height);
+                    const imageEncode = ctxEncoded.getImageData(0, 0, this.width, this.height);
+
+                    this.inputBuffer.set(imageEncode.data);
+                    outInference = await decodingSession.run({ input: this.inputTensor });
+                    this.dataOutput.data.set(outInference.output.data);
+                    ctxDecoded.putImageData(this.dataOutput, 0, 0);
+
+                    if (!this.decoderIsOn) {
+                        this.decoderIsOn = true;
+                        logger.info('Decoder: ON for track:', this.trackID);
+                    }
+                } catch (error) {
+                    this.shouldDecode = false;
+                } finally {
+                    outInference?.output.dispose();
+                    outInference = null;
+                    this.isProcessingFrame = false;
+                }
+            }
+            if (!this.shouldDecode) {
+                canvasDecoded.width = this._rawVideo.videoWidth;
+                canvasDecoded.height = this._rawVideo.videoHeight;
+                ctxDecoded.drawImage(this._rawVideo, 0, 0, this._rawVideo.videoWidth, this._rawVideo.videoHeight);
+                if (this.decoderIsOn) {
+                    this.decoderIsOn = false;
+                    logger.info('Decoder: OFF for track', this.trackID);
+                }
+                this.isProcessingFrame = false;
+            }
+            if (this.wasDisposed) {
+                logger.info('Decoder: Finished processing frame and track was already disposed, clean up just in case');
+                this.cleanDecoder();
+
+                return;
+            } else this._animationFrameId = requestAnimationFrame(processFrame);
+
         };
 
         processFrame();
@@ -618,7 +580,7 @@ export default class JitsiRemoteTrack extends JitsiTrack {
 
         if (this.stream) {
             this._onTrackAttach(container);
-            if (this.type === MediaType.VIDEO && this.videoType === VideoType.CAMERA && decode && !(browser.isSafari())) {
+            if (this.type === MediaType.VIDEO && this.videoType === VideoType.CAMERA && decode && !browser.isSafari() && decodingSession) {
                 this.increaseResolution(container);
             } else {
                 result = RTCUtils.attachMediaStream(container, this.stream);
@@ -682,45 +644,47 @@ export default class JitsiRemoteTrack extends JitsiTrack {
         return this._enteredForwardedSourcesTimestamp;
     }
 
+    cleanDecoder() {
+        logger.info('Decoder: cleaning is called for track:', this.trackID);
+        if (this._animationFrameId !== null) {
+            cancelAnimationFrame(this._animationFrameId);
+            this._animationFrameId = null;
+        }
+        if (this._rawVideo) {
+            this._rawVideo.pause();
+            this._rawVideo.srcObject = null;
+            this._rawVideo = null;
+        }
+        if (this.inputTensor) {
+            this.inputTensor.dispose();
+            this.inputTensor = null;
+        }
+        if (this._decodedStream) {
+            this._decodedStream.getTracks().forEach(t => t.stop());
+            this._decodedStream = null;
+        }
+        this.shouldDecode = false;
+        this.isProcessingFrame = false;
+        this.decoderIsOn = false;
+        this.width = 0;
+        this.height = 0;
+        this.dataOutput = null;
+        this.wasDisposed = true;
+
+    }
+
     /**
      * Removes attached event listeners and dispose TrackStreamingStatus .
      *
      * @returns {Promise}
      */
     override async dispose(): Promise<void> {
-        logger.info('Decoder: cleaning');
-        if (this._animationFrameId !== null) {
-            cancelAnimationFrame(this._animationFrameId);
-            this._animationFrameId = null;
+
+        if (this.type === MediaType.VIDEO && this.videoType === VideoType.CAMERA && !browser.isSafari() && !this.wasDisposed) {
+            console.log('Decoder: dispose called');
+            this.cleanDecoder();
         }
-        if (this.frame) {
-            this.frame.close();
-            this.frame = null;
-        }
-        if (this.inputTensor) {
-            this.inputTensor.dispose();
-            this.inputTensor = null;
-        }
-        if (this.outInference) {
-            this.outInference.output.dispose();
-            this.outInference = null;
-        }
-        if (this._decodedTrack) {
-            this._decodedTrack.stop();
-            this._decodedTrack = null;
-        }
-        if (this._decodedStream) {
-            this._decodedStream.getTracks().forEach(t => t.stop());
-            this._decodedStream = null;
-        }
-        this.activedecoder = false;
-        this.attachon = false;
-        this.attachoff = false;
-        this.width = 0;
-        this.height = 0;
-        this.dataOutput = null;
-        this.input = null;
-        this.inputBuffer = null;
+
         if (this.disposed) {
             return;
         }

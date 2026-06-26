@@ -162,6 +162,10 @@ export class XmppServerMock {
     }
 }
 
+export function createMockConference() {
+    return mock<JitsiConference>();
+}
+
 export async function createInitializedManagedKeyHandler(
         xmppServerMock: XmppServerMock,
         max_timeout: number,
@@ -171,7 +175,7 @@ export async function createInitializedManagedKeyHandler(
         }> {
     const id = new Date().getTime().toString(16).slice(-8);
 
-    const conferenceMock = mock<JitsiConference>();
+    const conferenceMock = createMockConference();
 
     when(conferenceMock.myUserId()).thenReturn(id);
 
