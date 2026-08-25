@@ -2210,10 +2210,6 @@ export default class JitsiConference extends Listenable {
             JitsiConferenceErrors.INCOMPATIBLE_SERVER_VERSIONS);
     }
 
-    public restartMediaSessions() {
-        this._restartMediaSessions();
-    }
-
     /**
      * Whether translation is active for any speaker, via the default language or a per-participant override.
      *
@@ -2483,6 +2479,10 @@ export default class JitsiConference extends Listenable {
         }
 
         return session.restartIce(reason);
+    }
+
+    public restartMediaSessions() {
+        this._restartMediaSessions();
     }
 
     /**
