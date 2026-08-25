@@ -507,15 +507,25 @@ export default class JitsiRemoteTrack extends JitsiTrack {
             if (this.shouldDecode) {
                 try {
                     // check wether the canvas must be changed
+                    if (canvasEncoded.width !== nwidth || canvasEncoded.height !== nheight) {
+                        console.log('[VIDEO BUG]: changeing encoding canvas from:', canvasEncoded.width, 'x', canvasEncoded.height, 'to', nwidth, 'x', nheight);
+                        canvasEncoded.width = nwidth;
+                        canvasEncoded.height = nheight;
+                    }
+
+                    if (canvasDecoded.width !== nwidth * 2 || canvasDecoded.height !== nheight * 2) {
+                        console.log('[VIDEO BUG]: changeing decoded canvas from:', canvasDecoded.width, 'x', canvasDecoded.height, 'to', nwidth, 'x', nheight);
+                        canvasDecoded.width = nwidth * 2;
+                        canvasDecoded.height = nheight * 2;
+                    }
+
+                    // check wether the tensor must be re-allocated
                     if (this.width != nwidth || this.height != nheight || !this.dataOutput || !this.inputBuffer) {
+                        console.log('[VIDEO BUG]: re-allocating tensor from:', this.width, 'x', this.height, 'to', nwidth, 'x', nheight);
                         if (this.inputTensor) {
                             this.inputTensor.dispose();
                             this.inputTensor = null;
                         }
-                        canvasEncoded.width = nwidth;
-                        canvasEncoded.height = nheight;
-                        canvasDecoded.width = nwidth * 2;
-                        canvasDecoded.height = nheight * 2;
                         this.inputBuffer = new Float32Array(nwidth * nheight * 4);
                         this.inputTensor = new ort.Tensor('float32', this.inputBuffer, [ 1, nheight, nwidth, 4 ]);
                         this.dataOutput = new ImageData(2 * nwidth, 2 * nheight);
