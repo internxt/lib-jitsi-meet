@@ -1191,19 +1191,19 @@ export default class ChatRoom extends Listenable {
 
         const cleanMessage = stripXMLInvalidChars(message);
 
-        if (this.encryptionKey) {
-            const plaintext = message;
+        let sentMessage = cleanMessage;
 
-            message = encryptSymmetricallySync(plaintext, this.encryptionKey);
+        if (this.encryptionKey) {
+            sentMessage = encryptSymmetricallySync(cleanMessage, this.encryptionKey);
         }
 
         // We are adding the message in a packet extension. If this element
         // is different from 'body', we add a custom namespace.
         // e.g. for 'json-message' extension of message stanza.
         if (elementName === 'body') {
-            msg.c(elementName, {}, cleanMessage);
+            msg.c(elementName, {}, sentMessage);
         } else {
-            msg.c(elementName, { xmlns: 'http://jitsi.org/jitmeet' }, cleanMessage);
+            msg.c(elementName, { xmlns: 'http://jitsi.org/jitmeet' }, sentMessage);
         }
 
         if (replyToId) {
@@ -1211,7 +1211,7 @@ export default class ChatRoom extends Listenable {
         }
 
         this.connection.send(msg);
-        this.eventEmitter.emit(XMPPEvents.SENDING_CHAT_MESSAGE, cleanMessage);
+        this.eventEmitter.emit(XMPPEvents.SENDING_CHAT_MESSAGE, sentMessage);
     }
 
     /**
