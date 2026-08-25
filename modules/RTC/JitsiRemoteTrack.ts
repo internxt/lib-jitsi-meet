@@ -508,20 +508,20 @@ export default class JitsiRemoteTrack extends JitsiTrack {
                 try {
                     // check wether the canvas must be changed
                     if (canvasEncoded.width !== nwidth || canvasEncoded.height !== nheight) {
-                        console.log('[VIDEO BUG]: changeing encoding canvas from:', canvasEncoded.width, 'x', canvasEncoded.height, 'to', nwidth, 'x', nheight);
+                        console.log('Decoder: changeing encoding canvas from:', canvasEncoded.width, 'x', canvasEncoded.height, 'to', nwidth, 'x', nheight);
                         canvasEncoded.width = nwidth;
                         canvasEncoded.height = nheight;
                     }
 
                     if (canvasDecoded.width !== nwidth * 2 || canvasDecoded.height !== nheight * 2) {
-                        console.log('[VIDEO BUG]: changeing decoded canvas from:', canvasDecoded.width, 'x', canvasDecoded.height, 'to', nwidth, 'x', nheight);
+                        console.log('Decoder: changeing decoded canvas from:', canvasDecoded.width, 'x', canvasDecoded.height, 'to', nwidth * 2, 'x', nheight * 2);
                         canvasDecoded.width = nwidth * 2;
                         canvasDecoded.height = nheight * 2;
                     }
 
                     // check wether the tensor must be re-allocated
                     if (this.width != nwidth || this.height != nheight || !this.dataOutput || !this.inputBuffer) {
-                        console.log('[VIDEO BUG]: re-allocating tensor from:', this.width, 'x', this.height, 'to', nwidth, 'x', nheight);
+                        console.log('Decoder: re-allocating tensor from:', this.width, 'x', this.height, 'to', nwidth, 'x', nheight);
                         if (this.inputTensor) {
                             this.inputTensor.dispose();
                             this.inputTensor = null;
