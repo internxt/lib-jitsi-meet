@@ -216,7 +216,7 @@ describe('JitsiRemoteTrack decoder', () => {
         it('if decoder suddenly fails, turns it off and uses original stream', async () => {
             track.increaseResolution(container);
             await waitUntil(() => track.isDecoderOn()=== true);
-            const ort = require('onnxruntime-web');
+            const ort = require('onnxruntime-web/wasm');
             const badTensor = new ort.Tensor('float32', new Float32Array(0), [ 0, 0, 0, 0 ]);
 
             (track as any).inputTensor = badTensor;
