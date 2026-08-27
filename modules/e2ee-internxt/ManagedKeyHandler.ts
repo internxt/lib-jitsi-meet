@@ -968,6 +968,7 @@ export class ManagedKeyHandler extends Listenable {
             return;
         }
         this.enabled = enabled;
+        this.conference.setLocalParticipantProperty('e2ee.enabled', enabled.toString());
 
         if (!this.initialized) {
             await this.init();
@@ -975,6 +976,7 @@ export class ManagedKeyHandler extends Listenable {
 
         if (enabled) {
             this.log('info', 'Enabling e2ee');
+            this.conference.restartMediaSessions();
             await this.enableE2E();
         }
 
@@ -983,8 +985,6 @@ export class ManagedKeyHandler extends Listenable {
             await this.disableE2E();
         }
 
-        this.conference.setLocalParticipantProperty('e2ee.enabled', enabled.toString());
-        this.conference.restartMediaSessions();
     }
 
     async messageReceived(participant: JitsiParticipant, payload) {
