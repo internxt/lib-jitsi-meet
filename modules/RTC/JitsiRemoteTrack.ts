@@ -18,7 +18,7 @@ import RTCUtils from './RTCUtils';
 const logger = getLogger('rtc:JitsiRemoteTrack');
 
 // eslint-disable-next-line @typescript-eslint/no-require-imports
-const ort = require('onnxruntime-web');
+const ort = require('onnxruntime-web/wasm');
 
 ort.env.wasm.wasmPaths = '/libs/dist/';
 ort.env.wasm.numThreads = 1;
