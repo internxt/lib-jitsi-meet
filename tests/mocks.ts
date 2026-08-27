@@ -115,6 +115,10 @@ export class XmppServerMock {
 
         const pId = keyHandler.conference.myUserId();
 
+        if (!pId) {
+            throw new Error('Mock got undefined user ID');
+        }
+
         if (!this.listeners.has(pId)) {
             this.listeners.forEach((existingHandler, _id) => {
                 existingHandler._onParticipantJoined(pId);
@@ -153,10 +157,14 @@ export class XmppServerMock {
     sendMessage(myId: string, pId: string, payload: any) {
         this.listeners.forEach((keyHandler, id) => {
             if (id === pId) {
-                keyHandler.messageReceived(
-                    this.participants.get(myId),
-                    payload,
-                );
+                const participant = this.participants.get(myId);
+
+                if (participant) {
+                    keyHandler.messageReceived(
+                        participant,
+                        payload,
+                    );
+                }
             }
         });
     }
@@ -182,6 +190,8 @@ export async function createInitializedManagedKeyHandler(
     const mockRTC = new RTC(conferenceMock);
 
     when(conferenceMock.rtc).thenReturn(mockRTC);
+    when(conferenceMock.getMediaSessions()).thenReturn([]);
+    when(conferenceMock.getLocalTracks()).thenReturn([]);
 
     const eventEmitterMock = mock<EventEmitter>();
 

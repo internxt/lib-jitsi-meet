@@ -5,6 +5,7 @@ import { JitsiConferenceEvents } from '../../JitsiConferenceEvents';
 import JitsiParticipant from '../../JitsiParticipant';
 import { RTCEvents } from '../../service/RTC/RTCEvents';
 import JitsiLocalTrack from '../RTC/JitsiLocalTrack';
+import JitsiRemoteTrack from '../RTC/JitsiRemoteTrack';
 import JitsiTrack from '../RTC/JitsiTrack';
 import TraceablePeerConnection from '../RTC/TraceablePeerConnection';
 import browser from '../browser';
@@ -71,7 +72,7 @@ export class ManagedKeyHandler extends Listenable {
     onConferenceLeft: (() => void) | undefined;
     onMediaSessionStarted: ((session: JingleSessionPC) => void) | undefined;
     onTrackAdded: ((track: JitsiTrack) => void) | undefined;
-    onRemoteTrackAdded: ((track: JitsiLocalTrack, tpc: TraceablePeerConnection) => void) | undefined;
+    onRemoteTrackAdded: ((track: JitsiRemoteTrack, tpc: TraceablePeerConnection) => void) | undefined;
     onTrackMuteChanged: ((track: JitsiLocalTrack) => void) | undefined;
     onSasUpdated: ((sasStr: string) => void) | undefined;
 
@@ -253,7 +254,7 @@ export class ManagedKeyHandler extends Listenable {
      * @private
      */
     private _setupReceiverE2EEForTrack(
-            track: JitsiLocalTrack,
+            track: JitsiRemoteTrack,
             tpc: TraceablePeerConnection,
     ) {
         if (!this.enabled) {
@@ -765,6 +766,24 @@ export class ManagedKeyHandler extends Listenable {
         console[level](`E2E: User ${this.myID}: ${message}`);
     }
 
+    private _setupE2EEForExistingTracks() {
+        for (const session of this.conference.getMediaSessions()) {
+            const pc = session.peerconnection;
+
+            if (!pc) {
+                continue;
+            }
+
+            for (const track of this.conference.getLocalTracks()) {
+                this._setupSenderE2EEForTrack(session, track);
+            }
+
+            for (const track of pc.getRemoteTracks()) {
+                this._setupReceiverE2EEForTrack(track, pc);
+            }
+        }
+    }
+
     _onParticipantJoined(id: string) {
         this._queueParticipantEvent('join', id);
     }
@@ -968,21 +987,23 @@ export class ManagedKeyHandler extends Listenable {
             return;
         }
         this.enabled = enabled;
-        this.conference.setLocalParticipantProperty('e2ee.enabled', enabled.toString());
 
         if (!this.initialized) {
             await this.init();
         }
 
+        this.conference.setLocalParticipantProperty('e2ee.enabled', enabled.toString());
+
         if (enabled) {
             this.log('info', 'Enabling e2ee');
-            this.conference.restartMediaSessions();
             await this.enableE2E();
+            this._setupE2EEForExistingTracks();
         }
 
         if (!enabled) {
             this.log('info', 'Disabling e2ee');
             await this.disableE2E();
+            this.conference.restartMediaSessions();
         }
 
     }
