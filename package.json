@@ -1,6 +1,6 @@
 {
   "name": "lib-meet",
-  "version": "1.0.3",
+  "version": "1.0.3-test",
   "description": "JS library for accessing Jitsi server side deployments",
   "repository": {
     "type": "git",

@@ -2482,6 +2482,7 @@ export default class JitsiConference extends Listenable {
     }
 
     public restartMediaSessions() {
+        console.trace('[restartMediaSessions] caller');
         this._restartMediaSessions();
     }
 
