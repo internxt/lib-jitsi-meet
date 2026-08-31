@@ -18,7 +18,7 @@ import RTCUtils from './RTCUtils';
 const logger = getLogger('rtc:JitsiRemoteTrack');
 
 // eslint-disable-next-line @typescript-eslint/no-require-imports
-const ort = require('onnxruntime-web');
+const ort = require('onnxruntime-web/wasm');
 
 ort.env.wasm.wasmPaths = '/libs/dist/';
 ort.env.wasm.numThreads = 1;
@@ -507,15 +507,25 @@ export default class JitsiRemoteTrack extends JitsiTrack {
             if (this.shouldDecode) {
                 try {
                     // check wether the canvas must be changed
+                    if (canvasEncoded.width !== nwidth || canvasEncoded.height !== nheight) {
+                        console.log('Decoder: changing encoding canvas from:', canvasEncoded.width, 'x', canvasEncoded.height, 'to', nwidth, 'x', nheight);
+                        canvasEncoded.width = nwidth;
+                        canvasEncoded.height = nheight;
+                    }
+
+                    if (canvasDecoded.width !== nwidth * 2 || canvasDecoded.height !== nheight * 2) {
+                        console.log('Decoder: changing decoded canvas from:', canvasDecoded.width, 'x', canvasDecoded.height, 'to', nwidth * 2, 'x', nheight * 2);
+                        canvasDecoded.width = nwidth * 2;
+                        canvasDecoded.height = nheight * 2;
+                    }
+
+                    // check wether the tensor must be re-allocated
                     if (this.width != nwidth || this.height != nheight || !this.dataOutput || !this.inputBuffer) {
+                        console.log('Decoder: re-allocating tensor from:', this.width, 'x', this.height, 'to', nwidth, 'x', nheight);
                         if (this.inputTensor) {
                             this.inputTensor.dispose();
                             this.inputTensor = null;
                         }
-                        canvasEncoded.width = nwidth;
-                        canvasEncoded.height = nheight;
-                        canvasDecoded.width = nwidth * 2;
-                        canvasDecoded.height = nheight * 2;
                         this.inputBuffer = new Float32Array(nwidth * nheight * 4);
                         this.inputTensor = new ort.Tensor('float32', this.inputBuffer, [ 1, nheight, nwidth, 4 ]);
                         this.dataOutput = new ImageData(2 * nwidth, 2 * nheight);

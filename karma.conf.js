@@ -50,13 +50,13 @@ module.exports = function(config) {
             },
             {
                 included: false,
-                pattern: 'node_modules/onnxruntime-web/dist/*.wasm',
+                pattern: 'node_modules/onnxruntime-web/dist/ort-wasm-simd-threaded.wasm',
                 served: true,
                 watched: false
             },
             {
                 included: false,
-                pattern: 'node_modules/onnxruntime-web/dist/*.mjs',
+                pattern: 'node_modules/onnxruntime-web/dist/ort-wasm-simd-threaded.mjs',
                 served: true,
                 watched: false
             },

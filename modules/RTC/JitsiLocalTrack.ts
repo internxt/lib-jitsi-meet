@@ -28,7 +28,7 @@ import RTCUtils from './RTCUtils';
 import TraceablePeerConnection from './TraceablePeerConnection';
 
 // eslint-disable-next-line @typescript-eslint/no-require-imports
-const ort = require('onnxruntime-web');
+const ort = require('onnxruntime-web/wasm');
 
 ort.env.wasm.wasmPaths = '/libs/dist/';
 
